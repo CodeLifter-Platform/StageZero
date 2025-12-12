@@ -1,0 +1,144 @@
+@page "/ip-monitor"
+@using StageZero.Application.Areas.IpMonitor
+@using StageZero.Application.Components
+@inject IIpMonitorViewModel VM
+
+<PageTitle>IP Monitor - StageZero</PageTitle>
+
+<RequireAuth>
+@if (VM.IsLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-6">IP Address Monitor</MudText>
+
+        @* Current IP Card *@
+        <MudCard Elevation="2" Class="mb-6">
+            <MudCardContent>
+                <MudGrid>
+                    <MudItem xs="12" md="8">
+                        <MudText Typo="Typo.h6" Class="mb-2">Current Public IP Address</MudText>
+                        @if (string.IsNullOrEmpty(VM.CurrentIp))
+                        {
+                            <MudText Typo="Typo.body1" Color="Color.Secondary">No IP check recorded yet</MudText>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.h3" Color="Color.Primary" Class="mb-2">@VM.CurrentIp</MudText>
+                            @if (VM.LastChecked.HasValue)
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                    Last checked: @VM.LastChecked.Value.ToLocalTime().ToString("g")
+                                </MudText>
+                            }
+                        }
+                    </MudItem>
+                    <MudItem xs="12" md="4" Class="d-flex align-center justify-end">
+                        <MudButton Variant="Variant.Filled" 
+                                   Color="Color.Primary" 
+                                   OnClick="@VM.CheckNowAsync"
+                                   Disabled="@VM.IsChecking"
+                                   StartIcon="@Icons.Material.Filled.Refresh"
+                                   Size="Size.Large">
+                            @if (VM.IsChecking)
+                            {
+                                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                <span>Checking...</span>
+                            }
+                            else
+                            {
+                                <span>Check Now</span>
+                            }
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+
+        @* IP Address History (Grouped by IP) *@
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">IP Address History</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">Grouped by IP address</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (VM.IpGroups.Count == 0)
+                {
+                    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="text-center pa-4">
+                        No IP checks recorded yet
+                    </MudText>
+                }
+                else
+                {
+                    <MudTable Items="@VM.IpGroups" Hover="true" Dense="true" Striped="true">
+                        <HeaderContent>
+                            <MudTh>IP Address</MudTh>
+                            <MudTh>Last Checked</MudTh>
+                            <MudTh>First Seen</MudTh>
+                            <MudTh>Check Count</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="IP Address">
+                                <MudText Typo="Typo.body2" Style="font-family: monospace; font-weight: 600;">@context.IpAddress</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Last Checked">
+                                <MudText Typo="Typo.body2">@context.LastCheckedAt.ToLocalTime().ToString("g")</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @GetRelativeTime(context.LastCheckedAt)
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="First Seen">
+                                <MudText Typo="Typo.body2">@context.FirstSeenAt.ToLocalTime().ToString("g")</MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Check Count">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info">@context.CheckCount</MudChip>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await VM.OnInitializedAsync();
+
+        if (VM is System.ComponentModel.INotifyPropertyChanged notifier)
+        {
+            notifier.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string GetRelativeTime(DateTime dateTime)
+    {
+        var timeSpan = DateTime.UtcNow - dateTime;
+
+        if (timeSpan.TotalMinutes < 1)
+            return "just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} min ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hours ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} days ago";
+        if (timeSpan.TotalDays < 30)
+            return $"{(int)(timeSpan.TotalDays / 7)} weeks ago";
+        if (timeSpan.TotalDays < 365)
+            return $"{(int)(timeSpan.TotalDays / 30)} months ago";
+
+        return $"{(int)(timeSpan.TotalDays / 365)} years ago";
+    }
+}
+

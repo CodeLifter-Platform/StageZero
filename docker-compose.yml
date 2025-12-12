@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # ═══════════════════════════════════════════════════════════════
+  # STAGEZERO APPLICATION
+  # ═══════════════════════════════════════════════════════════════
+  app:
+    build:
+      context: ./StageZero
+      target: debug  # Change to 'release' for production
+    ports:
+      - "5000:80"
+      - "5001:443"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/stagezero.db
+    env_file:
+      - .env
+    volumes:
+      - ./StageZero:/app  # Mount source for hot reload (debug only)
+      - ./.volumes/data:/app/data  # Persist SQLite database
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+

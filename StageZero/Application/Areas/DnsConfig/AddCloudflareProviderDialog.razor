@@ -1,0 +1,138 @@
+@using StageZero.Services.Dns
+@inject ICloudflareService CloudflareService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_isValid">
+            <MudTextField @bind-Value="_name"
+                          Label="Provider Name"
+                          Required="true"
+                          RequiredError="Name is required"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Class="mb-4" />
+
+            <MudTextField @bind-Value="_apiToken"
+                          Label="Cloudflare API Token"
+                          Required="true"
+                          RequiredError="API Token is required"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          InputType="InputType.Password"
+                          Class="mb-4"
+                          HelperText="Get your API token from Cloudflare dashboard" />
+
+            @if (!string.IsNullOrEmpty(_apiToken) && _zones.Count == 0 && !_loadingZones)
+            {
+                <MudButton Variant="Variant.Outlined" 
+                           Color="Color.Primary" 
+                           OnClick="LoadZones"
+                           StartIcon="@Icons.Material.Filled.Refresh"
+                           Class="mb-4">
+                    Load Zones
+                </MudButton>
+            }
+
+            @if (_loadingZones)
+            {
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-4" />
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Loading zones...</MudText>
+            }
+
+            @if (_zones.Count > 0)
+            {
+                <MudSelect @bind-Value="_selectedZoneId"
+                           Label="Select Zone"
+                           Required="true"
+                           RequiredError="Zone is required"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           Class="mb-4">
+                    @foreach (var zone in _zones)
+                    {
+                        <MudSelectItem Value="@zone.Id">@zone.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+            }
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   Disabled="@(!_isValid || string.IsNullOrEmpty(_selectedZoneId))">
+            Add Provider
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance MudDialog { get; set; } = null!;
+
+    private MudForm _form = null!;
+    private bool _isValid;
+    private string _name = string.Empty;
+    private string _apiToken = string.Empty;
+    private string _selectedZoneId = string.Empty;
+    private List<CloudflareZone> _zones = new();
+    private bool _loadingZones;
+    private string _errorMessage = string.Empty;
+
+    private async Task LoadZones()
+    {
+        try
+        {
+            _loadingZones = true;
+            _errorMessage = string.Empty;
+            StateHasChanged();
+
+            _zones = await CloudflareService.GetZonesAsync(_apiToken);
+
+            if (_zones.Count == 0)
+            {
+                _errorMessage = "No zones found for this API token";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load zones: {ex.Message}";
+            Snackbar.Add(_errorMessage, Severity.Error);
+        }
+        finally
+        {
+            _loadingZones = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Submit()
+    {
+        if (!_isValid || string.IsNullOrEmpty(_selectedZoneId))
+            return;
+
+        var selectedZone = _zones.FirstOrDefault(z => z.Id == _selectedZoneId);
+        var result = new AddCloudflareProviderResult
+        {
+            Name = _name,
+            ApiToken = _apiToken,
+            ZoneId = _selectedZoneId,
+            ZoneName = selectedZone?.Name ?? string.Empty
+        };
+
+        MudDialog.Close(DialogResult.Ok(result));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
+

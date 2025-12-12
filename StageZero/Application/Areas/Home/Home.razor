@@ -1,0 +1,73 @@
+@page "/"
+@using StageZero.Application.Areas.Home
+@using StageZero.Application.Components
+@inject IHomeViewModel VM
+
+<PageTitle>Home - StageZero</PageTitle>
+
+<RequireAuth>
+@if (VM.IsLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+        @* Hero Section *@
+        <MudPaper Elevation="0" Class="pa-8 mb-6" Style="background: linear-gradient(135deg, var(--mud-palette-primary) 0%, var(--mud-palette-primary-darken) 100%); border-radius: 16px;">
+            <MudText Typo="Typo.h3" Class="white-text mb-2">@VM.WelcomeMessage</MudText>
+            <MudText Typo="Typo.h6" Class="white-text" Style="opacity: 0.9;">@VM.AppDescription</MudText>
+        </MudPaper>
+
+        @* Feature Cards *@
+        <MudText Typo="Typo.h5" Class="mb-4">Features</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="hover-card">
+                    <MudCardContent Class="text-center pa-6">
+                        <MudIcon Icon="@Icons.Material.Filled.Update" Size="Size.Large" Color="Color.Primary" Class="mb-3" />
+                        <MudText Typo="Typo.h6">Auto Update</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Automatically detect IP changes and update DNS records</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="hover-card">
+                    <MudCardContent Class="text-center pa-6">
+                        <MudIcon Icon="@Icons.Material.Filled.Dns" Size="Size.Large" Color="Color.Secondary" Class="mb-3" />
+                        <MudText Typo="Typo.h6">Multiple Providers</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Support for various DNS providers</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Elevation="2" Class="hover-card">
+                    <MudCardContent Class="text-center pa-6">
+                        <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Large" Color="Color.Tertiary" Class="mb-3" />
+                        <MudText Typo="Typo.h6">Secure</MudText>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Secure credential storage and encrypted communications</MudText>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await VM.OnInitializedAsync();
+        
+        if (VM is System.ComponentModel.INotifyPropertyChanged notifier)
+        {
+            notifier.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        }
+    }
+}
+

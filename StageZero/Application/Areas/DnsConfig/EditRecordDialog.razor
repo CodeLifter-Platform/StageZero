@@ -1,0 +1,114 @@
+@using StageZero.Models
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" @bind-IsValid="@_isValid">
+            <MudTextField @bind-Value="RecordName"
+                          Label="Record Name"
+                          Required="true"
+                          RequiredError="Record name is required"
+                          HelperText="e.g., example.com or subdomain.example.com"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Class="mb-4" />
+
+            <MudSelect @bind-Value="RecordType"
+                       Label="Record Type"
+                       Required="true"
+                       Variant="Variant.Outlined"
+                       Margin="Margin.Dense"
+                       Class="mb-4">
+                <MudSelectItem Value="@("A")">A (IPv4 Address)</MudSelectItem>
+                <MudSelectItem Value="@("AAAA")">AAAA (IPv6 Address)</MudSelectItem>
+                <MudSelectItem Value="@("CNAME")">CNAME (Canonical Name)</MudSelectItem>
+            </MudSelect>
+
+            @if (RecordType == "CNAME")
+            {
+                <MudTextField @bind-Value="Content"
+                              Label="Target Domain"
+                              Required="true"
+                              RequiredError="Target domain is required for CNAME records"
+                              HelperText="The domain this CNAME points to"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-4" />
+            }
+
+            <MudTextField @bind-Value="RecordId"
+                          Label="Record ID (Optional)"
+                          HelperText="Provider-specific record ID"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Class="mb-4" />
+
+            <MudSwitch @bind-Value="AutoUpdate"
+                       Label="Auto Update"
+                       Color="Color.Primary"
+                       Class="mb-2" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Automatically update this record when IP changes
+            </MudText>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit"
+                   Disabled="@(!_isValid)">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public string RecordName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string RecordType { get; set; } = "A";
+
+    [Parameter]
+    public string? RecordId { get; set; }
+
+    [Parameter]
+    public bool AutoUpdate { get; set; } = true;
+
+    [Parameter]
+    public string? Content { get; set; }
+
+    private MudForm _form = null!;
+    private bool _isValid;
+
+    private void Submit()
+    {
+        if (_isValid)
+        {
+            var result = new EditRecordResult
+            {
+                RecordName = RecordName,
+                RecordType = RecordType,
+                RecordId = RecordId,
+                AutoUpdate = AutoUpdate,
+                Content = Content
+            };
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public class EditRecordResult
+    {
+        public string RecordName { get; set; } = string.Empty;
+        public string RecordType { get; set; } = "A";
+        public string? RecordId { get; set; }
+        public bool AutoUpdate { get; set; }
+        public string? Content { get; set; }
+    }
+}
+

@@ -1,0 +1,53 @@
+@using StageZero.Services.Auth
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else if (_isAuthenticated)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool _isLoading = true;
+    private bool _isAuthenticated = false;
+    private bool _requiresPasswordChange = false;
+    private bool _requiresEmailVerification = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.CompletedTask;
+        _isAuthenticated = AuthService.IsAuthenticated;
+        _requiresPasswordChange = AuthService.RequiresPasswordChange;
+        _requiresEmailVerification = AuthService.RequiresEmailVerification;
+        _isLoading = false;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (!_isAuthenticated)
+            {
+                // Redirect to login with return URL
+                var returnUrl = Uri.EscapeDataString(Navigation.Uri.Replace(Navigation.BaseUri, "/"));
+                Navigation.NavigateTo($"/login?returnUrl={returnUrl}");
+            }
+            else if (_requiresPasswordChange || _requiresEmailVerification)
+            {
+                // Redirect to login page which will show the setup dialog
+                Navigation.NavigateTo("/login");
+            }
+        }
+    }
+}
+

@@ -1,0 +1,158 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IAppVM VM
+@inject IIpMonitorService IpMonitorService
+@inject NavigationManager Navigation
+@using StageZero.Services.IpMonitoring
+@using StageZero.Services.Auth
+@inject IAuthService AuthService
+
+<MudThemeProvider @bind-IsDarkMode="@VM.IsDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    @* ═══════════════════════════════════════════════════════════════ *@
+    @* HEADER - Dense *@
+    @* ═══════════════════════════════════════════════════════════════ *@
+    <MudAppBar Elevation="1" Dense="true">
+        <MudText Typo="Typo.h6" Class="ml-3">StageZero</MudText>
+        <MudSpacer />
+
+        @* Current IP Display - Center *@
+        <MudChip T="string"
+                 Icon="@Icons.Material.Filled.Public"
+                 Color="@(VM.IsDarkMode ? Color.Primary : Color.Default)"
+                 Size="Size.Medium"
+                 Variant="Variant.Outlined"
+                 Style="@(VM.IsDarkMode ? "" : "background-color: white; color: black;")">
+            @if (!string.IsNullOrEmpty(_currentIp))
+            {
+                <MudText Typo="Typo.body1" Style="@GetIpTextStyle()">@_currentIp</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body1" Style="@GetIpTextStyle()">Loading...</MudText>
+            }
+        </MudChip>
+
+        <MudSpacer />
+        <MudTooltip Text="@(VM.IsDarkMode ? "Light Mode" : "Dark Mode")">
+            <MudIconButton Icon="@(VM.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="@VM.ToggleDarkMode" />
+        </MudTooltip>
+        @if (VM.IsAuthenticated)
+        {
+            <MudText Typo="Typo.body2" Class="mr-2">@VM.CurrentUser?.Username</MudText>
+            <MudTooltip Text="Logout">
+                <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                               Color="Color.Inherit"
+                               OnClick="@HandleLogout" />
+            </MudTooltip>
+        }
+    </MudAppBar>
+
+    @* ═══════════════════════════════════════════════════════════════ *@
+    @* NAVIGATION DRAWER - Persistent, Mini, Non-Responsive *@
+    @* ═══════════════════════════════════════════════════════════════ *@
+    <MudDrawer @bind-Open="_drawerOpen"
+               Elevation="1"
+               ClipMode="DrawerClipMode.Never"
+               Variant="@DrawerVariant.Mini"
+               Breakpoint="Breakpoint.None"
+               Anchor="Anchor.Start"
+               Fixed="true"
+               OpenMiniOnHover="false">
+        <MudNavMenu>
+            <MudTooltip Text="Home" Placement="Placement.Right">
+                <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home"></MudNavLink>
+            </MudTooltip>
+            <MudTooltip Text="IP Monitor" Placement="Placement.Right">
+                <MudNavLink Href="/ip-monitor" Icon="@Icons.Material.Filled.NetworkCheck"></MudNavLink>
+            </MudTooltip>
+            <MudTooltip Text="DNS Configuration" Placement="Placement.Right">
+                <MudNavLink Href="/dns-config" Icon="@Icons.Material.Filled.Dns"></MudNavLink>
+            </MudTooltip>
+        </MudNavMenu>
+    </MudDrawer>
+
+    @* ═══════════════════════════════════════════════════════════════ *@
+    @* MAIN CONTENT - 80% width, scrollable *@
+    @* ═══════════════════════════════════════════════════════════════ *@
+    <MudMainContent Style="max-width: 80%; margin: auto; overflow-y: auto;">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private string? _currentIp;
+    private System.Threading.Timer? _ipRefreshTimer;
+    private bool _drawerOpen = false; // false = mini mode, true = expanded mode
+
+    protected override async Task OnInitializedAsync()
+    {
+        await VM.OnInitializedAsync();
+
+        // Subscribe to property changes to trigger UI updates
+        if (VM is System.ComponentModel.INotifyPropertyChanged notifier)
+        {
+            notifier.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        }
+
+        // Load current IP
+        await LoadCurrentIpAsync();
+
+        // Subscribe to IP changes
+        IpMonitorService.IpChanged += OnIpChanged;
+
+        // Refresh IP display every 30 seconds
+        _ipRefreshTimer = new System.Threading.Timer(async _ => await RefreshIpAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task LoadCurrentIpAsync()
+    {
+        try
+        {
+            var ipCheck = await IpMonitorService.GetCurrentIpAsync();
+            _currentIp = ipCheck?.IpAddress;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            _currentIp = "Unknown";
+        }
+    }
+
+    private async Task RefreshIpAsync()
+    {
+        await LoadCurrentIpAsync();
+    }
+
+    private void OnIpChanged(object? sender, IpChangedEventArgs e)
+    {
+        _currentIp = e.NewIp;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string GetIpTextStyle()
+    {
+        var baseStyle = "font-family: monospace; font-weight: 600;";
+        var colorStyle = VM.IsDarkMode ? "color: var(--mud-palette-primary) !important;" : "color: black !important;";
+        return $"{baseStyle} {colorStyle}";
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        IpMonitorService.IpChanged -= OnIpChanged;
+        _ipRefreshTimer?.Dispose();
+    }
+}
+

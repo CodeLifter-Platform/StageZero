@@ -1,0 +1,414 @@
+@page "/dns-config"
+@using StageZero.Application.Areas.DnsConfig
+@using StageZero.Application.Components
+@using StageZero.Models
+@inject IDnsConfigViewModel VM
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>DNS Configuration - StageZero</PageTitle>
+
+<RequireAuth>
+@if (VM.IsLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-6">DNS Configuration</MudText>
+
+        @* Action Buttons *@
+        <div class="d-flex gap-2 mb-4">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@OpenAddProviderDialog">
+                Add Cloudflare Provider
+            </MudButton>
+
+            <MudSwitch @bind-Value="_showAllCnames"
+                       Color="Color.Info"
+                       Label="Show All CNAMEs"
+                       ThumbIcon="@(_showAllCnames ? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)" />
+        </div>
+
+        @* Providers List *@
+        @if (VM.Providers.Count == 0)
+        {
+            <MudCard Elevation="2" Class="pa-8 text-center">
+                <MudIcon Icon="@Icons.Material.Filled.CloudOff" Size="Size.Large" Color="Color.Secondary" Class="mb-4" />
+                <MudText Typo="Typo.h6" Class="mb-2">No DNS Providers Configured</MudText>
+                <MudText Typo="Typo.body1" Color="Color.Secondary">
+                    Add a Cloudflare provider to start managing your DNS records automatically.
+                </MudText>
+            </MudCard>
+        }
+        else
+        {
+            @foreach (var provider in VM.Providers)
+            {
+                <MudCard Elevation="2" Class="mb-4">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@provider.Name</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @provider.ProviderType | Zone: @provider.ZoneId
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudTooltip Text="Import All Records">
+                                <MudIconButton Icon="@Icons.Material.Filled.CloudDownload"
+                                               Color="Color.Info"
+                                               OnClick="@(() => ImportAllRecords(provider.Id))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Add DNS Record">
+                                <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => OpenAddRecordDialog(provider))" />
+                            </MudTooltip>
+                            <MudTooltip Text="Delete Provider">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteProvider(provider.Id))" />
+                            </MudTooltip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        @if (provider.DnsRecords.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">No DNS records configured</MudText>
+                        }
+                        else
+                        {
+                            <div style="overflow-x: auto;">
+                                <MudTable @key="@($"{provider.Id}_{_showAllCnames}")"
+                                          Items="@GetGroupedRecords(provider.DnsRecords)"
+                                          Hover="true"
+                                          Dense="true"
+                                          FixedHeader="true"
+                                          Style="table-layout: fixed; width: 100%;">
+                                    <HeaderContent>
+                                        <MudTh Style="width: 25%;">Record Name</MudTh>
+                                        <MudTh Style="width: 10%;">Type</MudTh>
+                                        <MudTh Style="width: 25%;">Content / Last IP</MudTh>
+                                        <MudTh Style="width: 15%;">Last Updated</MudTh>
+                                        <MudTh Style="width: 12%;">Auto Update</MudTh>
+                                        <MudTh Style="width: 13%;">Actions</MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd DataLabel="Record Name" Style="@($"{GetRowStyle(context)} width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;")">
+                                            @if (context.RecordType == "CNAME")
+                                            {
+                                                <span style="margin-left: 24px; display: flex; align-items: center;" title="@context.RecordName">
+                                                    <MudIcon Icon="@Icons.Material.Filled.SubdirectoryArrowRight" Size="Size.Small" Class="mr-2" />
+                                                    <span style="overflow: hidden; text-overflow: ellipsis;">@context.RecordName</span>
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span title="@context.RecordName">@context.RecordName</span>
+                                            }
+                                        </MudTd>
+                                        <MudTd DataLabel="Type" Style="width: 10%;">
+                                            <MudChip T="string" Size="Size.Small" Color="@GetRecordTypeColor(context.RecordType)">
+                                                @context.RecordType
+                                            </MudChip>
+                                        </MudTd>
+                                        <MudTd DataLabel="Content / Last IP" Style="width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            @if (context.RecordType == "CNAME" && !string.IsNullOrEmpty(context.Content))
+                                            {
+                                                <span style="font-family: monospace;" title="@context.Content">@context.Content</span>
+                                            }
+                                            else if (!string.IsNullOrEmpty(context.LastIpAddress))
+                                            {
+                                                <span style="font-family: monospace;" title="@context.LastIpAddress">@context.LastIpAddress</span>
+                                            }
+                                            else
+                                            {
+                                                <MudText Color="Color.Secondary">-</MudText>
+                                            }
+                                        </MudTd>
+                                        <MudTd DataLabel="Last Updated" Style="width: 15%;">
+                                            @if (context.LastUpdatedAt.HasValue)
+                                            {
+                                                @context.LastUpdatedAt.Value.ToLocalTime().ToString("g")
+                                            }
+                                            else
+                                            {
+                                                <MudText Color="Color.Secondary">Never</MudText>
+                                            }
+                                        </MudTd>
+                                        <MudTd DataLabel="Auto Update" Style="width: 12%;">
+                                            @if (context.AutoUpdate)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Success">Enabled</MudChip>
+                                            }
+                                            else
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Default">Disabled</MudChip>
+                                            }
+                                        </MudTd>
+                                        <MudTd DataLabel="Actions" Style="width: 13%;">
+                                            <MudTooltip Text="Edit Record">
+                                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                               Size="Size.Small"
+                                                               Color="Color.Primary"
+                                                               OnClick="@(() => EditRecord(context.Id))" />
+                                            </MudTooltip>
+                                            <MudTooltip Text="Delete Record">
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                               Size="Size.Small"
+                                                               Color="Color.Error"
+                                                               OnClick="@(() => DeleteRecord(context.Id))" />
+                                            </MudTooltip>
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </div>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            }
+        }
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    private bool _showAllCnames = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await VM.OnInitializedAsync();
+
+        if (VM is System.ComponentModel.INotifyPropertyChanged notifier)
+        {
+            notifier.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OpenAddProviderDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AddCloudflareProviderDialog>("Add Cloudflare Provider");
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is AddCloudflareProviderResult data)
+        {
+            try
+            {
+                await VM.AddProviderAsync(data.Name, data.ApiToken, data.ZoneId);
+                Snackbar.Add($"Provider '{data.Name}' added successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error adding provider: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task OpenAddRecordDialog(DnsProvider provider)
+    {
+        var parameters = new DialogParameters<AddDnsRecordDialog>
+        {
+            { x => x.Provider, provider }
+        };
+
+        var dialog = await DialogService.ShowAsync<AddDnsRecordDialog>("Add DNS Record", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is AddDnsRecordResult data)
+        {
+            try
+            {
+                await VM.AddRecordAsync(provider.Id, data.RecordName, data.RecordType, data.RecordId);
+                Snackbar.Add($"DNS record '{data.RecordName}' added successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error adding record: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task ImportAllRecords(int providerId)
+    {
+        try
+        {
+            await VM.ImportAllRecordsAsync(providerId);
+            Snackbar.Add("DNS records imported successfully", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error importing records: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteProvider(int providerId)
+    {
+        var provider = VM.Providers.FirstOrDefault(p => p.Id == providerId);
+        if (provider == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to delete the provider '{provider.Name}'? This will also delete all associated DNS records." },
+            { "ButtonText", "Delete" },
+            { "Color", Color.Error }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Provider", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                await VM.DeleteProviderAsync(providerId);
+                Snackbar.Add("Provider deleted successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting provider: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task EditRecord(int recordId)
+    {
+        var record = VM.Providers
+            .SelectMany(p => p.DnsRecords)
+            .FirstOrDefault(r => r.Id == recordId);
+
+        if (record == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { "RecordName", record.RecordName },
+            { "RecordType", record.RecordType },
+            { "RecordId", record.RecordId },
+            { "AutoUpdate", record.AutoUpdate },
+            { "Content", record.Content }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Medium };
+        var dialog = await DialogService.ShowAsync<EditRecordDialog>("Edit DNS Record", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is EditRecordDialog.EditRecordResult editResult)
+        {
+            try
+            {
+                await VM.UpdateRecordAsync(
+                    recordId,
+                    editResult.RecordName,
+                    editResult.RecordType,
+                    editResult.RecordId,
+                    editResult.AutoUpdate,
+                    editResult.Content
+                );
+                Snackbar.Add("DNS record updated successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error updating record: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task DeleteRecord(int recordId)
+    {
+        var record = VM.Providers
+            .SelectMany(p => p.DnsRecords)
+            .FirstOrDefault(r => r.Id == recordId);
+
+        if (record == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { "ContentText", $"Are you sure you want to delete the DNS record '{record.RecordName}' ({record.RecordType})?" },
+            { "ButtonText", "Delete" },
+            { "Color", Color.Error }
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete DNS Record", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            try
+            {
+                await VM.DeleteRecordAsync(recordId);
+                Snackbar.Add("DNS record deleted successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting record: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private Color GetRecordTypeColor(string recordType)
+    {
+        return recordType switch
+        {
+            "A" => Color.Primary,
+            "AAAA" => Color.Secondary,
+            "CNAME" => Color.Info,
+            _ => Color.Default
+        };
+    }
+
+    private List<DnsRecord> GetGroupedRecords(ICollection<DnsRecord> recordsCollection)
+    {
+        var records = recordsCollection.ToList();
+        var result = new List<DnsRecord>();
+
+        // First, add all A and AAAA records
+        var aRecords = records.Where(r => r.RecordType == "A" || r.RecordType == "AAAA")
+                              .OrderBy(r => r.RecordName)
+                              .ToList();
+
+        foreach (var aRecord in aRecords)
+        {
+            result.Add(aRecord);
+
+            // Find all CNAME records that point to this A record's domain
+            var relatedCnames = records.Where(r =>
+                r.RecordType == "CNAME" &&
+                !string.IsNullOrEmpty(r.Content) &&
+                r.Content.TrimEnd('.') == aRecord.RecordName.TrimEnd('.')
+            ).OrderBy(r => r.RecordName).ToList();
+
+            result.AddRange(relatedCnames);
+        }
+
+        // If "Show All CNAMEs" is enabled, add orphaned CNAME records at the end
+        if (_showAllCnames)
+        {
+            var addedCnameIds = result.Where(r => r.RecordType == "CNAME").Select(r => r.Id).ToHashSet();
+            var orphanedCnames = records.Where(r =>
+                r.RecordType == "CNAME" &&
+                !addedCnameIds.Contains(r.Id)
+            ).OrderBy(r => r.RecordName).ToList();
+
+            result.AddRange(orphanedCnames);
+        }
+
+        return result;
+    }
+
+    private string GetRowStyle(DnsRecord record)
+    {
+        if (record.RecordType == "CNAME")
+        {
+            return "background-color: rgba(var(--mud-palette-info-rgb), 0.08);";
+        }
+        return "";
+    }
+}
+

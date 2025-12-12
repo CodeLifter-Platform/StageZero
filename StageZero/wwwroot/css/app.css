@@ -1,0 +1,59 @@
+/* ═══════════════════════════════════════════════════════════════
+   Quip - Application Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   BASE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+html, body {
+    font-family: 'Roboto', sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+   ═══════════════════════════════════════════════════════════════ */
+
+.white-text {
+    color: white !important;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD STYLES
+   ═══════════════════════════════════════════════════════════════ */
+
+.hover-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.hover-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING STATES
+   ═══════════════════════════════════════════════════════════════ */
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: 1rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Ensure proper spacing for dense header */
+.mud-main-content {
+    padding-top: 48px;
+}
+
