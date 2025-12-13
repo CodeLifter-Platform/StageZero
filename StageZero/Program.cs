@@ -12,6 +12,7 @@ using StageZero.Services.Auth;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
+using StageZero.ReverseProxy.Services;
 using Serilog;
 using dotenv.net;
 
@@ -101,6 +102,15 @@ try
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
     builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
     builder.Services.AddScoped<IDnsVerificationService, DnsVerificationService>();
+
+    // Register DbContext as base class for reverse proxy library
+    builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
+
+    // Register Proxy Configuration Service (stub for now - will be replaced when YARP is fully integrated)
+    builder.Services.AddScoped<IProxyConfigurationService, StubProxyConfigurationService>();
+
+    // Register Proxy Host Manager
+    builder.Services.AddScoped<IProxyHostManager, ProxyHostManager>();
 
     // ═══════════════════════════════════════════════════════════════
     // BACKGROUND SERVICES REGISTRATION
@@ -264,5 +274,19 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STUB PROXY CONFIGURATION SERVICE
+// This is a temporary stub until YARP reverse proxy is fully integrated
+// ═══════════════════════════════════════════════════════════════
+public class StubProxyConfigurationService : IProxyConfigurationService
+{
+    public Task ReloadConfigurationAsync()
+    {
+        // Stub implementation - does nothing for now
+        // Will be replaced with actual YARP configuration when reverse proxy is fully integrated
+        return Task.CompletedTask;
+    }
 }
 
