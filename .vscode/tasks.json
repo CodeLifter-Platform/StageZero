@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/Quip/Quip.csproj",
+        "${workspaceFolder}/StageZero/StageZero.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -19,7 +19,7 @@
       "type": "process",
       "args": [
         "publish",
-        "${workspaceFolder}/Quip/Quip.csproj",
+        "${workspaceFolder}/StageZero/StageZero.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -33,9 +33,23 @@
         "watch",
         "run",
         "--project",
-        "${workspaceFolder}/Quip/Quip.csproj"
+        "${workspaceFolder}/StageZero/StageZero.csproj"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Kill StageZero",
+      "type": "shell",
+      "command": "pkill -f 'dotnet.*StageZero' || echo 'No StageZero process found'",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
     }
   ]
 }

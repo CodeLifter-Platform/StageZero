@@ -1,6 +1,8 @@
 @page "/login"
 @using StageZero.Services.Auth
+@using StageZero.DataAdapters.Users
 @inject IAuthService AuthService
+@inject IUserReader UserReader
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -11,15 +13,16 @@
     <MudPaper Elevation="4" Class="pa-8">
         <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6">
             <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Class="mr-2" />
-            Quip Login
+            StageZero Login
         </MudText>
 
         <EditForm Model="@_model" OnValidSubmit="HandleLogin">
             <DataAnnotationsValidator />
-            
-            <MudTextField @bind-Value="_model.Username"
-                          Label="Username"
+
+            <MudTextField @bind-Value="_model.Email"
+                          Label="Email"
                           Variant="Variant.Outlined"
+                          InputType="InputType.Email"
                           Required="true"
                           Immediate="true"
                           Class="mb-4"
@@ -58,11 +61,16 @@
                 @_errorMessage
             </MudAlert>
         }
-    </MudPaper>
 
-    <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-4" Color="Color.Secondary">
-        Default credentials: admin / admin
-    </MudText>
+        <MudDivider Class="my-4" />
+
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   OnClick="@(() => Navigation.NavigateTo("/forgot-password"))">
+            Forgot Password?
+        </MudButton>
+    </MudPaper>
 </MudContainer>
 
 @code {
@@ -73,6 +81,16 @@
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
 
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if setup is needed
+        var users = await UserReader.GetAllAsync();
+        if (!users.Any())
+        {
+            Navigation.NavigateTo("/setup");
+        }
+    }
+
     private async Task HandleLogin()
     {
         _isLoading = true;
@@ -80,11 +98,11 @@
 
         try
         {
-            var result = await AuthService.LoginAsync(_model.Username, _model.Password);
+            var result = await AuthService.LoginAsync(_model.Email, _model.Password);
 
             if (result.Success)
             {
-                Snackbar.Add($"Welcome, {_model.Username}!", Severity.Success);
+                Snackbar.Add($"Welcome!", Severity.Success);
 
                 // Check if account setup is required (password change or email verification)
                 var requiresPasswordChange = AuthService.RequiresPasswordChange;
@@ -147,7 +165,7 @@
 
     private class LoginModel
     {
-        public string Username { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
     }
 }

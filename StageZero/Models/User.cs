@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace StageZero.Models;
 
 /// <summary>
-/// User entity for basic username/password authentication.
+/// User entity for email/password authentication.
 /// </summary>
 public class User
 {
@@ -11,14 +11,11 @@ public class User
     public int Id { get; set; }
 
     [Required]
-    [MaxLength(100)]
-    public string Username { get; set; } = string.Empty;
+    [MaxLength(255)]
+    public string Email { get; set; } = string.Empty;
 
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
-
-    [MaxLength(255)]
-    public string? Email { get; set; }
 
     public bool EmailVerified { get; set; } = false;
 
@@ -26,6 +23,11 @@ public class User
     public string? EmailVerificationCode { get; set; }
 
     public DateTime? EmailVerificationCodeExpiry { get; set; }
+
+    [MaxLength(10)]
+    public string? PasswordResetCode { get; set; }
+
+    public DateTime? PasswordResetCodeExpiry { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

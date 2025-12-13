@@ -11,7 +11,7 @@ namespace StageZero.DataAdapters.Users;
 public interface IUserReader
 {
     Task<User?> GetByIdAsync(int id);
-    Task<User?> GetByUsernameAsync(string username);
+    Task<User?> GetByEmailAsync(string email);
     Task<List<User>> GetAllAsync();
 }
 
@@ -34,12 +34,12 @@ public class UserReader : IUserReader
         return await db.Users.FindAsync(id);
     }
 
-    public async Task<User?> GetByUsernameAsync(string username)
+    public async Task<User?> GetByEmailAsync(string email)
     {
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Username == username);
+            .FirstOrDefaultAsync(u => u.Email == email);
     }
 
     public async Task<List<User>> GetAllAsync()
@@ -47,7 +47,7 @@ public class UserReader : IUserReader
         await using var db = await _factory.CreateDbContextAsync();
         return await db.Users
             .AsNoTracking()
-            .OrderBy(u => u.Username)
+            .OrderBy(u => u.Email)
             .ToListAsync();
     }
 }
