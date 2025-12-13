@@ -6,5 +6,6 @@ public class AddCloudflareProviderResult
     public string ApiToken { get; set; } = string.Empty;
     public string ZoneId { get; set; } = string.Empty;
     public string ZoneName { get; set; } = string.Empty;
+    public bool IsEnabled { get; set; } = true;
 }
 
