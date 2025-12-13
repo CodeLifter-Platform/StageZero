@@ -107,6 +107,27 @@ Email__FromName=Quip
 
 **Note:** If SMTP is not configured, verification codes will be logged to the console during development.
 
+**DNS Testing Mode:**
+
+To prevent actual DNS updates during development/testing, set the following in `.env`:
+
+```bash
+# Disable DNS provider updates (Cloudflare, etc.)
+Dns__DisableUpdates=true
+```
+
+When enabled, StageZero will:
+- ✅ Continue monitoring IP changes
+- ✅ Log what DNS updates *would* happen
+- ❌ NOT make actual API calls to DNS providers
+
+This is useful for:
+- Testing the application without affecting production DNS
+- Development without valid DNS provider credentials
+- Verifying IP monitoring logic without side effects
+
+**Important:** Remember to set `Dns__DisableUpdates=false` (or remove it) in production!
+
 ### VS Code Debugging
 
 The project includes VS Code launch configuration with `.env` file support. To debug:
