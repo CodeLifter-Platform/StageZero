@@ -32,32 +32,21 @@ public class DnsUpdateService : IDnsUpdateService
     private readonly ILogger<DnsUpdateService> _logger;
     private readonly IDnsRecordReader _dnsRecordReader;
     private readonly ICloudflareService _cloudflareService;
-    private readonly IConfiguration _configuration;
 
     public DnsUpdateService(
         ILogger<DnsUpdateService> logger,
         IDnsRecordReader dnsRecordReader,
-        ICloudflareService cloudflareService,
-        IConfiguration configuration)
+        ICloudflareService cloudflareService)
     {
         _logger = logger;
         _dnsRecordReader = dnsRecordReader;
         _cloudflareService = cloudflareService;
-        _configuration = configuration;
     }
 
     public async Task UpdateAllRecordsAsync(string ipAddress)
     {
         try
         {
-            // Check if DNS updates are disabled (for testing)
-            var disableUpdates = _configuration.GetValue<bool>("Dns:DisableUpdates");
-            if (disableUpdates)
-            {
-                _logger.LogWarning("DNS updates are DISABLED (Dns:DisableUpdates=true). Skipping all DNS provider updates.");
-                return;
-            }
-
             _logger.LogInformation("Updating all DNS records to IP: {IpAddress}", ipAddress);
 
             var records = await _dnsRecordReader.GetAutoUpdateRecordsAsync();

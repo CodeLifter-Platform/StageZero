@@ -1,4 +1,4 @@
-# Quip
+# StageZero
 
 **A Dynamic DNS tool that updates changes to DNS services**
 
@@ -28,7 +28,7 @@ A Blazor Server application for managing dynamic DNS updates. Keep your domains 
 
 2. **Run the application:**
    ```bash
-   cd Quip
+   cd StageZero
    dotnet run
    ```
 
@@ -51,8 +51,8 @@ A Blazor Server application for managing dynamic DNS updates. Keep your domains 
 ## Project Structure
 
 ```
-Quip/
-├── Quip/
+StageZero/
+├── StageZero/
 │   ├── Application/           # UI Layer
 │   │   ├── Areas/            # Feature areas (Home, etc.)
 │   │   ├── Components/       # Shared components
@@ -64,7 +64,7 @@ Quip/
 │   └── wwwroot/              # Static assets
 ├── docker-compose.yml
 ├── .env.example
-└── Quip.sln
+└── StageZero.sln
 ```
 
 ## Architecture
@@ -97,7 +97,7 @@ Email__SmtpPort=587
 Email__SmtpUsername=your-email@gmail.com
 Email__SmtpPassword=your-app-password
 Email__FromEmail=your-email@gmail.com
-Email__FromName=Quip
+Email__FromName=StageZero
 ```
 
 **Gmail Setup:**
@@ -107,26 +107,22 @@ Email__FromName=Quip
 
 **Note:** If SMTP is not configured, verification codes will be logged to the console during development.
 
-**DNS Testing Mode:**
+### DNS Provider Control
 
-To prevent actual DNS updates during development/testing, set the following in `.env`:
+Each DNS provider (Cloudflare, etc.) can be individually enabled or disabled for updates:
 
-```bash
-# Disable DNS provider updates (Cloudflare, etc.)
-Dns__DisableUpdates=true
-```
+- **When adding a provider**: Toggle "Enable DNS Updates" in the add provider dialog
+- **After adding**: Use the toggle switch in the provider card header to enable/disable updates
 
-When enabled, StageZero will:
-- ✅ Continue monitoring IP changes
-- ✅ Log what DNS updates *would* happen
-- ❌ NOT make actual API calls to DNS providers
+When a provider is disabled:
+- ✅ IP monitoring continues normally
+- ✅ DNS records are still visible in the UI
+- ❌ NO automatic DNS updates will be made for that provider
 
 This is useful for:
-- Testing the application without affecting production DNS
-- Development without valid DNS provider credentials
-- Verifying IP monitoring logic without side effects
-
-**Important:** Remember to set `Dns__DisableUpdates=false` (or remove it) in production!
+- Testing without affecting production DNS
+- Temporarily pausing updates for specific providers
+- Development without valid DNS credentials
 
 ### VS Code Debugging
 
@@ -144,7 +140,7 @@ The `.env` file will be automatically loaded when debugging.
 - Scrollable content
 
 ### Database
-SQLite is used for data storage. The database file is created automatically at `quip.db`.
+SQLite is used for data storage. The database file is created automatically at `StageZero.db`.
 
 ## License
 

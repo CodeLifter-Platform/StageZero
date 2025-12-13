@@ -56,6 +56,15 @@
                 </MudSelect>
             }
 
+            <MudSwitch @bind-Value="_isEnabled"
+                       Label="Enable DNS Updates"
+                       Color="Color.Success"
+                       Class="mb-4">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    When enabled, this provider will automatically update DNS records when your IP changes
+                </MudText>
+            </MudSwitch>
+
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
                 <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
@@ -82,6 +91,7 @@
     private string _name = string.Empty;
     private string _apiToken = string.Empty;
     private string _selectedZoneId = string.Empty;
+    private bool _isEnabled = true;
     private List<CloudflareZone> _zones = new();
     private bool _loadingZones;
     private string _errorMessage = string.Empty;
@@ -124,7 +134,8 @@
             Name = _name,
             ApiToken = _apiToken,
             ZoneId = _selectedZoneId,
-            ZoneName = selectedZone?.Name ?? string.Empty
+            ZoneName = selectedZone?.Name ?? string.Empty,
+            IsEnabled = _isEnabled
         };
 
         MudDialog.Close(DialogResult.Ok(result));
