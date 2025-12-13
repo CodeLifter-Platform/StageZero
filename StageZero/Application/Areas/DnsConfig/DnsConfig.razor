@@ -196,7 +196,7 @@ else
         var dialog = await DialogService.ShowAsync<AddCloudflareProviderDialog>("Add Cloudflare Provider");
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is AddCloudflareProviderResult data)
+        if (result is not null && !result.Canceled && result.Data is AddCloudflareProviderResult data)
         {
             try
             {
@@ -220,7 +220,7 @@ else
         var dialog = await DialogService.ShowAsync<AddDnsRecordDialog>("Add DNS Record", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is AddDnsRecordResult data)
+        if (result is not null && !result.Canceled && result.Data is AddDnsRecordResult data)
         {
             try
             {
@@ -263,7 +263,7 @@ else
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Provider", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             try
             {
@@ -298,7 +298,7 @@ else
         var dialog = await DialogService.ShowAsync<EditRecordDialog>("Edit DNS Record", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is EditRecordDialog.EditRecordResult editResult)
+        if (result is not null && !result.Canceled && result.Data is EditRecordDialog.EditRecordResult editResult)
         {
             try
             {
@@ -338,7 +338,7 @@ else
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete DNS Record", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             try
             {
