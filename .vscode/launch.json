@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/Quip/bin/Debug/net10.0/Quip.dll",
+      "program": "${workspaceFolder}/StageZero/bin/Debug/net10.0/StageZero.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/Quip",
+      "cwd": "${workspaceFolder}/StageZero",
       "stopAtEntry": false,
       "serverReadyAction": {
         "action": "openExternally",
