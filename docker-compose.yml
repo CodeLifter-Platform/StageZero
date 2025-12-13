@@ -13,12 +13,12 @@ services:
       - "5001:443"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Data Source=/app/data/stagezero.db
+      - ConnectionStrings__DefaultConnection=Data Source=/app/.sqlite/stagezero.db
     env_file:
       - .env
     volumes:
       - ./StageZero:/app  # Mount source for hot reload (debug only)
-      - ./.volumes/data:/app/data  # Persist SQLite database
+      - ./.sqlite:/app/.sqlite  # Persist SQLite database
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

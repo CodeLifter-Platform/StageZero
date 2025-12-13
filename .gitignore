@@ -45,6 +45,8 @@ logs/
 *.sqlite-shm
 *.sqlite-wal
 .volumes/
+.sqlite/*
+!.sqlite/.gitkeep
 
 # ═══════════════════════════════════════════════════════════════
 # OS FILES
