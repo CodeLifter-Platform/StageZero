@@ -123,15 +123,7 @@ The `.env` file will be automatically loaded when debugging.
 - Scrollable content
 
 ### Database
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-SQLite is used for data storage. The database file is created automatically at `quip.db`.
-=======
 SQLite is used for data storage. The database file is created automatically at `.sqlite/stagezero.db`.
->>>>>>> Stashed changes
-=======
-SQLite is used for data storage. The database file is created automatically at `.sqlite/stagezero.db`.
->>>>>>> Stashed changes
 
 ## License
 
