@@ -45,7 +45,7 @@
         </MudTooltip>
         @if (VM.IsAuthenticated)
         {
-            <MudText Typo="Typo.body2" Class="mr-2">@VM.CurrentUser?.Username</MudText>
+            <MudText Typo="Typo.body2" Class="mr-2">@VM.CurrentUser?.Email</MudText>
             <MudTooltip Text="Logout">
                 <MudIconButton Icon="@Icons.Material.Filled.Logout"
                                Color="Color.Inherit"
