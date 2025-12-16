@@ -66,10 +66,30 @@
                 <MudSelectItem Value="@("CNAME")">CNAME (Alias)</MudSelectItem>
             </MudSelect>
 
+            @if (_recordType == "CNAME")
+            {
+                <MudTextField @bind-Value="_content"
+                              Label="CNAME Target"
+                              Required="true"
+                              RequiredError="CNAME target is required"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-4"
+                              HelperText="The domain this CNAME should point to (e.g., target.example.com)" />
+            }
+
             <MudCheckBox @bind-Value="_autoUpdate"
                          Label="Auto-update when IP changes"
                          Color="Color.Primary"
+                         Disabled="@(_recordType == "CNAME")"
                          Class="mb-4" />
+
+            @if (_recordType == "CNAME")
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
+                    Note: CNAME records cannot be auto-updated with IP changes
+                </MudText>
+            }
 
             @if (!string.IsNullOrEmpty(_errorMessage))
             {
@@ -99,6 +119,7 @@
     private bool _isValid;
     private string _recordName = string.Empty;
     private string _recordType = "A";
+    private string _content = string.Empty;
     private bool _autoUpdate = true;
     private List<CloudflareDnsRecord> _cloudflareRecords = new();
     private CloudflareDnsRecord? _selectedCloudflareRecord;
@@ -112,6 +133,13 @@
         {
             _recordName = _selectedCloudflareRecord.Name;
             _recordType = _selectedCloudflareRecord.Type;
+            _content = _selectedCloudflareRecord.Content;
+
+            // CNAME records should not auto-update
+            if (_recordType == "CNAME")
+            {
+                _autoUpdate = false;
+            }
         }
     }
 
@@ -148,12 +176,20 @@
         if (!_isValid)
             return;
 
+        // Validate CNAME has content
+        if (_recordType == "CNAME" && string.IsNullOrWhiteSpace(_content))
+        {
+            _errorMessage = "CNAME target is required";
+            return;
+        }
+
         var result = new AddDnsRecordResult
         {
             RecordName = _recordName,
             RecordType = _recordType,
-            AutoUpdate = _autoUpdate,
-            RecordId = _selectedCloudflareRecord?.Id
+            AutoUpdate = _recordType != "CNAME" && _autoUpdate, // Force false for CNAME
+            RecordId = _selectedCloudflareRecord?.Id,
+            Content = _recordType == "CNAME" ? _content : null
         };
 
         MudDialog.Close(DialogResult.Ok(result));

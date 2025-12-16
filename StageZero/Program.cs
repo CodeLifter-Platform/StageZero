@@ -233,6 +233,68 @@ try
             Log.Warning(ex, "Could not add email verification columns (may already exist)");
         }
 
+        // Create ProxyHosts table if it doesn't exist (for existing databases)
+        try
+        {
+            var connection = db.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+
+            // Check if ProxyHosts table exists
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE type='table' AND name='ProxyHosts'";
+            var tableExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!tableExists)
+            {
+                Log.Information("Creating ProxyHosts table");
+                command.CommandText = @"
+                    CREATE TABLE ProxyHosts (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        DomainName TEXT NOT NULL,
+                        ForwardScheme TEXT NOT NULL,
+                        ForwardHost TEXT NOT NULL,
+                        ForwardPort INTEGER NOT NULL,
+                        CacheAssets INTEGER NOT NULL DEFAULT 0,
+                        BlockCommonExploits INTEGER NOT NULL DEFAULT 0,
+                        WebSocketsSupport INTEGER NOT NULL DEFAULT 0,
+                        SslEnabled INTEGER NOT NULL DEFAULT 0,
+                        SslForced INTEGER NOT NULL DEFAULT 0,
+                        Http2Support INTEGER NOT NULL DEFAULT 1,
+                        HstsEnabled INTEGER NOT NULL DEFAULT 0,
+                        HstsMaxAge INTEGER NOT NULL DEFAULT 31536000,
+                        SslCertificatePath TEXT,
+                        SslCertificateKeyPath TEXT,
+                        SslCertificateExpiry TEXT,
+                        UseLetsEncrypt INTEGER NOT NULL DEFAULT 0,
+                        LetsEncryptEmail TEXT,
+                        IsEnabled INTEGER NOT NULL DEFAULT 1,
+                        CreatedAt TEXT NOT NULL,
+                        UpdatedAt TEXT NOT NULL,
+                        Notes TEXT
+                    )";
+                await command.ExecuteNonQueryAsync();
+
+                // Create unique index on DomainName
+                command.CommandText = "CREATE UNIQUE INDEX IX_ProxyHosts_DomainName ON ProxyHosts (DomainName)";
+                await command.ExecuteNonQueryAsync();
+
+                // Create index on IsEnabled
+                command.CommandText = "CREATE INDEX IX_ProxyHosts_IsEnabled ON ProxyHosts (IsEnabled)";
+                await command.ExecuteNonQueryAsync();
+
+                Log.Information("ProxyHosts table created successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not create ProxyHosts table (may already exist)");
+        }
+
         // Seed default admin user if no users exist
         if (!await db.Users.AnyAsync())
         {

@@ -15,6 +15,7 @@ public interface IAppVM : INotifyPropertyChanged
     bool IsAuthenticated { get; }
     bool IsDarkMode { get; set; }
     Task OnInitializedAsync();
+    Task RefreshCurrentUserAsync();
     void ToggleDarkMode();
 }
 
@@ -79,6 +80,21 @@ public class AppVM : IAppVM
         {
             _logger.LogError(ex, "Failed to initialize AppVM");
             throw new AppVMException("Could not initialize application", ex);
+        }
+    }
+
+    public async Task RefreshCurrentUserAsync()
+    {
+        try
+        {
+            _logger.LogDebug("Refreshing current user in AppVM");
+            CurrentUser = await _authService.GetCurrentUserAsync();
+            _logger.LogDebug("Current user refreshed: {IsAuthenticated}", IsAuthenticated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh current user");
+            throw new AppVMException("Could not refresh current user", ex);
         }
     }
 

@@ -184,7 +184,7 @@ else
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Proxy Host", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result != null && !result.Canceled)
         {
             try
             {

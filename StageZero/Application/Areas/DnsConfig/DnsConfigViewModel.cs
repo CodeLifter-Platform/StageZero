@@ -18,12 +18,12 @@ public interface IDnsConfigViewModel : INotifyPropertyChanged
     Task OnInitializedAsync();
     Task AddProviderAsync(string name, string apiToken, string zoneId);
     Task DeleteProviderAsync(int providerId);
-    Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null);
+    Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null, string? content = null);
     Task UpdateRecordAsync(int recordId, string recordName, string recordType, string? recordIdValue, bool autoUpdate, string? content);
     Task DeleteRecordAsync(int recordId);
     Task<List<CloudflareZone>> GetCloudflareZonesAsync(string apiToken);
     Task<List<CloudflareDnsRecord>> GetCloudflareRecordsAsync(int providerId);
-    Task ImportAllRecordsAsync(int providerId);
+    Task<(int imported, int skipped)> ImportAllRecordsAsync(int providerId);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -152,11 +152,11 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         }
     }
 
-    public async Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null)
+    public async Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null, string? content = null)
     {
         try
         {
-            _logger.LogInformation("Adding DNS record: {RecordName}", recordName);
+            _logger.LogInformation("Adding DNS record: {RecordName} ({RecordType})", recordName, recordType);
 
             var record = new DnsRecord
             {
@@ -164,7 +164,8 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                 RecordName = recordName,
                 RecordType = recordType,
                 RecordId = recordId,
-                AutoUpdate = true
+                Content = content,
+                AutoUpdate = recordType != "CNAME" // CNAME records should not auto-update
             };
 
             await _recordWriter.InsertAsync(record);
@@ -253,7 +254,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         }
     }
 
-    public async Task ImportAllRecordsAsync(int providerId)
+    public async Task<(int imported, int skipped)> ImportAllRecordsAsync(int providerId)
     {
         try
         {
@@ -278,12 +279,15 @@ public class DnsConfigViewModel : IDnsConfigViewModel
             var existingRecords = provider.DnsRecords.ToList();
 
             int importedCount = 0;
+            int skippedCount = 0;
+
             foreach (var cfRecord in recordsToImport)
             {
                 // Check if we already have this record
                 if (existingRecords.Any(r => r.RecordName == cfRecord.Name && r.RecordType == cfRecord.Type))
                 {
                     _logger.LogDebug("Skipping {RecordName} - already exists", cfRecord.Name);
+                    skippedCount++;
                     continue;
                 }
 
@@ -304,7 +308,8 @@ public class DnsConfigViewModel : IDnsConfigViewModel
 
             await LoadProvidersAsync();
 
-            _logger.LogInformation("Imported {Count} DNS records successfully", importedCount);
+            _logger.LogInformation("Imported {ImportedCount} DNS records, skipped {SkippedCount} duplicates", importedCount, skippedCount);
+            return (importedCount, skippedCount);
         }
         catch (Exception ex)
         {
