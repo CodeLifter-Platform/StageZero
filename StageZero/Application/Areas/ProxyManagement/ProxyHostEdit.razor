@@ -1,0 +1,307 @@
+@page "/proxy-hosts/add"
+@page "/proxy-hosts/edit/{Id:int}"
+@using StageZero.ReverseProxy.Models
+@using StageZero.ReverseProxy.Services
+@using StageZero.Application.Components
+@using Microsoft.AspNetCore.WebUtilities
+@inject IProxyHostManager ProxyManager
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(Id.HasValue ? "Edit" : "Add") Proxy Host - StageZero</PageTitle>
+
+<RequireAuth>
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-6">@(Id.HasValue ? "Edit" : "Add") Proxy Host</MudText>
+
+        <EditForm Model="@_proxyHost" OnValidSubmit="@HandleSubmit">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+            }
+
+            <MudGrid>
+                @* Left Column - Domain & Forward Configuration *@
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Domain Configuration</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudTextField @bind-Value="_proxyHost.DomainName"
+                                          Label="Domain Name"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          HelperText="The subdomain this proxy will respond to"
+                                          Placeholder="app.yourdomain.com"
+                                          Required="true"
+                                          Class="mb-4" />
+
+                            <MudTextField @bind-Value="_proxyHost.Notes"
+                                          Label="Notes (Optional)"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Lines="2"
+                                          Class="mb-4" />
+                        </MudCardContent>
+                    </MudCard>
+
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Forward Configuration</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSelect @bind-Value="_proxyHost.ForwardScheme"
+                                       Label="Scheme"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Class="mb-4">
+                                <MudSelectItem Value="@("http")">HTTP</MudSelectItem>
+                                <MudSelectItem Value="@("https")">HTTPS</MudSelectItem>
+                            </MudSelect>
+
+                            <MudTextField @bind-Value="_proxyHost.ForwardHost"
+                                          Label="Forward Host"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          HelperText="IP address, hostname, or Docker container name"
+                                          Placeholder="192.168.1.100 or myapp"
+                                          Required="true"
+                                          Class="mb-4" />
+
+                            <MudNumericField @bind-Value="_proxyHost.ForwardPort"
+                                             Label="Forward Port"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Min="1"
+                                             Max="65535"
+                                             Required="true"
+                                             Class="mb-4" />
+
+                            <MudSwitch @bind-Value="_proxyHost.WebSocketsSupport"
+                                       Label="WebSockets Support"
+                                       Color="Color.Primary"
+                                       Class="mb-2" />
+
+                            <MudSwitch @bind-Value="_proxyHost.CacheAssets"
+                                       Label="Cache Assets"
+                                       Color="Color.Primary"
+                                       Class="mb-2" />
+
+                            <MudSwitch @bind-Value="_proxyHost.BlockCommonExploits"
+                                       Label="Block Common Exploits"
+                                       Color="Color.Primary"
+                                       Class="mb-2" />
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                @* Right Column - SSL Configuration *@
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">SSL Configuration</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSwitch @bind-Value="_proxyHost.SslEnabled"
+                                       Label="Enable SSL"
+                                       Color="Color.Primary"
+                                       Class="mb-4" />
+
+                            @if (_proxyHost.SslEnabled)
+                            {
+                                <MudSwitch @bind-Value="_proxyHost.SslForced"
+                                           Label="Force SSL (Redirect HTTP to HTTPS)"
+                                           Color="Color.Primary"
+                                           Class="mb-2" />
+
+                                <MudSwitch @bind-Value="_proxyHost.Http2Support"
+                                           Label="HTTP/2 Support"
+                                           Color="Color.Primary"
+                                           Class="mb-2" />
+
+                                <MudSwitch @bind-Value="_proxyHost.HstsEnabled"
+                                           Label="HSTS Enabled"
+                                           Color="Color.Primary"
+                                           Class="mb-4" />
+
+                                @if (_proxyHost.HstsEnabled)
+                                {
+                                    <MudNumericField @bind-Value="_proxyHost.HstsMaxAge"
+                                                     Label="HSTS Max Age (seconds)"
+                                                     Variant="Variant.Outlined"
+                                                     Margin="Margin.Dense"
+                                                     HelperText="Default: 31536000 (1 year)"
+                                                     Min="0"
+                                                     Class="mb-4" />
+                                }
+
+                                <MudDivider Class="my-4" />
+
+                                <MudText Typo="Typo.h6" Class="mb-3">Let's Encrypt</MudText>
+
+                                <MudSwitch @bind-Value="_proxyHost.UseLetsEncrypt"
+                                           Label="Request Let's Encrypt Certificate"
+                                           Color="Color.Primary"
+                                           Class="mb-4" />
+
+                                @if (_proxyHost.UseLetsEncrypt)
+                                {
+                                    <MudTextField @bind-Value="_proxyHost.LetsEncryptEmail"
+                                                  Label="Email for Let's Encrypt"
+                                                  Variant="Variant.Outlined"
+                                                  Margin="Margin.Dense"
+                                                  HelperText="Used for certificate expiration notices"
+                                                  InputType="InputType.Email"
+                                                  Class="mb-4" />
+
+                                    <MudAlert Severity="Severity.Info" Class="mb-4">
+                                        <strong>Note:</strong> Make sure ports 80 and 443 are forwarded to this server and DNS is properly configured before requesting a certificate.
+                                    </MudAlert>
+                                }
+                            }
+                        </MudCardContent>
+                    </MudCard>
+
+                    <MudCard Elevation="2" Class="mb-4">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">Status</MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudSwitch @bind-Value="_proxyHost.IsEnabled"
+                                       Label="Enabled"
+                                       Color="Color.Success"
+                                       Class="mb-2" />
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+
+            @* Action Buttons *@
+            <div class="d-flex gap-2 mt-4">
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@_isSubmitting"
+                           StartIcon="@Icons.Material.Filled.Save">
+                    @if (_isSubmitting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    @(Id.HasValue ? "Update" : "Create") Proxy Host
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           OnClick="@Cancel"
+                           Disabled="@_isSubmitting">
+                    Cancel
+                </MudButton>
+            </div>
+        </EditForm>
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private ProxyHost _proxyHost = new ProxyHost
+    {
+        ForwardScheme = "http",
+        ForwardPort = 8080,
+        BlockCommonExploits = true,
+        Http2Support = true,
+        HstsMaxAge = 31536000,
+        IsEnabled = true
+    };
+
+    private bool _isLoading = true;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existing = await ProxyManager.GetByIdAsync(Id.Value);
+            if (existing != null)
+            {
+                _proxyHost = existing;
+            }
+            else
+            {
+                Navigation.NavigateTo("/proxy-hosts");
+                return;
+            }
+        }
+        else
+        {
+            // Check for domain query parameter when adding new proxy
+            var uri = new Uri(Navigation.Uri);
+            var queryParams = QueryHelpers.ParseQuery(uri.Query);
+
+            if (queryParams.TryGetValue("domain", out var domain) && !string.IsNullOrEmpty(domain))
+            {
+                _proxyHost.DomainName = domain.ToString();
+            }
+        }
+        _isLoading = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (Id.HasValue)
+            {
+                await ProxyManager.UpdateAsync(_proxyHost);
+                Snackbar.Add("Proxy host updated successfully", Severity.Success);
+            }
+            else
+            {
+                await ProxyManager.CreateAsync(_proxyHost);
+                Snackbar.Add("Proxy host created successfully", Severity.Success);
+            }
+
+            Navigation.NavigateTo("/proxy-hosts");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/proxy-hosts");
+    }
+}
+

@@ -1,0 +1,234 @@
+@page "/admin/proxy-hosts/add"
+@page "/admin/proxy-hosts/edit/{Id:int}"
+@using StageZero.ReverseProxy.Models
+@using StageZero.ReverseProxy.Services
+@inject IProxyHostManager ProxyManager
+@inject NavigationManager Navigation
+
+<PageTitle>@(Id.HasValue ? "Edit" : "Add") Proxy Host</PageTitle>
+
+<h1>@(Id.HasValue ? "Edit" : "Add") Proxy Host</h1>
+
+<EditForm Model="@proxyHost" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <div class="row">
+        <div class="col-md-6">
+            <h4>Domain Configuration</h4>
+            
+            <div class="mb-3">
+                <label class="form-label">Domain Name</label>
+                <InputText @bind-Value="proxyHost.DomainName" class="form-control" placeholder="app.yourdomain.com" />
+                <div class="form-text">The subdomain this proxy will respond to</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Notes (Optional)</label>
+                <InputTextArea @bind-Value="proxyHost.Notes" class="form-control" rows="2" />
+            </div>
+
+            <h4 class="mt-4">Forward Configuration</h4>
+
+            <div class="mb-3">
+                <label class="form-label">Scheme</label>
+                <InputSelect @bind-Value="proxyHost.ForwardScheme" class="form-select">
+                    <option value="http">HTTP</option>
+                    <option value="https">HTTPS</option>
+                </InputSelect>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Forward Host</label>
+                <InputText @bind-Value="proxyHost.ForwardHost" class="form-control" placeholder="192.168.1.100 or myapp" />
+                <div class="form-text">IP address, hostname, or Docker container name</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Forward Port</label>
+                <InputNumber @bind-Value="proxyHost.ForwardPort" class="form-control" />
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="proxyHost.WebSocketsSupport" class="form-check-input" id="websockets" />
+                <label class="form-check-label" for="websockets">
+                    WebSockets Support
+                </label>
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="proxyHost.CacheAssets" class="form-check-input" id="cache" />
+                <label class="form-check-label" for="cache">
+                    Cache Assets
+                </label>
+            </div>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="proxyHost.BlockCommonExploits" class="form-check-input" id="exploits" />
+                <label class="form-check-label" for="exploits">
+                    Block Common Exploits
+                </label>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <h4>SSL Configuration</h4>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="proxyHost.SslEnabled" class="form-check-input" id="sslEnabled" />
+                <label class="form-check-label" for="sslEnabled">
+                    <strong>Enable SSL</strong>
+                </label>
+            </div>
+
+            @if (proxyHost.SslEnabled)
+            {
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="proxyHost.SslForced" class="form-check-input" id="forceSSL" />
+                    <label class="form-check-label" for="forceSSL">
+                        Force SSL (Redirect HTTP to HTTPS)
+                    </label>
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="proxyHost.Http2Support" class="form-check-input" id="http2" />
+                    <label class="form-check-label" for="http2">
+                        HTTP/2 Support
+                    </label>
+                </div>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="proxyHost.HstsEnabled" class="form-check-input" id="hsts" />
+                    <label class="form-check-label" for="hsts">
+                        HSTS Enabled
+                    </label>
+                </div>
+
+                @if (proxyHost.HstsEnabled)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">HSTS Max Age (seconds)</label>
+                        <InputNumber @bind-Value="proxyHost.HstsMaxAge" class="form-control" />
+                        <div class="form-text">Default: 31536000 (1 year)</div>
+                    </div>
+                }
+
+                <hr />
+
+                <h5>Let's Encrypt</h5>
+
+                <div class="form-check mb-3">
+                    <InputCheckbox @bind-Value="proxyHost.UseLetsEncrypt" class="form-check-input" id="letsencrypt" />
+                    <label class="form-check-label" for="letsencrypt">
+                        Request Let's Encrypt Certificate
+                    </label>
+                </div>
+
+                @if (proxyHost.UseLetsEncrypt)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Email for Let's Encrypt</label>
+                        <InputText @bind-Value="proxyHost.LetsEncryptEmail" class="form-control" type="email" />
+                        <div class="form-text">Used for certificate expiration notices</div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <strong>Note:</strong> Make sure ports 80 and 443 are forwarded to this server and DNS is properly configured before requesting a certificate.
+                    </div>
+                }
+            }
+
+            <h4 class="mt-4">Status</h4>
+
+            <div class="form-check mb-3">
+                <InputCheckbox @bind-Value="proxyHost.IsEnabled" class="form-check-input" id="enabled" />
+                <label class="form-check-label" for="enabled">
+                    <strong>Enabled</strong>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+            @if (isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            @(Id.HasValue ? "Update" : "Create") Proxy Host
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private ProxyHost proxyHost = new ProxyHost
+    {
+        ForwardScheme = "http",
+        ForwardPort = 8080,
+        BlockCommonExploits = true,
+        Http2Support = true,
+        HstsMaxAge = 31536000,
+        IsEnabled = true
+    };
+
+    private bool isSubmitting = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existing = await ProxyManager.GetByIdAsync(Id.Value);
+            if (existing != null)
+            {
+                proxyHost = existing;
+            }
+            else
+            {
+                Navigation.NavigateTo("/admin/proxy-hosts");
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+
+        try
+        {
+            if (Id.HasValue)
+            {
+                await ProxyManager.UpdateAsync(proxyHost);
+            }
+            else
+            {
+                await ProxyManager.CreateAsync(proxyHost);
+            }
+
+            Navigation.NavigateTo("/admin/proxy-hosts");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/admin/proxy-hosts");
+    }
+}

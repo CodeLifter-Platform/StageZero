@@ -45,12 +45,25 @@
         </MudTooltip>
         @if (VM.IsAuthenticated)
         {
-            <MudText Typo="Typo.body2" Class="mr-2">@VM.CurrentUser?.Email</MudText>
-            <MudTooltip Text="Logout">
-                <MudIconButton Icon="@Icons.Material.Filled.Logout"
-                               Color="Color.Inherit"
-                               OnClick="@HandleLogout" />
-            </MudTooltip>
+            <MudMenu Icon="@Icons.Material.Filled.AccountCircle"
+                     Color="Color.Inherit"
+                     AnchorOrigin="Origin.BottomRight"
+                     TransformOrigin="Origin.TopRight"
+                     Dense="true">
+                <ChildContent>
+                    <MudMenuItem Disabled="true">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@VM.CurrentUser?.Username</MudText>
+                    </MudMenuItem>
+                    <MudMenuItem Disabled="true">
+                        <MudText Typo="Typo.caption" Style="color: var(--mud-palette-text-secondary);">@VM.CurrentUser?.Email</MudText>
+                    </MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Logout"
+                                 OnClick="@HandleLogout">
+                        Logout
+                    </MudMenuItem>
+                </ChildContent>
+            </MudMenu>
         }
     </MudAppBar>
 
@@ -74,6 +87,9 @@
             </MudTooltip>
             <MudTooltip Text="DNS Configuration" Placement="Placement.Right">
                 <MudNavLink Href="/dns-config" Icon="@Icons.Material.Filled.Dns"></MudNavLink>
+            </MudTooltip>
+            <MudTooltip Text="Proxy Hosts" Placement="Placement.Right">
+                <MudNavLink Href="/proxy-hosts" Icon="@Icons.Material.Filled.SwapHoriz"></MudNavLink>
             </MudTooltip>
         </MudNavMenu>
     </MudDrawer>
@@ -109,6 +125,16 @@
 
         // Refresh IP display every 30 seconds
         _ipRefreshTimer = new System.Threading.Timer(async _ => await RefreshIpAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+        // Subscribe to navigation changes to refresh user state
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // Refresh current user when navigating (in case user logged in/out)
+        await VM.RefreshCurrentUserAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task LoadCurrentIpAsync()
@@ -152,6 +178,7 @@
     public void Dispose()
     {
         IpMonitorService.IpChanged -= OnIpChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
         _ipRefreshTimer?.Dispose();
     }
 }

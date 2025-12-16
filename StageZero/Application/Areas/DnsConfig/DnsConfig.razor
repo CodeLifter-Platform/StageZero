@@ -2,9 +2,12 @@
 @using StageZero.Application.Areas.DnsConfig
 @using StageZero.Application.Components
 @using StageZero.Models
+@using StageZero.ReverseProxy.Services
 @inject IDnsConfigViewModel VM
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IProxyHostManager ProxyManager
+@inject NavigationManager Navigation
 
 <PageTitle>DNS Configuration - StageZero</PageTitle>
 
@@ -73,21 +76,36 @@ else
                             </div>
                         </CardHeaderContent>
                         <CardHeaderActions>
-                            <MudTooltip Text="Import All Records">
-                                <MudIconButton Icon="@Icons.Material.Filled.CloudDownload"
-                                               Color="Color.Info"
-                                               OnClick="@(() => ImportAllRecords(provider.Id))" />
-                            </MudTooltip>
-                            <MudTooltip Text="Add DNS Record">
-                                <MudIconButton Icon="@Icons.Material.Filled.Add"
-                                               Color="Color.Primary"
-                                               OnClick="@(() => OpenAddRecordDialog(provider))" />
-                            </MudTooltip>
-                            <MudTooltip Text="Delete Provider">
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                               Color="Color.Error"
-                                               OnClick="@(() => DeleteProvider(provider.Id))" />
-                            </MudTooltip>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert"
+                                     AnchorOrigin="Origin.BottomRight"
+                                     TransformOrigin="Origin.TopRight"
+                                     Dense="true">
+                                <MudMenuItem Icon="@Icons.Material.Filled.CloudDownload"
+                                             IconColor="Color.Info"
+                                             Disabled="@(_importingProviderId == provider.Id)"
+                                             OnClick="@(() => ImportAllRecords(provider.Id))">
+                                    @if (_importingProviderId == provider.Id)
+                                    {
+                                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                        <span>Importing...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Import All Records</span>
+                                    }
+                                </MudMenuItem>
+                                <MudMenuItem Icon="@Icons.Material.Filled.Add"
+                                             IconColor="Color.Primary"
+                                             OnClick="@(() => OpenAddRecordDialog(provider))">
+                                    Add DNS Record
+                                </MudMenuItem>
+                                <MudDivider />
+                                <MudMenuItem Icon="@Icons.Material.Filled.Delete"
+                                             IconColor="Color.Error"
+                                             OnClick="@(() => DeleteProvider(provider.Id))">
+                                    Delete Provider
+                                </MudMenuItem>
+                            </MudMenu>
                         </CardHeaderActions>
                     </MudCardHeader>
                     <MudCardContent>
@@ -166,18 +184,31 @@ else
                                             }
                                         </MudTd>
                                         <MudTd DataLabel="Actions" Style="width: 13%;">
-                                            <MudTooltip Text="Edit Record">
-                                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                                               Size="Size.Small"
-                                                               Color="Color.Primary"
-                                                               OnClick="@(() => EditRecord(context.Id))" />
-                                            </MudTooltip>
-                                            <MudTooltip Text="Delete Record">
-                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                                               Size="Size.Small"
-                                                               Color="Color.Error"
-                                                               OnClick="@(() => DeleteRecord(context.Id))" />
-                                            </MudTooltip>
+                                            <MudMenu Icon="@Icons.Material.Filled.MoreVert"
+                                                     Size="Size.Small"
+                                                     AnchorOrigin="Origin.BottomRight"
+                                                     TransformOrigin="Origin.TopRight"
+                                                     Dense="true">
+                                                @if (context.RecordType == "CNAME")
+                                                {
+                                                    <MudMenuItem Icon="@Icons.Material.Filled.Edit"
+                                                                 IconColor="Color.Primary"
+                                                                 OnClick="@(() => EditRecord(context.Id))">
+                                                        Edit Record
+                                                    </MudMenuItem>
+                                                    <MudMenuItem Icon="@Icons.Material.Filled.Dns"
+                                                                 IconColor="Color.Info"
+                                                                 OnClick="@(() => ConfigureProxy(context.RecordName))">
+                                                        Configure Proxy
+                                                    </MudMenuItem>
+                                                    <MudDivider />
+                                                }
+                                                <MudMenuItem Icon="@Icons.Material.Filled.Delete"
+                                                             IconColor="Color.Error"
+                                                             OnClick="@(() => DeleteRecord(context.Id))">
+                                                    Delete Record
+                                                </MudMenuItem>
+                                            </MudMenu>
                                         </MudTd>
                                     </RowTemplate>
                                 </MudTable>
@@ -193,6 +224,7 @@ else
 
 @code {
     private bool _showAllCnames = false;
+    private int? _importingProviderId = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -209,7 +241,7 @@ else
         var dialog = await DialogService.ShowAsync<AddCloudflareProviderDialog>("Add Cloudflare Provider");
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is AddCloudflareProviderResult data)
+        if (result is not null && !result.Canceled && result.Data is AddCloudflareProviderResult data)
         {
             try
             {
@@ -251,11 +283,11 @@ else
         var dialog = await DialogService.ShowAsync<AddDnsRecordDialog>("Add DNS Record", parameters);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is AddDnsRecordResult data)
+        if (result is not null && !result.Canceled && result.Data is AddDnsRecordResult data)
         {
             try
             {
-                await VM.AddRecordAsync(provider.Id, data.RecordName, data.RecordType, data.RecordId);
+                await VM.AddRecordAsync(provider.Id, data.RecordName, data.RecordType, data.RecordId, data.Content);
                 Snackbar.Add($"DNS record '{data.RecordName}' added successfully", Severity.Success);
             }
             catch (Exception ex)
@@ -267,14 +299,44 @@ else
 
     private async Task ImportAllRecords(int providerId)
     {
+        if (_importingProviderId.HasValue)
+        {
+            Snackbar.Add("Import already in progress", Severity.Warning);
+            return;
+        }
+
         try
         {
-            await VM.ImportAllRecordsAsync(providerId);
-            Snackbar.Add("DNS records imported successfully", Severity.Success);
+            _importingProviderId = providerId;
+            StateHasChanged();
+
+            var (imported, skipped) = await VM.ImportAllRecordsAsync(providerId);
+
+            if (imported > 0 && skipped > 0)
+            {
+                Snackbar.Add($"Imported {imported} new record(s), skipped {skipped} duplicate(s)", Severity.Success);
+            }
+            else if (imported > 0)
+            {
+                Snackbar.Add($"Imported {imported} record(s) successfully", Severity.Success);
+            }
+            else if (skipped > 0)
+            {
+                Snackbar.Add($"All {skipped} record(s) already exist - no new records imported", Severity.Info);
+            }
+            else
+            {
+                Snackbar.Add("No records found to import", Severity.Info);
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error importing records: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _importingProviderId = null;
+            StateHasChanged();
         }
     }
 
@@ -294,7 +356,7 @@ else
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Provider", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             try
             {
@@ -329,7 +391,7 @@ else
         var dialog = await DialogService.ShowAsync<EditRecordDialog>("Edit DNS Record", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled && result.Data is EditRecordDialog.EditRecordResult editResult)
+        if (result is not null && !result.Canceled && result.Data is EditRecordDialog.EditRecordResult editResult)
         {
             try
             {
@@ -369,7 +431,7 @@ else
         var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete DNS Record", parameters, options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is not null && !result.Canceled)
         {
             try
             {
@@ -440,6 +502,30 @@ else
             return "background-color: rgba(var(--mud-palette-info-rgb), 0.08);";
         }
         return "";
+    }
+
+    private async Task ConfigureProxy(string domainName)
+    {
+        try
+        {
+            // Check if a proxy host already exists for this domain
+            var existingProxy = await ProxyManager.GetByDomainAsync(domainName);
+
+            if (existingProxy != null)
+            {
+                // Navigate to edit existing proxy
+                Navigation.NavigateTo($"/proxy-hosts/edit/{existingProxy.Id}");
+            }
+            else
+            {
+                // Navigate to add new proxy with domain pre-populated
+                Navigation.NavigateTo($"/proxy-hosts/add?domain={Uri.EscapeDataString(domainName)}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error navigating to proxy configuration: {ex.Message}", Severity.Error);
+        }
     }
 }
 

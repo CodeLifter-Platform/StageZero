@@ -1,0 +1,202 @@
+@page "/proxy-hosts"
+@using StageZero.ReverseProxy.Models
+@using StageZero.ReverseProxy.Services
+@using StageZero.Application.Components
+@using StageZero.Application.Areas.DnsConfig
+@inject IProxyHostManager ProxyManager
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Proxy Hosts - StageZero</PageTitle>
+
+<RequireAuth>
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Large" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-6">Reverse Proxy Management</MudText>
+
+        @* Action Buttons *@
+        <div class="d-flex gap-2 mb-4">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@NavigateToAdd">
+                Add Proxy Host
+            </MudButton>
+        </div>
+
+        @* Proxy Hosts List *@
+        @if (_proxyHosts == null || !_proxyHosts.Any())
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4">
+                No proxy hosts configured yet. Click "Add Proxy Host" to create your first one.
+            </MudAlert>
+        }
+        else
+        {
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudTable Items="@_proxyHosts" Hover="true" Dense="true" Striped="true">
+                        <HeaderContent>
+                            <MudTh>Domain</MudTh>
+                            <MudTh>Forward To</MudTh>
+                            <MudTh>SSL</MudTh>
+                            <MudTh>Status</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Domain">
+                                <MudText Typo="Typo.body1" Style="font-weight: 600;">@context.DomainName</MudText>
+                                @if (!string.IsNullOrEmpty(context.Notes))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Notes</MudText>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Forward To">
+                                <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.ForwardUrl</MudText>
+                                @if (context.WebSocketsSupport)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">WebSockets</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="SSL">
+                                @if (context.SslEnabled)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.Lock">Enabled</MudChip>
+                                    @if (context.SslCertificateExpiry.HasValue)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            Expires: @context.SslCertificateExpiry.Value.ToString("yyyy-MM-dd")
+                                        </MudText>
+                                    }
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Default">Disabled</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Status">
+                                @if (context.IsEnabled)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">Disabled</MudChip>
+                                }
+                            </MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudTooltip Text="Edit">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                   Size="Size.Small"
+                                                   Color="Color.Primary"
+                                                   OnClick="@(() => NavigateToEdit(context.Id))" />
+                                </MudTooltip>
+                                <MudTooltip Text="@(context.IsEnabled ? "Disable" : "Enable")">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Power"
+                                                   Size="Size.Small"
+                                                   Color="Color.Secondary"
+                                                   OnClick="@(() => ToggleEnabled(context.Id))" />
+                                </MudTooltip>
+                                <MudTooltip Text="Delete">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Size="Size.Small"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => DeleteHost(context.Id))" />
+                                </MudTooltip>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    private List<ProxyHost>? _proxyHosts;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProxyHosts();
+    }
+
+    private async Task LoadProxyHosts()
+    {
+        _isLoading = true;
+        try
+        {
+            _proxyHosts = await ProxyManager.GetAllAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void NavigateToAdd()
+    {
+        Navigation.NavigateTo("/proxy-hosts/add");
+    }
+
+    private void NavigateToEdit(int id)
+    {
+        Navigation.NavigateTo($"/proxy-hosts/edit/{id}");
+    }
+
+    private async Task ToggleEnabled(int id)
+    {
+        try
+        {
+            await ProxyManager.ToggleEnabledAsync(id);
+            await LoadProxyHosts();
+            Snackbar.Add("Proxy host status updated", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating status: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteHost(int id)
+    {
+        var host = _proxyHosts?.FirstOrDefault(h => h.Id == id);
+        if (host == null) return;
+
+        var parameters = new DialogParameters
+        {
+            ["ContentText"] = $"Are you sure you want to delete the proxy host for '{host.DomainName}'? This action cannot be undone.",
+            ["ButtonText"] = "Delete",
+            ["Color"] = Color.Error
+        };
+
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small };
+        var dialog = await DialogService.ShowAsync<ConfirmationDialog>("Delete Proxy Host", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            try
+            {
+                await ProxyManager.DeleteAsync(id);
+                await LoadProxyHosts();
+                Snackbar.Add("Proxy host deleted successfully", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting proxy host: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}
+

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StageZero.Models;
+using StageZero.ReverseProxy.Models;
 
 namespace StageZero.Data;
 
@@ -18,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<DnsProvider> DnsProviders => Set<DnsProvider>();
     public DbSet<DnsRecord> DnsRecords => Set<DnsRecord>();
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
+    public DbSet<ProxyHost> ProxyHosts => Set<ProxyHost>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -74,6 +76,21 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Key).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Value).IsRequired();
             entity.HasIndex(e => e.Key).IsUnique();
+        });
+
+        // Configure ProxyHost entity
+        builder.Entity<ProxyHost>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DomainName).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ForwardScheme).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ForwardHost).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.SslCertificatePath).HasMaxLength(255);
+            entity.Property(e => e.SslCertificateKeyPath).HasMaxLength(255);
+            entity.Property(e => e.LetsEncryptEmail).HasMaxLength(255);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.HasIndex(e => e.DomainName).IsUnique();
+            entity.HasIndex(e => e.IsEnabled);
         });
     }
 }
