@@ -3,6 +3,7 @@
 @using StageZero.ReverseProxy.Models
 @using StageZero.ReverseProxy.Services
 @using StageZero.Application.Components
+@using Microsoft.AspNetCore.WebUtilities
 @inject IProxyHostManager ProxyManager
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
@@ -251,6 +252,17 @@ else
             {
                 Navigation.NavigateTo("/proxy-hosts");
                 return;
+            }
+        }
+        else
+        {
+            // Check for domain query parameter when adding new proxy
+            var uri = new Uri(Navigation.Uri);
+            var queryParams = QueryHelpers.ParseQuery(uri.Query);
+
+            if (queryParams.TryGetValue("domain", out var domain) && !string.IsNullOrEmpty(domain))
+            {
+                _proxyHost.DomainName = domain.ToString();
             }
         }
         _isLoading = false;
