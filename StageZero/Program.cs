@@ -298,19 +298,7 @@ try
         // Seed default admin user if no users exist
         if (!await db.Users.AnyAsync())
         {
-            Log.Information("No users found. Creating default admin user");
-            var adminUser = new User
-            {
-                Username = "admin",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
-                Email = "admin@stagezero.local",
-                IsActive = true,
-                RequiresPasswordChange = true,
-                CreatedAt = DateTime.UtcNow
-            };
-            db.Users.Add(adminUser);
-            await db.SaveChangesAsync();
-            Log.Information("Default admin user created (username: admin, password: admin)");
+            Log.Information("No users found. Please visit /setup to create your admin account");
         }
     }
 

@@ -57,10 +57,23 @@ else
                 <MudCard Elevation="2" Class="mb-4">
                     <MudCardHeader>
                         <CardHeaderContent>
-                            <MudText Typo="Typo.h6">@provider.Name</MudText>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary">
-                                @provider.ProviderType | Zone: @provider.ZoneId
-                            </MudText>
+                            <div class="d-flex align-center gap-3">
+                                <div>
+                                    <MudText Typo="Typo.h6">@provider.Name</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                        @provider.ProviderType | Zone: @provider.ZoneId
+                                    </MudText>
+                                </div>
+                                <MudSwitch @bind-Value="@provider.IsActive"
+                                           Color="@(provider.IsActive ? Color.Success : Color.Default)"
+                                           ThumbIcon="@(provider.IsActive ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
+                                           ValueChanged="@(async (bool value) => await ToggleProvider(provider.Id))"
+                                           T="bool">
+                                    <MudText Typo="Typo.body2" Color="@(provider.IsActive ? Color.Success : Color.Secondary)">
+                                        @(provider.IsActive ? "Updates Enabled" : "Updates Disabled")
+                                    </MudText>
+                                </MudSwitch>
+                            </div>
                         </CardHeaderContent>
                         <CardHeaderActions>
                             <MudMenu Icon="@Icons.Material.Filled.MoreVert"
@@ -232,13 +245,31 @@ else
         {
             try
             {
-                await VM.AddProviderAsync(data.Name, data.ApiToken, data.ZoneId);
+                await VM.AddProviderAsync(data.Name, data.ApiToken, data.ZoneId, data.IsEnabled);
                 Snackbar.Add($"Provider '{data.Name}' added successfully", Severity.Success);
             }
             catch (Exception ex)
             {
                 Snackbar.Add($"Error adding provider: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private async Task ToggleProvider(int providerId)
+    {
+        try
+        {
+            await VM.ToggleProviderAsync(providerId);
+            var provider = VM.Providers.FirstOrDefault(p => p.Id == providerId);
+            if (provider != null)
+            {
+                var status = provider.IsActive ? "enabled" : "disabled";
+                Snackbar.Add($"DNS updates {status} for '{provider.Name}'", provider.IsActive ? Severity.Success : Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error toggling provider: {ex.Message}", Severity.Error);
         }
     }
 

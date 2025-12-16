@@ -103,7 +103,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         }
     }
 
-    public async Task AddProviderAsync(string name, string apiToken, string zoneId)
+    public async Task AddProviderAsync(string name, string apiToken, string zoneId, bool isEnabled = true)
     {
         try
         {
@@ -115,7 +115,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                 ProviderType = "Cloudflare",
                 ApiToken = apiToken,
                 ZoneId = zoneId,
-                IsActive = true
+                IsActive = isEnabled
             };
 
             await _providerWriter.InsertAsync(provider);
@@ -127,6 +127,29 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         {
             _logger.LogError(ex, "Failed to add provider");
             throw new DnsConfigViewModelException("Could not add DNS provider", ex);
+        }
+    }
+
+    public async Task ToggleProviderAsync(int providerId)
+    {
+        try
+        {
+            _logger.LogInformation("Toggling provider status: {ProviderId}", providerId);
+
+            var provider = await _providerReader.GetByIdAsync(providerId);
+            if (provider != null)
+            {
+                provider.IsActive = !provider.IsActive;
+                await _providerWriter.UpdateAsync(provider);
+                await LoadProvidersAsync();
+
+                _logger.LogInformation("Provider {ProviderId} is now {Status}", providerId, provider.IsActive ? "enabled" : "disabled");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle provider");
+            throw new DnsConfigViewModelException("Could not toggle DNS provider", ex);
         }
     }
 

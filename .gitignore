@@ -39,7 +39,11 @@ secrets.json
 logs/
 *.log
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 .volumes/
 
 # ═══════════════════════════════════════════════════════════════

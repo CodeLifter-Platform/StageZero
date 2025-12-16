@@ -36,6 +36,20 @@
         "${workspaceFolder}/StageZero/StageZero.csproj"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Kill StageZero",
+      "type": "shell",
+      "command": "pkill -f 'dotnet.*StageZero' || echo 'No StageZero process found'",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
     }
   ]
 }
