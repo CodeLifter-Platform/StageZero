@@ -80,7 +80,7 @@ public class EmailService : IEmailService
     <p>This code will expire in 15 minutes.</p>
     <p>If you didn't request this code, please ignore this email.</p>
     <hr>
-    <p style='color: #666; font-size: 12px;'>StageZero - Dynamic DNS Management</p>
+    <p style='color: #666; font-size: 12px;'>StageZero</p>
 </body>
 </html>",
                 IsBodyHtml = true
@@ -136,7 +136,7 @@ public class EmailService : IEmailService
     <p>This code will expire in 15 minutes.</p>
     <p>If you didn't request this password reset, please ignore this email and your password will remain unchanged.</p>
     <hr>
-    <p style='color: #666; font-size: 12px;'>StageZero - Dynamic DNS Management</p>
+    <p style='color: #666; font-size: 12px;'>StageZero</p>
 </body>
 </html>",
                 IsBodyHtml = true
