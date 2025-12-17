@@ -71,19 +71,13 @@ public class AuthService : IAuthService
         {
             _logger.LogDebug("Login attempt for user {Email}", email);
 
-            // Try to find user by username first, then by email
-            var user = await _userReader.GetByUsernameAsync(username);
-            if (user == null)
-            {
-                // Try to find by email
-                var allUsers = await _userReader.GetAllAsync();
-                user = allUsers.FirstOrDefault(u => u.Email != null && u.Email.Equals(username, StringComparison.OrdinalIgnoreCase));
-            }
+            // Find user by email
+            var user = await _userReader.GetByEmailAsync(email);
 
             if (user == null)
             {
-                _logger.LogWarning("Login failed: user {Username} not found", username);
-                return AuthResult.Failed("Invalid username or password");
+                _logger.LogWarning("Login failed: user {Email} not found", email);
+                return AuthResult.Failed("Invalid email or password");
             }
 
             if (!user.IsActive)

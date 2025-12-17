@@ -227,10 +227,40 @@ try
                 await command.ExecuteNonQueryAsync();
                 Log.Information("EmailVerificationCodeExpiry column added successfully");
             }
+
+            // Check and add PasswordResetCode column
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM pragma_table_info('Users')
+                WHERE name='PasswordResetCode'";
+            var passwordResetCodeExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!passwordResetCodeExists)
+            {
+                Log.Information("Adding PasswordResetCode column to Users table");
+                command.CommandText = "ALTER TABLE Users ADD COLUMN PasswordResetCode TEXT";
+                await command.ExecuteNonQueryAsync();
+                Log.Information("PasswordResetCode column added successfully");
+            }
+
+            // Check and add PasswordResetCodeExpiry column
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM pragma_table_info('Users')
+                WHERE name='PasswordResetCodeExpiry'";
+            var passwordResetExpiryExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!passwordResetExpiryExists)
+            {
+                Log.Information("Adding PasswordResetCodeExpiry column to Users table");
+                command.CommandText = "ALTER TABLE Users ADD COLUMN PasswordResetCodeExpiry TEXT";
+                await command.ExecuteNonQueryAsync();
+                Log.Information("PasswordResetCodeExpiry column added successfully");
+            }
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Could not add email verification columns (may already exist)");
+            Log.Warning(ex, "Could not add email verification and password reset columns (may already exist)");
         }
 
         // Create ProxyHosts table if it doesn't exist (for existing databases)

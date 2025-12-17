@@ -17,6 +17,7 @@ public interface IDnsConfigViewModel : INotifyPropertyChanged
     bool IsLoading { get; }
     Task OnInitializedAsync();
     Task AddProviderAsync(string name, string apiToken, string zoneId);
+    Task ToggleProviderAsync(int providerId);
     Task DeleteProviderAsync(int providerId);
     Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null, string? content = null);
     Task UpdateRecordAsync(int recordId, string recordName, string recordType, string? recordIdValue, bool autoUpdate, string? content);
@@ -103,7 +104,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         }
     }
 
-    public async Task AddProviderAsync(string name, string apiToken, string zoneId, bool isEnabled = true)
+    public async Task AddProviderAsync(string name, string apiToken, string zoneId)
     {
         try
         {
@@ -115,7 +116,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                 ProviderType = "Cloudflare",
                 ApiToken = apiToken,
                 ZoneId = zoneId,
-                IsActive = isEnabled
+                IsActive = true
             };
 
             await _providerWriter.InsertAsync(provider);
