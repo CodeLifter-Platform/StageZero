@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace StageZero.Models;
+namespace Lifted.BlazorAuth.Basic.Models;
 
 /// <summary>
 /// User entity for email/password authentication.

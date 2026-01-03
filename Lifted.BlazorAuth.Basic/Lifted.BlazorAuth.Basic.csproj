@@ -1,0 +1,62 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+
+    <!-- NuGet Package Configuration -->
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Lifted.BlazorAuth.Basic</PackageId>
+    <Version>0.0.1</Version>
+    <Authors>Lifted</Authors>
+    <Company>Lifted</Company>
+    <Product>Lifted.BlazorAuth.Basic</Product>
+    <Description>A simple, ready-to-use authentication library for Blazor applications with MudBlazor UI. Includes email/password authentication, email verification, password reset, and account setup workflows.</Description>
+    <PackageTags>blazor;authentication;mudblazor;auth;email;password;entityframework;razor</PackageTags>
+    <PackageProjectUrl>https://github.com/lifted/blazorauth-basic</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/lifted/blazorauth-basic</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <Copyright>Copyright (c) 2026 Lifted</Copyright>
+    <PackageReleaseNotes>Initial release (v0.0.1) - Basic authentication functionality with MudBlazor UI components</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <!-- MudBlazor -->
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" Version="7.11.0" />
+  </ItemGroup>
+
+  <!-- Entity Framework Core -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+  </ItemGroup>
+
+  <!-- Password Hashing -->
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core Components -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Logging -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

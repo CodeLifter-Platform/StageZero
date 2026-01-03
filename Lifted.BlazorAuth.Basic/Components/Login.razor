@@ -1,19 +1,19 @@
 @page "/login"
-@using StageZero.Services.Auth
-@using StageZero.DataAdapters.Users
+@using Lifted.BlazorAuth.Basic.Services
+@using Lifted.BlazorAuth.Basic.DataAdapters
 @inject IAuthService AuthService
 @inject IUserReader UserReader
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<PageTitle>Login - StageZero</PageTitle>
+<PageTitle>Login</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
     <MudPaper Elevation="4" Class="pa-8">
         <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6">
             <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Class="mr-2" />
-            StageZero Login
+            Login
         </MudText>
 
         <EditForm Model="@_model" OnValidSubmit="HandleLogin">

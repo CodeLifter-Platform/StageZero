@@ -6,13 +6,13 @@ using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.DataAdapters.IpChecks;
 using StageZero.DataAdapters.Settings;
-using StageZero.DataAdapters.Users;
 using StageZero.Models;
-using StageZero.Services.Auth;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
 using StageZero.ReverseProxy.Services;
+using Lifted.BlazorAuth.Basic.Services;
+using Lifted.BlazorAuth.Basic.DataAdapters;
 using Serilog;
 using dotenv.net;
 
@@ -76,6 +76,13 @@ try
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+    // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
+    builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
+    {
+        var appFactory = sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        return new BasicAuthDbContextFactoryWrapper(appFactory);
+    });
+
     // HttpClient for external API calls
     builder.Services.AddHttpClient();
 
@@ -97,7 +104,8 @@ try
     // SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
-    builder.Services.AddScoped<IEmailService, EmailService>();
+    builder.Services.AddScoped<StageZero.Services.Email.IEmailService, StageZero.Services.Email.EmailService>();
+    builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, StageZero.Services.Email.EmailService>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
     builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
@@ -367,6 +375,30 @@ public class StubProxyConfigurationService : IProxyConfigurationService
         // Stub implementation - does nothing for now
         // Will be replaced with actual YARP configuration when reverse proxy is fully integrated
         return Task.CompletedTask;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BASIC AUTH DB CONTEXT FACTORY WRAPPER
+// Wraps ApplicationDbContext factory to provide BasicAuthDbContext factory
+// ═══════════════════════════════════════════════════════════════
+public class BasicAuthDbContextFactoryWrapper : IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>
+{
+    private readonly IDbContextFactory<StageZero.Data.ApplicationDbContext> _appFactory;
+
+    public BasicAuthDbContextFactoryWrapper(IDbContextFactory<StageZero.Data.ApplicationDbContext> appFactory)
+    {
+        _appFactory = appFactory;
+    }
+
+    public Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext CreateDbContext()
+    {
+        return _appFactory.CreateDbContext();
+    }
+
+    public async Task<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    {
+        return await _appFactory.CreateDbContextAsync(cancellationToken);
     }
 }
 

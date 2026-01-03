@@ -20,7 +20,7 @@ public interface IEmailService
 // IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════
 
-public class EmailService : IEmailService
+public class EmailService : IEmailService, Lifted.BlazorAuth.Basic.Services.IEmailService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;

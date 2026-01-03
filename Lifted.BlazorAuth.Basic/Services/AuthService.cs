@@ -1,8 +1,8 @@
-using StageZero.DataAdapters.Users;
-using StageZero.Models;
-using StageZero.Services.Email;
+using Lifted.BlazorAuth.Basic.DataAdapters;
+using Lifted.BlazorAuth.Basic.Models;
+using Microsoft.Extensions.Logging;
 
-namespace StageZero.Services.Auth;
+namespace Lifted.BlazorAuth.Basic.Services;
 
 // ═══════════════════════════════════════════════════════════════
 // INTERFACE

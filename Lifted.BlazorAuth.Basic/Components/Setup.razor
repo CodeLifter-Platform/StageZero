@@ -1,21 +1,20 @@
 @page "/setup"
-@using StageZero.Models
-@using StageZero.DataAdapters.Users
-@using StageZero.Services.Auth
-@using StageZero.Services.Email
+@using Lifted.BlazorAuth.Basic.Models
+@using Lifted.BlazorAuth.Basic.DataAdapters
+@using Lifted.BlazorAuth.Basic.Services
 @inject IUserReader UserReader
 @inject IUserWriter UserWriter
 @inject IEmailService EmailService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<PageTitle>Setup - StageZero</PageTitle>
+<PageTitle>Setup</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
     <MudPaper Elevation="4" Class="pa-8">
         <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">
             <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Large" Class="mr-2" />
-            Welcome to StageZero
+            Welcome
         </MudText>
 
         <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6" Color="Color.Secondary">

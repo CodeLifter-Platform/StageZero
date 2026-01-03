@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using StageZero.Models;
-using StageZero.Services.Auth;
+using Lifted.BlazorAuth.Basic.Models;
+using Lifted.BlazorAuth.Basic.Services;
 
 namespace StageZero.Application.Layout;
 

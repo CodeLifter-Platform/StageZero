@@ -1,20 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using StageZero.Models;
 using StageZero.ReverseProxy.Models;
+using Lifted.BlazorAuth.Basic.Data;
 
 namespace StageZero.Data;
 
 /// <summary>
 /// Application database context for SQLite.
 /// </summary>
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : BasicAuthDbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
     }
 
-    public DbSet<User> Users => Set<User>();
     public DbSet<IpCheck> IpChecks => Set<IpCheck>();
     public DbSet<DnsProvider> DnsProviders => Set<DnsProvider>();
     public DbSet<DnsRecord> DnsRecords => Set<DnsRecord>();
@@ -24,15 +24,6 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-
-        // Configure User entity
-        builder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Email).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.PasswordHash).IsRequired();
-            entity.HasIndex(e => e.Email).IsUnique();
-        });
 
         // Configure IpCheck entity
         builder.Entity<IpCheck>(entity =>

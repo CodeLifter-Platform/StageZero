@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using StageZero.Data;
-using StageZero.Models;
+using Lifted.BlazorAuth.Basic.Data;
+using Lifted.BlazorAuth.Basic.Models;
 
-namespace StageZero.DataAdapters.Users;
+namespace Lifted.BlazorAuth.Basic.DataAdapters;
 
 // ═══════════════════════════════════════════════════════════════
 // INTERFACE
@@ -21,9 +21,9 @@ public interface IUserWriter
 
 public class UserWriter : IUserWriter
 {
-    private readonly IDbContextFactory<ApplicationDbContext> _factory;
+    private readonly IDbContextFactory<BasicAuthDbContext> _factory;
 
-    public UserWriter(IDbContextFactory<ApplicationDbContext> factory)
+    public UserWriter(IDbContextFactory<BasicAuthDbContext> factory)
     {
         _factory = factory;
     }

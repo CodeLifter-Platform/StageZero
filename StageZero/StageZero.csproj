@@ -42,6 +42,7 @@
   <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\StageZero.ReverseProxy\StageZero.ReverseProxy.csproj" />
+    <ProjectReference Include="..\Lifted.BlazorAuth.Basic\Lifted.BlazorAuth.Basic.csproj" />
   </ItemGroup>
 
 </Project>
