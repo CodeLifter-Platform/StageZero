@@ -227,7 +227,83 @@ The components use MudBlazor, so you can customize the theme in your app.
 
 The included MudBlazor components are just a reference implementation - feel free to replace them entirely with your own UI while keeping all the authentication logic, database models, and services!
 
-## 📝 License
+## � Publishing to NuGet
+
+This package includes a GitHub Actions workflow for automated NuGet publishing. Here's how to set it up:
+
+### Prerequisites
+
+1. **NuGet.org API Key**
+   - Go to [NuGet.org](https://www.nuget.org/)
+   - Sign in and go to your account settings
+   - Create a new API key with "Push" permissions
+   - Copy the API key (you won't see it again!)
+
+2. **GitHub Repository Setup**
+   - Push your code to a GitHub repository
+   - Go to repository Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `NUGET_API_KEY`
+   - Value: Paste your NuGet.org API key
+   - Click "Add secret"
+
+### Publishing Workflow
+
+The GitHub Actions workflow (`.github/workflows/basic-auth-nuget-publish.yml`) automatically:
+
+**On every push/PR:**
+- ✅ Builds the project
+- ✅ Runs tests (if any)
+- ✅ Creates NuGet package
+- ✅ Uploads package as artifact
+
+**On version tags (e.g., `v0.0.1`):**
+- 🚀 Publishes to NuGet.org
+- 📦 Publishes to GitHub Packages
+
+**On main/master branch:**
+- 📦 Publishes to GitHub Packages only
+
+### How to Publish a New Version
+
+1. **Update version in `.csproj`:**
+   ```xml
+   <Version>0.0.2</Version>
+   ```
+
+2. **Commit and push changes:**
+   ```bash
+   git add .
+   git commit -m "Bump version to 0.0.2"
+   git push
+   ```
+
+3. **Create and push a version tag:**
+   ```bash
+   git tag v0.0.2
+   git push origin v0.0.2
+   ```
+
+4. **Watch the workflow:**
+   - Go to your repository's "Actions" tab
+   - Watch the build and publish process
+   - Package will appear on NuGet.org in a few minutes!
+
+### Manual Publishing
+
+You can also publish manually:
+
+```bash
+# Build the package
+dotnet pack Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj -c Release -o ./nupkgs
+
+# Publish to NuGet.org
+dotnet nuget push ./nupkgs/Lifted.BlazorAuth.Basic.*.nupkg \
+  --api-key YOUR_API_KEY \
+  --source https://api.nuget.org/v3/index.json
+```
+
+## �📝 License
 
 MIT License - feel free to use in personal and commercial projects!
 
