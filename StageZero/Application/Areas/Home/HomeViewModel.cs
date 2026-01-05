@@ -71,7 +71,7 @@ public class HomeViewModel : IHomeViewModel
             // Simulate loading data
             await Task.Delay(100);
 
-            WelcomeMessage = "Welcome to Quip";
+            WelcomeMessage = "Welcome to StageZero";
             AppDescription = "A Dynamic DNS tool that updates changes to DNS services. Keep your domains pointed at the right IP addresses, automatically.";
 
             _logger.LogInformation("HomeViewModel initialized successfully");
