@@ -108,7 +108,7 @@ public class IpMonitorService : IIpMonitorService
             }
 
             // Verify DNS records match current IP (runs on every check)
-            // Only update Cloudflare if local IP changed
+            // Updates Cloudflare if there's any mismatch (regardless of whether local IP changed)
             await _dnsVerificationService.VerifyAndSyncAllRecordsAsync(currentIp, isChanged);
 
             return ipCheck;

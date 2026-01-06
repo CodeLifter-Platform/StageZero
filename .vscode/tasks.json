@@ -50,6 +50,110 @@
         "clear": false
       },
       "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-up",
+      "type": "shell",
+      "command": "docker-compose up --build -d",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-down",
+      "type": "shell",
+      "command": "docker-compose down",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-compose-logs",
+      "type": "shell",
+      "command": "docker-compose logs -f app",
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "docker-run: debug",
+      "type": "docker-run",
+      "dependsOn": ["docker-build: debug"],
+      "dockerRun": {
+        "containerName": "stagezero-debug",
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "ASPNETCORE_URLS": "http://+:80;https://+:443",
+          "ASPNETCORE_Kestrel__Certificates__Default__Password": "",
+          "ASPNETCORE_Kestrel__Certificates__Default__Path": "/https/aspnetapp.pfx"
+        },
+        "envFiles": ["${workspaceFolder}/.env"],
+        "ports": [
+          {
+            "containerPort": 80,
+            "hostPort": 5000
+          },
+          {
+            "containerPort": 443,
+            "hostPort": 5001
+          }
+        ],
+        "volumes": [
+          {
+            "localPath": "${workspaceFolder}/.volumes/data",
+            "containerPath": "/app/data",
+            "permissions": "rw"
+          },
+          {
+            "localPath": "${env:HOME}/.aspnet/https",
+            "containerPath": "/https",
+            "permissions": "ro"
+          }
+        ],
+        "extraHosts": [
+          {
+            "hostname": "host.docker.internal",
+            "ip": "host-gateway"
+          }
+        ]
+      },
+      "netCore": {
+        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj",
+        "enableDebugging": true
+      }
+    },
+    {
+      "label": "docker-build: debug",
+      "type": "docker-build",
+      "dockerBuild": {
+        "tag": "stagezero:debug",
+        "target": "debug",
+        "dockerfile": "${workspaceFolder}/StageZero/Dockerfile",
+        "context": "${workspaceFolder}/StageZero",
+        "pull": true
+      },
+      "netCore": {
+        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj"
+      }
     }
   ]
 }

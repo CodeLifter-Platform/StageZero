@@ -103,21 +103,12 @@ public class DnsVerificationService : IDnsVerificationService
                 // Check if the IP matches
                 if (cloudflareRecord.Content != currentIp)
                 {
-                    if (ipChanged)
-                    {
-                        _logger.LogInformation(
-                            "DNS record {RecordName} mismatch - Cloudflare: {CloudflareIp}, Current: {CurrentIp}. Updating because local IP changed...",
-                            record.RecordName, cloudflareRecord.Content, currentIp);
+                    _logger.LogInformation(
+                        "DNS record {RecordName} mismatch - Cloudflare: {CloudflareIp}, Current: {CurrentIp}. Updating to sync with current IP...",
+                        record.RecordName, cloudflareRecord.Content, currentIp);
 
-                        // Update the record only if local IP changed
-                        await _cloudflareService.UpdateDnsRecordAsync(record.DnsProvider, record, currentIp);
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "DNS record {RecordName} mismatch - Cloudflare: {CloudflareIp}, Current: {CurrentIp}. NOT updating (local IP unchanged)",
-                            record.RecordName, cloudflareRecord.Content, currentIp);
-                    }
+                    // Always update when there's a mismatch and auto-update is enabled
+                    await _cloudflareService.UpdateDnsRecordAsync(record.DnsProvider, record, currentIp);
                 }
                 else
                 {

@@ -48,6 +48,48 @@
       "name": ".NET Core Attach",
       "type": "coreclr",
       "request": "attach"
+    },
+    {
+      "name": "Docker Compose",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickRemoteProcess}",
+      "pipeTransport": {
+        "pipeCwd": "${workspaceFolder}",
+        "pipeProgram": "docker",
+        "pipeArgs": ["exec", "-i", "stagezero-app-1"],
+        "debuggerPath": "/vsdbg/vsdbg",
+        "quoteArgs": false
+      },
+      "sourceFileMap": {
+        "/app": "${workspaceFolder}/StageZero"
+      },
+      "preLaunchTask": "docker-compose-up",
+      "postDebugTask": "docker-compose-logs"
+    },
+    {
+      "name": "Docker Compose (Simple)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "docker-compose",
+      "runtimeArgs": ["up", "--build"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Now listening on: (https?://[^\\s]+)",
+        "uriFormat": "http://localhost:5000",
+        "action": "openExternally"
+      },
+      "preLaunchTask": "docker-compose-down"
+    },
+    {
+      "name": "StageZero (Docker Compose)",
+      "type": "docker",
+      "request": "launch",
+      "preLaunchTask": "docker-run: debug",
+      "netCore": {
+        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj"
+      }
     }
   ]
 }
