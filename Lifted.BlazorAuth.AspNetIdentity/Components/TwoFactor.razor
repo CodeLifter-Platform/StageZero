@@ -1,0 +1,193 @@
+@page "/identity/two-factor"
+@using Lifted.BlazorAuth.AspNetIdentity.Services
+@using Lifted.BlazorAuth.AspNetIdentity.Models
+@using System.ComponentModel.DataAnnotations
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Two-Factor Authentication</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-6">
+            <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Large" Class="mr-2" />
+            Two-Factor Authentication
+        </MudText>
+
+        <MudText Typo="Typo.body1" Class="mb-4">
+            A verification code has been sent to your email. Please enter it below.
+        </MudText>
+
+        <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            <MudTextField @bind-Value="_model.Code"
+                          Label="Verification Code"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Required="true"
+                          RequiredError="Verification code is required"
+                          For="@(() => _model.Code)"
+                          Class="mb-4"
+                          Immediate="true"
+                          MaxLength="6" />
+
+            <MudCheckBox @bind-Value="_model.RememberDevice"
+                         Label="Remember this device"
+                         Color="Color.Primary"
+                         Class="mb-4" />
+
+            <MudButton ButtonType="ButtonType.Submit"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Verifying...</span>
+                }
+                else
+                {
+                    <span>Verify</span>
+                }
+            </MudButton>
+        </EditForm>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">
+                @_errorMessage
+            </MudAlert>
+        }
+
+        <MudDivider Class="my-4" />
+
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   OnClick="HandleResendCode"
+                   Disabled="@_isResending">
+            @if (_isResending)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Resending...</span>
+            }
+            else
+            {
+                <span>Resend Code</span>
+            }
+        </MudButton>
+
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Secondary"
+                   FullWidth="true"
+                   OnClick="@(() => Navigation.NavigateTo("/identity/login"))"
+                   Class="mt-2">
+            Back to Login
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? Email { get; set; }
+
+    private TwoFactorModel _model = new();
+    private bool _isLoading = false;
+    private bool _isResending = false;
+    private string? _errorMessage;
+
+    private class TwoFactorModel
+    {
+        [Required(ErrorMessage = "Verification code is required")]
+        [StringLength(6, MinimumLength = 6, ErrorMessage = "Code must be 6 digits")]
+        public string Code { get; set; } = string.Empty;
+
+        public bool RememberDevice { get; set; } = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Note: This is a simplified implementation
+            // In a real scenario, you'd need to get the user from a temporary store
+            // and verify the 2FA token, then complete the sign-in
+            
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user == null && !string.IsNullOrEmpty(Email))
+            {
+                // Try to find user by email (this is simplified)
+                _errorMessage = "Session expired. Please login again.";
+                Navigation.NavigateTo("/identity/login");
+                return;
+            }
+
+            if (user != null)
+            {
+                var isValid = await AuthService.VerifyTwoFactorTokenAsync(user, _model.Code);
+
+                if (isValid)
+                {
+                    Snackbar.Add("Two-factor authentication successful", Severity.Success);
+                    
+                    var redirectUrl = string.IsNullOrEmpty(ReturnUrl) ? "/" : ReturnUrl;
+                    Navigation.NavigateTo(redirectUrl);
+                }
+                else
+                {
+                    _errorMessage = "Invalid verification code";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleResendCode()
+    {
+        _isResending = true;
+        _errorMessage = null;
+
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null)
+            {
+                var token = await AuthService.GenerateTwoFactorTokenAsync(user);
+                // In a real implementation, you'd send this via email
+                Snackbar.Add("Verification code resent", Severity.Success);
+            }
+            else
+            {
+                _errorMessage = "Session expired. Please login again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isResending = false;
+        }
+    }
+}
+

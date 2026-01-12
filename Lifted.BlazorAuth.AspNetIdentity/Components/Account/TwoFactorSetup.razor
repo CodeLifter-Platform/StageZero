@@ -1,0 +1,171 @@
+@using Lifted.BlazorAuth.AspNetIdentity.Services
+@using Lifted.BlazorAuth.AspNetIdentity.Models
+@using System.ComponentModel.DataAnnotations
+@inject IAuthService AuthService
+@inject ISnackbar Snackbar
+
+<MudPaper Elevation="2" Class="pa-6">
+    <MudText Typo="Typo.h5" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Security" Class="mr-2" />
+        Two-Factor Authentication
+    </MudText>
+
+    @if (_currentUser != null)
+    {
+        <MudAlert Severity="@(_is2FAEnabled ? Severity.Success : Severity.Info)" Class="mb-4">
+            Two-factor authentication is currently <strong>@(_is2FAEnabled ? "ENABLED" : "DISABLED")</strong>
+        </MudAlert>
+
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Two-factor authentication adds an extra layer of security to your account by requiring a verification code
+            in addition to your password when signing in.
+        </MudText>
+
+        @if (!_is2FAEnabled)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="HandleEnable2FA"
+                       Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Enabling...</span>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" Class="mr-2" />
+                    <span>Enable Two-Factor Authentication</span>
+                }
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Error"
+                       OnClick="HandleDisable2FA"
+                       Disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Disabling...</span>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.LockOpen" Class="mr-2" />
+                    <span>Disable Two-Factor Authentication</span>
+                }
+            </MudButton>
+
+            <MudText Typo="Typo.body2" Class="mt-4" Color="Color.Warning">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" Class="mr-1" />
+                Disabling two-factor authentication will make your account less secure.
+            </MudText>
+        }
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-4">
+                @_errorMessage
+            </MudAlert>
+        }
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Warning">
+            You must be logged in to manage two-factor authentication.
+        </MudAlert>
+    }
+</MudPaper>
+
+@code {
+    private ApplicationUser? _currentUser;
+    private bool _is2FAEnabled = false;
+    private bool _isLoading = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserData();
+    }
+
+    private async Task LoadUserData()
+    {
+        _currentUser = await AuthService.GetCurrentUserAsync();
+        if (_currentUser != null)
+        {
+            _is2FAEnabled = _currentUser.TwoFactorEnabled;
+        }
+    }
+
+    private async Task HandleEnable2FA()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (_currentUser == null)
+            {
+                _errorMessage = "You must be logged in";
+                return;
+            }
+
+            var result = await AuthService.EnableTwoFactorAsync(_currentUser);
+
+            if (result)
+            {
+                Snackbar.Add("Two-factor authentication enabled successfully", Severity.Success);
+                await LoadUserData(); // Refresh user data
+            }
+            else
+            {
+                _errorMessage = "Failed to enable two-factor authentication";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleDisable2FA()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            if (_currentUser == null)
+            {
+                _errorMessage = "You must be logged in";
+                return;
+            }
+
+            var result = await AuthService.DisableTwoFactorAsync(_currentUser);
+
+            if (result)
+            {
+                Snackbar.Add("Two-factor authentication disabled", Severity.Info);
+                await LoadUserData(); // Refresh user data
+            }
+            else
+            {
+                _errorMessage = "Failed to disable two-factor authentication";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
+

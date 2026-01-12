@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StageZero.ReverseProxy", "S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lifted.BlazorAuth.Basic", "Lifted.BlazorAuth.Basic\Lifted.BlazorAuth.Basic.csproj", "{1833A0DF-16D2-42AC-A338-F174F4585151}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lifted.BlazorAuth.AspNetIdentity", "Lifted.BlazorAuth.AspNetIdentity\Lifted.BlazorAuth.AspNetIdentity.csproj", "{C80727C7-75FA-431B-9F54-D3B11AC49DA6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{1833A0DF-16D2-42AC-A338-F174F4585151}.Release|x64.Build.0 = Release|Any CPU
 		{1833A0DF-16D2-42AC-A338-F174F4585151}.Release|x86.ActiveCfg = Release|Any CPU
 		{1833A0DF-16D2-42AC-A338-F174F4585151}.Release|x86.Build.0 = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|x64.Build.0 = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Debug|x86.Build.0 = Debug|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|x64.ActiveCfg = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|x64.Build.0 = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|x86.ActiveCfg = Release|Any CPU
+		{C80727C7-75FA-431B-9F54-D3B11AC49DA6}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

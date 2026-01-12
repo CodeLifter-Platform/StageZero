@@ -1,0 +1,224 @@
+@page "/identity/setup"
+@using Lifted.BlazorAuth.AspNetIdentity.Services
+@using Lifted.BlazorAuth.AspNetIdentity.Models
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@inject IAuthService AuthService
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Initial Setup</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+    <MudPaper Elevation="4" Class="pa-8">
+        <MudText Typo="Typo.h3" Align="Align.Center" Class="mb-2">
+            <MudIcon Icon="@Icons.Material.Filled.AdminPanelSettings" Size="Size.Large" Class="mr-2" />
+            Initial Setup
+        </MudText>
+        
+        <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6" Color="Color.Secondary">
+            Create your administrator account to get started
+        </MudText>
+
+        @if (_setupComplete)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4">
+                <MudText Typo="Typo.h6">Setup Complete!</MudText>
+                <MudText Typo="Typo.body1">
+                    Your administrator account has been created successfully.
+                </MudText>
+            </MudAlert>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       OnClick="@(() => Navigation.NavigateTo("/identity/login"))">
+                Go to Login
+            </MudButton>
+        }
+        else if (_hasExistingUsers)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4">
+                <MudText Typo="Typo.h6">Setup Already Complete</MudText>
+                <MudText Typo="Typo.body1">
+                    User accounts already exist in the system. This setup page is only for initial configuration.
+                </MudText>
+            </MudAlert>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       OnClick="@(() => Navigation.NavigateTo("/identity/login"))">
+                Go to Login
+            </MudButton>
+        }
+        else
+        {
+            <EditForm Model="@_model" OnValidSubmit="HandleSetup">
+                <DataAnnotationsValidator />
+
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_model.FirstName"
+                                      Label="First Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      For="@(() => _model.FirstName)" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_model.LastName"
+                                      Label="Last Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      For="@(() => _model.LastName)" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudTextField @bind-Value="_model.Email"
+                              Label="Email"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="Email is required"
+                              InputType="InputType.Email"
+                              For="@(() => _model.Email)"
+                              Class="mt-4" />
+
+                <MudTextField @bind-Value="_model.Password"
+                              Label="Password"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="Password is required"
+                              InputType="InputType.Password"
+                              For="@(() => _model.Password)"
+                              Class="mt-4"
+                              HelperText="Minimum 8 characters" />
+
+                <MudTextField @bind-Value="_model.ConfirmPassword"
+                              Label="Confirm Password"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Required="true"
+                              RequiredError="Please confirm your password"
+                              InputType="InputType.Password"
+                              For="@(() => _model.ConfirmPassword)"
+                              Class="mt-4" />
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Size="Size.Large"
+                           Disabled="@_isLoading"
+                           Class="mt-6">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Creating Administrator...</span>
+                    }
+                    else
+                    {
+                        <span>Create Administrator Account</span>
+                    }
+                </MudButton>
+            </EditForm>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">
+                    @_errorMessage
+                </MudAlert>
+            }
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private SetupModel _model = new();
+    private bool _isLoading = false;
+    private bool _setupComplete = false;
+    private bool _hasExistingUsers = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if users already exist
+        _hasExistingUsers = UserManager.Users.Any();
+    }
+
+    private class SetupModel
+    {
+        [Required(ErrorMessage = "First name is required")]
+        [StringLength(100, ErrorMessage = "First name cannot exceed 100 characters")]
+        public string FirstName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Last name is required")]
+        [StringLength(100, ErrorMessage = "Last name cannot exceed 100 characters")]
+        public string LastName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email address")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required")]
+        [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please confirm your password")]
+        [Compare(nameof(Password), ErrorMessage = "Passwords do not match")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+
+    private async Task HandleSetup()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            // Ensure Admin role exists
+            if (!await RoleManager.RoleExistsAsync("Admin"))
+            {
+                await RoleManager.CreateAsync(new IdentityRole("Admin"));
+            }
+
+            // Create the admin user
+            var user = new ApplicationUser
+            {
+                UserName = _model.Email,
+                Email = _model.Email,
+                FirstName = _model.FirstName,
+                LastName = _model.LastName,
+                EmailConfirmed = true, // Auto-confirm for admin
+                IsActive = true
+            };
+
+            var result = await AuthService.CreateUserAsync(user, _model.Password);
+
+            if (result.Succeeded)
+            {
+                // Add to Admin role
+                await AuthService.AddToRoleAsync(user, "Admin");
+
+                _setupComplete = true;
+                Snackbar.Add("Administrator account created successfully!", Severity.Success);
+            }
+            else
+            {
+                _errorMessage = string.Join(", ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}
