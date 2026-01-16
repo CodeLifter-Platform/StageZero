@@ -57,12 +57,12 @@
       "pipeTransport": {
         "pipeCwd": "${workspaceFolder}",
         "pipeProgram": "docker",
-        "pipeArgs": ["exec", "-i", "stagezero-app-1"],
+        "pipeArgs": ["exec", "-i", "stagezero"],
         "debuggerPath": "/vsdbg/vsdbg",
         "quoteArgs": false
       },
       "sourceFileMap": {
-        "/app": "${workspaceFolder}/StageZero"
+        "/src": "${workspaceFolder}"
       },
       "preLaunchTask": "docker-compose-up",
       "postDebugTask": "docker-compose-logs"
@@ -72,7 +72,7 @@
       "type": "node",
       "request": "launch",
       "runtimeExecutable": "docker-compose",
-      "runtimeArgs": ["up", "--build"],
+      "runtimeArgs": ["-f", "debug.docker-compose.yml", "up", "--build"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "serverReadyAction": {
@@ -90,6 +90,21 @@
       "netCore": {
         "appProject": "${workspaceFolder}/StageZero/StageZero.csproj"
       }
+    },
+    {
+      "name": "StageZero (Docker)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "docker-compose",
+      "runtimeArgs": ["-f", "debug.docker-compose.yml", "up", "--build"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Now listening on: (https?://[^\\s]+)",
+        "uriFormat": "http://localhost:5000",
+        "action": "openExternally"
+      },
+      "preLaunchTask": "docker-compose-down"
     }
   ]
 }

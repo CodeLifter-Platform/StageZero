@@ -1,0 +1,41 @@
+services:
+  # ═══════════════════════════════════════════════════════════════
+  # STAGEZERO APPLICATION
+  # ═══════════════════════════════════════════════════════════════
+  stagezero:
+    container_name: stagezero
+    build:
+      context: .
+      dockerfile: StageZero/Dockerfile
+      target: debug  # Change to 'release' for production
+    ports:
+      - "5001:443"
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:443
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${CERT_PASSWORD}
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
+      # Database path is now managed by DataPathService in the application
+      # The application will use platform-specific paths automatically
+    volumes:
+      # Source code mounts for hot reload (debug only)
+      - ./StageZero:/src/StageZero
+      - ./StageZero.ReverseProxy:/src/StageZero.ReverseProxy
+      - ./Lifted.BlazorAuth.Basic:/src/Lifted.BlazorAuth.Basic
+
+      # Application data directory (database, logs, etc.)
+      # Use STAGEZERO_DATA_DIR environment variable to override
+      # Default: ./.volumes/stagezero-data (for development)
+      # Production: Set to platform-specific path before running docker-compose
+      #   macOS: ~/Library/Application Support/StageZero
+      #   Windows: %APPDATA%\StageZero
+      #   Linux: ~/.config/stagezero
+      - ${STAGEZERO_DATA_DIR:-./.volumes/stagezero-data}:/app-data
+
+      # HTTPS development certificate
+      - ~/.aspnet/https:/https:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+

@@ -43,7 +43,7 @@ A Blazor Server application for managing dynamic DNS updates. Keep your domains 
 
 2. **Start everything:**
    ```bash
-   docker-compose up
+   docker-compose -f debug.docker-compose.yml up
    ```
 
 3. **Access the app:** http://localhost:5000
@@ -62,7 +62,7 @@ StageZero/
 │   ├── Models/               # Domain entities
 │   ├── Services/             # Business logic (Auth, etc.)
 │   └── wwwroot/              # Static assets
-├── docker-compose.yml
+├── debug.docker-compose.yml
 ├── .env.example
 └── StageZero.sln
 ```

@@ -54,7 +54,7 @@
     {
       "label": "docker-compose-up",
       "type": "shell",
-      "command": "docker-compose up --build -d",
+      "command": "docker-compose -f debug.docker-compose.yml up --build -d",
       "presentation": {
         "echo": true,
         "reveal": "always",
@@ -68,7 +68,7 @@
     {
       "label": "docker-compose-down",
       "type": "shell",
-      "command": "docker-compose down",
+      "command": "docker-compose -f debug.docker-compose.yml down",
       "presentation": {
         "echo": true,
         "reveal": "always",
@@ -82,7 +82,7 @@
     {
       "label": "docker-compose-logs",
       "type": "shell",
-      "command": "docker-compose logs -f app",
+      "command": "docker-compose -f debug.docker-compose.yml logs -f stagezero",
       "isBackground": true,
       "presentation": {
         "echo": true,

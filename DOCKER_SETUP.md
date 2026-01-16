@@ -39,7 +39,7 @@ dotnet dev-certs https --trust
 
 This creates a certificate at `~/.aspnet/https/aspnetapp.pfx` which is mounted into the Docker container.
 
-**Note**: The password is empty (`""`) by default. If you want to use a password, update the `ASPNETCORE_Kestrel__Certificates__Default__Password` environment variable in `docker-compose.yml`.
+**Note**: The password is empty (`""`) by default. If you want to use a password, update the `ASPNETCORE_Kestrel__Certificates__Default__Password` environment variable in `debug.docker-compose.yml`.
 
 ## 🚀 Quick Start
 
@@ -79,21 +79,21 @@ This will:
 
 ```bash
 # Start the application
-docker-compose up --build
+docker-compose -f debug.docker-compose.yml up --build
 
 # Or run in detached mode (background)
-docker-compose up --build -d
+docker-compose -f debug.docker-compose.yml up --build -d
 
 # View logs
-docker-compose logs -f app
+docker-compose -f debug.docker-compose.yml logs -f app
 
 # Stop the application
-docker-compose down
+docker-compose -f debug.docker-compose.yml down
 ```
 
 ## 📁 Docker Compose Configuration
 
-The `docker-compose.yml` file defines:
+The `debug.docker-compose.yml` file defines:
 
 - **Service**: `app` (StageZero application)
 - **Ports**:
@@ -137,7 +137,7 @@ Features:
 
 For manual attachment:
 
-1. Start containers: `docker-compose up -d`
+1. Start containers: `docker-compose -f debug.docker-compose.yml up -d`
 2. In VS Code, select **"Docker Compose"** launch profile
 3. Press `F5` to attach debugger
 4. Set breakpoints in your code
@@ -190,7 +190,7 @@ The Dockerfile has multiple stages:
 To use release mode:
 
 ```yaml
-# In docker-compose.yml, change:
+# In debug.docker-compose.yml, change:
 target: release
 ```
 
@@ -229,8 +229,8 @@ dotnet dev-certs https --trust
 ls -la ~/.aspnet/https/aspnetapp.pfx
 
 # Restart containers
-docker-compose down
-docker-compose up
+docker-compose -f debug.docker-compose.yml down
+docker-compose -f debug.docker-compose.yml up
 ```
 
 ### Port Already in Use
@@ -246,12 +246,12 @@ lsof -i :5000
 
 ```bash
 # View detailed logs
-docker-compose logs app
+docker-compose -f debug.docker-compose.yml logs app
 
 # Rebuild from scratch
-docker-compose down
-docker-compose build --no-cache
-docker-compose up
+docker-compose -f debug.docker-compose.yml down
+docker-compose -f debug.docker-compose.yml build --no-cache
+docker-compose -f debug.docker-compose.yml up
 ```
 
 ### Database Locked
@@ -260,7 +260,7 @@ If you get "database is locked" errors:
 
 ```bash
 # Stop all containers
-docker-compose down
+docker-compose -f debug.docker-compose.yml down
 
 # Check if any processes are using the database
 lsof .volumes/data/stagezero.db* 2>/dev/null || echo "No processes found"
@@ -270,14 +270,14 @@ rm -f .volumes/data/stagezero.db-wal
 rm -f .volumes/data/stagezero.db-shm
 
 # Restart
-docker-compose up
+docker-compose -f debug.docker-compose.yml up
 ```
 
 **Note**: The `.db-shm` and `.db-wal` files are temporary and will be recreated automatically. Only delete them when the container is stopped.
 
 ### Hot Reload Not Working
 
-Make sure the volume mount is correct in `docker-compose.yml`:
+Make sure the volume mount is correct in `debug.docker-compose.yml`:
 ```yaml
 volumes:
   - ./StageZero:/app  # This line enables hot reload
@@ -287,16 +287,16 @@ volumes:
 
 ```bash
 # Stop and remove containers
-docker-compose down
+docker-compose -f debug.docker-compose.yml down
 
 # Remove containers and volumes
-docker-compose down -v
+docker-compose -f debug.docker-compose.yml down -v
 
 # Remove images
-docker-compose down --rmi all
+docker-compose -f debug.docker-compose.yml down --rmi all
 
 # Complete cleanup (removes database!)
-docker-compose down -v --rmi all
+docker-compose -f debug.docker-compose.yml down -v --rmi all
 rm -rf .volumes/
 ```
 
@@ -312,10 +312,10 @@ For production, use the release build:
 
 ```bash
 # Build release image
-docker-compose build --build-arg target=release
+docker-compose -f debug.docker-compose.yml build --build-arg target=release
 
 # Run in production mode
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker-compose -f debug.docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 Consider using:

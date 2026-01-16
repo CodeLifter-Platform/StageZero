@@ -7,6 +7,7 @@ using StageZero.DataAdapters.DnsRecords;
 using StageZero.DataAdapters.IpChecks;
 using StageZero.DataAdapters.Settings;
 using StageZero.Models;
+using StageZero.Services;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
@@ -44,6 +45,10 @@ for (int i = 0; i <= 5; i++)
 // SERILOG CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
 
+// Get platform-specific logs directory
+var logsDirectory = DataPathService.GetLogsDirectory();
+var logFilePath = Path.Combine(logsDirectory, "log-.txt");
+
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
@@ -51,12 +56,13 @@ Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
     .Enrich.FromLogContext()
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .WriteTo.File("logs/log-.txt", rollingInterval: RollingInterval.Day)
+    .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
 try
 {
     Log.Information("Starting StageZero application");
+    Log.Information(DataPathService.GetPlatformInfo());
 
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
@@ -73,8 +79,14 @@ try
         .AddInteractiveServerComponents();
 
     // Entity Framework with DbContextFactory (required for Blazor Server)
+    // Use platform-specific database path, or fall back to connection string from config
+    var databasePath = DataPathService.GetDatabasePath();
+    var connectionString = $"Data Source={databasePath}";
+
+    Log.Information("Database path: {DatabasePath}", databasePath);
+
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseSqlite(connectionString));
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
