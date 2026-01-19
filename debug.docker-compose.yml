@@ -33,4 +33,3 @@ services:
       - ~/.aspnet/https:/https:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
