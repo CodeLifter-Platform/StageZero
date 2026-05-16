@@ -1,0 +1,30 @@
+services:
+  # ═══════════════════════════════════════════════════════════════
+  # STAGEZERO PRODUCTION BUILD (HTTP-only, fronted by Cloudflare Tunnel)
+  # ═══════════════════════════════════════════════════════════════
+  # Kestrel listens on plain HTTP inside the container.
+  # TLS is terminated upstream by cloudflared (Cloudflare Tunnel).
+  # ═══════════════════════════════════════════════════════════════
+  prod-stagezero:
+    container_name: prod-stagezero
+    image: stagezero:prod
+    build:
+      context: .
+      dockerfile: StageZero/Dockerfile
+      target: release
+    ports:
+      - "5100:80"
+    env_file:
+      - .env
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      # Database path is managed by DataPathService in the application
+      # The application uses platform-specific paths automatically
+    volumes:
+      # Application data directory (database, logs, etc.)
+      # docker-run.ps1 sets STAGEZERO_DATA_DIR to %APPDATA%\StageZero on Windows
+      - ${STAGEZERO_DATA_DIR:-./.volumes/stagezero-data}:/app-data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
