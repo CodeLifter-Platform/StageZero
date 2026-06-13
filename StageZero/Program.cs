@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using StageZero.Application.Layout;
@@ -148,21 +147,9 @@ try
     builder.Services.AddScoped<StageZero.Application.Areas.DnsConfig.IDnsConfigViewModel, StageZero.Application.Areas.DnsConfig.DnsConfigViewModel>();
 
     // ═══════════════════════════════════════════════════════════════
-    // FORWARDED HEADERS (for Cloudflare Tunnel / reverse proxies)
-    // ═══════════════════════════════════════════════════════════════
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-    });
-
-    // ═══════════════════════════════════════════════════════════════
     // BUILD APPLICATION
     // ═══════════════════════════════════════════════════════════════
     var app = builder.Build();
-
-    app.UseForwardedHeaders();
 
     // Ensure database is created and seed default user
     using (var scope = app.Services.CreateScope())
@@ -371,11 +358,7 @@ try
         app.UseHsts();
     }
 
-    if (app.Environment.IsDevelopment())
-    {
-        app.UseHttpsRedirection();
-    }
-
+    app.UseHttpsRedirection();
     app.UseStaticFiles();
     app.UseAntiforgery();
 

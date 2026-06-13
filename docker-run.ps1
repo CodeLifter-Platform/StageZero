@@ -39,10 +39,10 @@ $env:STAGEZERO_DATA_DIR = $StageZeroDataDir
 switch ($Command) {
     'up' {
         Write-Host "Starting StageZero..." -ForegroundColor Green
-        docker-compose -f prod.docker-compose.yml up --build -d
+        docker-compose -f debug.docker-compose.yml up --build -d
         Write-Host ""
         Write-Host "✅ StageZero is running!" -ForegroundColor Green
-        Write-Host "   Web UI: http://localhost:5100"
+        Write-Host "   Web UI: http://localhost:5000"
         Write-Host "   Data:   $StageZeroDataDir"
         Write-Host ""
         Write-Host "To view logs: .\docker-run.ps1 logs"
@@ -50,20 +50,20 @@ switch ($Command) {
     }
     'down' {
         Write-Host "Stopping StageZero..." -ForegroundColor Yellow
-        docker-compose -f prod.docker-compose.yml down
+        docker-compose -f debug.docker-compose.yml down
         Write-Host "✅ StageZero stopped" -ForegroundColor Green
     }
     'logs' {
-        docker-compose -f prod.docker-compose.yml logs -f prod-stagezero
+        docker-compose -f debug.docker-compose.yml logs -f stagezero
     }
     'restart' {
         Write-Host "Restarting StageZero..." -ForegroundColor Yellow
-        docker-compose -f prod.docker-compose.yml restart prod-stagezero
+        docker-compose -f debug.docker-compose.yml restart stagezero
         Write-Host "✅ StageZero restarted" -ForegroundColor Green
     }
     'build' {
         Write-Host "Building StageZero..." -ForegroundColor Yellow
-        docker-compose -f prod.docker-compose.yml build
+        docker-compose -f debug.docker-compose.yml build
         Write-Host "✅ Build complete" -ForegroundColor Green
     }
 }
