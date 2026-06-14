@@ -1,0 +1,50 @@
+# ═══════════════════════════════════════════════════════════════
+# Docker build context excludes
+# Build context is the repo root (see *.docker-compose.yml: context: .)
+# Keep host build artifacts OUT of the image: the container runs its
+# own `dotnet restore`/`publish`, and host bin/obj can be root-owned
+# from previous container runs (breaks COPY) or carry host-specific
+# absolute paths in obj/project.assets.json.
+# ═══════════════════════════════════════════════════════════════
+
+# .NET build artifacts (regenerated inside the container)
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Local dev / IDE
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+
+# Git & CI
+.git/
+.github/
+.gitignore
+
+# Local environment & secrets (passed in at runtime, not baked into the image)
+.env
+.env.*
+!.env.example
+
+# Local data volumes / databases
+.volumes/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# OS noise
+**/.DS_Store
+
+# Docker / compose files themselves (not needed inside the image)
+**/Dockerfile
+**/.dockerignore
+*.docker-compose.yml
+docker-run.sh
+docker-run.ps1
+
+# Packaging / docs that don't belong in the build
+nupkgs/
+**/*.docx
