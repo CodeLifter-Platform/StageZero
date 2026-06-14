@@ -7,12 +7,19 @@ namespace StageZero.ReverseProxy.Extensions
     {
         public static IServiceCollection AddReverseProxyManagement(this IServiceCollection services)
         {
-            // Note: YARP integration is disabled for now - will be added when needed
-            // For now, we just register the basic services for proxy host management
+            // Note: full YARP routing integration (DatabaseProxyConfigProvider) is
+            // still disabled — the host app provides its own IProxyConfigurationService.
+            // Proxy host management + Let's Encrypt certificate services are enabled.
 
             services.AddScoped<IProxyHostManager, ProxyHostManager>();
-            // services.AddScoped<ICertificateService, CertificateService>();
-            // services.AddHostedService<CertificateRenewalBackgroundService>();
+
+            // Let's Encrypt certificate services. The challenge store must be a
+            // singleton so the HTTP-01 endpoint can read responses published by
+            // the scoped CertificateService during issuance. The host must also map
+            // GET /.well-known/acme-challenge/{token} to serve from IAcmeChallengeStore.
+            services.AddSingleton<IAcmeChallengeStore, InMemoryAcmeChallengeStore>();
+            services.AddScoped<ICertificateService, CertificateService>();
+            services.AddHostedService<CertificateRenewalBackgroundService>();
 
             return services;
         }

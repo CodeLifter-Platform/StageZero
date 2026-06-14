@@ -4,6 +4,7 @@
 @using StageZero.ReverseProxy.Services
 @using Microsoft.AspNetCore.WebUtilities
 @inject IProxyHostManager ProxyManager
+@inject ICertificateService CertService
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -283,6 +284,24 @@ else
             {
                 await ProxyManager.CreateAsync(_proxyHost);
                 Snackbar.Add("Proxy host created successfully", Severity.Success);
+            }
+
+            // Request a Let's Encrypt certificate now if enabled and one isn't
+            // already in place. The domain must be publicly resolvable and reach
+            // this host over HTTP for the ACME challenge to succeed; if it fails,
+            // the renewal background service will retry. (Background-only issuance
+            // would otherwise leave the user waiting up to 24h for the first cert.)
+            if (_proxyHost.UseLetsEncrypt
+                && !string.IsNullOrEmpty(_proxyHost.LetsEncryptEmail)
+                && string.IsNullOrEmpty(_proxyHost.SslCertificatePath))
+            {
+                Snackbar.Add($"Requesting Let's Encrypt certificate for {_proxyHost.DomainName}...", Severity.Info);
+                var issued = await CertService.RequestCertificateAsync(_proxyHost);
+                Snackbar.Add(
+                    issued
+                        ? $"Certificate issued for {_proxyHost.DomainName}"
+                        : $"Certificate request for {_proxyHost.DomainName} did not complete — it will be retried automatically. Check logs for details.",
+                    issued ? Severity.Success : Severity.Warning);
             }
 
             Navigation.NavigateTo("/proxy-hosts");
