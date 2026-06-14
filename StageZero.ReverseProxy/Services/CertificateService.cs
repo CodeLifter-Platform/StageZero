@@ -1,7 +1,9 @@
 using System.Security.Cryptography.X509Certificates;
 using Certes;
 using Certes.Acme;
+using Certes.Acme.Resource;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StageZero.ReverseProxy.Models;
@@ -20,21 +22,37 @@ namespace StageZero.ReverseProxy.Services
         private readonly DbContext _dbContext;
         private readonly ILogger<CertificateService> _logger;
         private readonly IHostEnvironment _environment;
+        private readonly IAcmeChallengeStore _challengeStore;
+        private readonly Uri _acmeServer;
         private readonly string _certificatesPath;
 
         public CertificateService(
             DbContext dbContext,
             ILogger<CertificateService> logger,
-            IHostEnvironment environment)
+            IHostEnvironment environment,
+            IAcmeChallengeStore challengeStore,
+            IConfiguration configuration)
         {
             _dbContext = dbContext;
             _logger = logger;
             _environment = environment;
+            _challengeStore = challengeStore;
+
+            // Default to the Let's Encrypt staging directory unless production is
+            // explicitly requested. Staging has far higher rate limits and issues
+            // untrusted certs, which keeps experimentation from burning the
+            // strict production rate limits. Set LetsEncrypt:UseProduction=true
+            // (or LetsEncrypt__UseProduction=true) once issuance is verified.
+            var useProduction = configuration.GetValue<bool>("LetsEncrypt:UseProduction");
+            _acmeServer = useProduction
+                ? WellKnownServers.LetsEncryptV2
+                : WellKnownServers.LetsEncryptStagingV2;
+
             _certificatesPath = Path.Combine(environment.ContentRootPath, "certificates");
 
-            if (!Directory.Exists(_certificatesPath))
+            if (!System.IO.Directory.Exists(_certificatesPath))
             {
-                Directory.CreateDirectory(_certificatesPath);
+                System.IO.Directory.CreateDirectory(_certificatesPath);
             }
         }
 
@@ -46,11 +64,12 @@ namespace StageZero.ReverseProxy.Services
                 return false;
             }
 
+            string? challengeToken = null;
             try
             {
                 _logger.LogInformation("Requesting certificate for {Domain}", proxyHost.DomainName);
 
-                var acme = new AcmeContext(WellKnownServers.LetsEncryptV2);
+                var acme = new AcmeContext(_acmeServer);
                 var account = await acme.NewAccount(proxyHost.LetsEncryptEmail, termsOfServiceAgreed: true);
 
                 var order = await acme.NewOrder(new[] { proxyHost.DomainName });
@@ -59,33 +78,44 @@ namespace StageZero.ReverseProxy.Services
                 var httpChallenge = await authz.Http();
                 var keyAuthz = httpChallenge.KeyAuthz;
 
-                _logger.LogInformation("Challenge token: {Token}", httpChallenge.Token);
-                _logger.LogInformation("Key Authorization: {KeyAuthz}", keyAuthz);
+                // Publish the challenge response so /.well-known/acme-challenge/{token}
+                // can serve it when Let's Encrypt validates the domain.
+                challengeToken = httpChallenge.Token;
+                _challengeStore.AddChallenge(challengeToken, keyAuthz);
+                _logger.LogInformation("Published ACME challenge for {Domain} (token {Token})",
+                    proxyHost.DomainName, challengeToken);
 
                 await httpChallenge.Validate();
 
-                var maxAttempts = 10;
+                // Poll the authorization until it is validated (or fails). The
+                // authorization — not the order — reflects challenge progress.
+                var maxAttempts = 15;
                 var attempt = 0;
-                while (attempt < maxAttempts)
+                Challenge challengeResource;
+                do
                 {
                     await Task.Delay(2000);
-                    var orderStatus = await order.Resource();
-                    if (orderStatus.Status == OrderStatus.Ready || orderStatus.Status == OrderStatus.Valid)
-                    {
-                        break;
-                    }
+                    challengeResource = await httpChallenge.Resource();
                     attempt++;
+                }
+                while (challengeResource.Status != ChallengeStatus.Valid
+                    && challengeResource.Status != ChallengeStatus.Invalid
+                    && attempt < maxAttempts);
+
+                if (challengeResource.Status != ChallengeStatus.Valid)
+                {
+                    _logger.LogError(
+                        "ACME challenge for {Domain} did not validate (status {Status}): {Error}",
+                        proxyHost.DomainName,
+                        challengeResource.Status,
+                        challengeResource.Error?.Detail);
+                    return false;
                 }
 
                 var privateKey = KeyFactory.NewKey(KeyAlgorithm.ES256);
 
                 var cert = await order.Generate(new CsrInfo
                 {
-                    CountryName = "US",
-                    State = "State",
-                    Locality = "City",
-                    Organization = "Organization",
-                    OrganizationUnit = "IT",
                     CommonName = proxyHost.DomainName
                 }, privateKey);
 
@@ -112,6 +142,13 @@ namespace StageZero.ReverseProxy.Services
             {
                 _logger.LogError(ex, "Failed to request certificate for {Domain}", proxyHost.DomainName);
                 return false;
+            }
+            finally
+            {
+                if (challengeToken != null)
+                {
+                    _challengeStore.RemoveChallenge(challengeToken);
+                }
             }
         }
 
@@ -143,13 +180,20 @@ namespace StageZero.ReverseProxy.Services
         {
             var expiringDate = DateTime.UtcNow.AddDays(30);
 
-            var expiringHosts = await _dbContext.Set<ProxyHost>()
-                .Where(p => p.UseLetsEncrypt && p.SslCertificateExpiry < expiringDate)
+            // Pick up both hosts that still need an initial certificate
+            // (SslCertificateExpiry == null) and hosts whose certificate is
+            // within the 30-day renewal window.
+            var pendingHosts = await _dbContext.Set<ProxyHost>()
+                .Where(p => p.UseLetsEncrypt
+                    && (p.SslCertificateExpiry == null || p.SslCertificateExpiry < expiringDate))
                 .ToListAsync();
 
-            foreach (var host in expiringHosts)
+            foreach (var host in pendingHosts)
             {
-                _logger.LogInformation("Renewing certificate for {Domain}", host.DomainName);
+                _logger.LogInformation(
+                    "{Action} certificate for {Domain}",
+                    host.SslCertificateExpiry == null ? "Issuing" : "Renewing",
+                    host.DomainName);
                 await RequestCertificateAsync(host);
             }
         }

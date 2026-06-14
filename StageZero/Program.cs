@@ -133,6 +133,16 @@ try
     builder.Services.AddScoped<IProxyHostManager, ProxyHostManager>();
 
     // ═══════════════════════════════════════════════════════════════
+    // LET'S ENCRYPT CERTIFICATE SERVICES
+    // ═══════════════════════════════════════════════════════════════
+    // The challenge store is a singleton so the scoped CertificateService can
+    // publish HTTP-01 responses that the /.well-known/acme-challenge endpoint
+    // (served in a separate request scope) can read back.
+    builder.Services.AddSingleton<IAcmeChallengeStore, InMemoryAcmeChallengeStore>();
+    builder.Services.AddScoped<ICertificateService, CertificateService>();
+    builder.Services.AddHostedService<CertificateRenewalBackgroundService>();
+
+    // ═══════════════════════════════════════════════════════════════
     // BACKGROUND SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddHostedService<IpMonitorBackgroundService>();
@@ -361,6 +371,18 @@ try
     app.UseHttpsRedirection();
     app.UseStaticFiles();
     app.UseAntiforgery();
+
+    // ACME HTTP-01 challenge endpoint for Let's Encrypt domain validation.
+    // Let's Encrypt fetches http://{domain}/.well-known/acme-challenge/{token}
+    // during certificate issuance; we serve the key authorization published by
+    // CertificateService. Must remain reachable over plain HTTP (Let's Encrypt
+    // follows the 301 from UseHttpsRedirection, but the route itself is anonymous).
+    app.MapGet("/.well-known/acme-challenge/{token}", (string token, IAcmeChallengeStore store) =>
+    {
+        return store.TryGetChallenge(token, out var keyAuthorization) && keyAuthorization is not null
+            ? Results.Text(keyAuthorization, "text/plain")
+            : Results.NotFound();
+    });
 
     app.MapRazorComponents<StageZero.Application.App>()
         .AddInteractiveServerRenderMode();

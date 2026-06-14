@@ -144,5 +144,5 @@ SQLite is used for data storage. The database file is created automatically at `
 
 ## License
 
-Private - All rights reserved
+[MIT](LICENSE) © CodeLifter LLC
 
