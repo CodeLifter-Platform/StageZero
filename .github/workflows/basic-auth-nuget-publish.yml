@@ -54,6 +54,27 @@ jobs:
         path: ${{ env.PACKAGE_OUTPUT_DIR }}/*.nupkg
         retention-days: 7
 
+  build-app:
+    name: Build StageZero App
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    # Built via the csproj rather than the solution: StageZero.sln still
+    # references Lifted.BlazorAuth.AspNetIdentity, which is not in this repo.
+    - name: Restore dependencies
+      run: dotnet restore StageZero/StageZero.csproj
+
+    - name: Build
+      run: dotnet build StageZero/StageZero.csproj --configuration Release --no-restore
+
   publish-nuget:
     name: Publish to NuGet.org
     needs: build
