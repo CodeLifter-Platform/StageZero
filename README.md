@@ -1,8 +1,17 @@
 # StageZero
 
-**A Dynamic DNS tool that updates changes to DNS services**
+**Self-hosting control panel for Cloudflare DNS and Cloudflare Tunnels**
 
-A Blazor Server application for managing dynamic DNS updates. Keep your domains pointed at the right IP addresses, automatically.
+A Blazor Server application that keeps your domains pointed at the right IP
+addresses and publishes your local services to the internet through a Cloudflare
+Tunnel — no port forwarding, no certificate management, no public IP required.
+
+Two features, one Cloudflare API token:
+
+- **Dynamic DNS** — monitors your public IP and updates Cloudflare DNS records when it changes.
+- **Tunnel Routes** — maps public hostnames to services on your network by pushing
+  ingress rules and proxied CNAMEs to Cloudflare. See
+  [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
 
 ## Tech Stack
 
@@ -48,21 +57,39 @@ A Blazor Server application for managing dynamic DNS updates. Keep your domains 
 
 3. **Access the app:** http://localhost:5000
 
+### Production (behind a Cloudflare Tunnel)
+
+```bash
+./docker-run.sh up prod        # macOS / Linux
+.\docker-run.ps1 up prod       # Windows
+```
+
+Runs the release image on plain HTTP at `127.0.0.1:5100`; Cloudflare terminates
+TLS at the edge. Follow [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md)
+to install the connector and publish it.
+
 ## Project Structure
 
 ```
 StageZero/
 ├── StageZero/
 │   ├── Application/           # UI Layer
-│   │   ├── Areas/            # Feature areas (Home, etc.)
+│   │   ├── Areas/            # Feature areas
+│   │   │   ├── DnsConfig/        # DNS providers + records
+│   │   │   ├── IpMonitor/        # Public IP history
+│   │   │   └── TunnelManagement/ # Tunnel routes + setup wizard
 │   │   ├── Components/       # Shared components
 │   │   └── Layout/           # MainLayout, AppVM
 │   ├── Data/                 # DbContext
 │   ├── DataAdapters/         # Data access (Readers/Writers)
 │   ├── Models/               # Domain entities
-│   ├── Services/             # Business logic (Auth, etc.)
+│   ├── Services/             # Business logic
+│   │   ├── Dns/                  # Cloudflare DNS + DDNS updates
+│   │   ├── IpMonitoring/         # Public IP polling
+│   │   └── Tunnel/               # Cloudflare Tunnel API + route sync
 │   └── wwwroot/              # Static assets
-├── debug.docker-compose.yml
+├── debug.docker-compose.yml   # Hot-reload development
+├── prod.docker-compose.yml    # Release build + optional cloudflared sidecar
 ├── .env.example
 └── StageZero.sln
 ```
@@ -123,6 +150,21 @@ This is useful for:
 - Testing without affecting production DNS
 - Temporarily pausing updates for specific providers
 - Development without valid DNS credentials
+
+### Cloudflare API Token
+
+One token drives both features. Create it at **My Profile → API Tokens** with:
+
+| Scope | Permission |
+|---|---|
+| Account | Cloudflare Tunnel → Edit |
+| Zone | DNS → Edit |
+| Zone | Zone → Read |
+
+The tunnel token is encrypted with ASP.NET Data Protection before storage. The
+keyring lives in the app data directory (`/app-data/dp-keys` in Docker), which
+must be on a persistent volume — otherwise the token can't be decrypted after a
+restart.
 
 ### VS Code Debugging
 

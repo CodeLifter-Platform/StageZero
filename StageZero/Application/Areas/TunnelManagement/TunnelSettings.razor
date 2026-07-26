@@ -1,0 +1,445 @@
+@page "/tunnel-settings"
+@implements IDisposable
+@using System.Runtime.InteropServices
+@using StageZero.Services.Dns
+@using StageZero.Services.Tunnel
+@inject ITunnelSettingsViewModel VM
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Tunnel Setup - StageZero</PageTitle>
+
+<RequireAuth>
+@if (VM.IsLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-2">Cloudflare Tunnel Setup</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+            StageZero manages your tunnel's routes through the Cloudflare API. Connect an
+            account here, then install the connector on this machine.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+
+        @* ─────────────────────────────────────────────────────── *@
+        @* CURRENT CONFIGURATION *@
+        @* ─────────────────────────────────────────────────────── *@
+        @if (VM.SavedConfig is not null)
+        {
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Current Configuration</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                        <tbody>
+                            <tr>
+                                <td><MudText Typo="Typo.body2" Color="Color.Secondary">Tunnel</MudText></td>
+                                <td><MudText Typo="Typo.body2">@VM.SavedConfig.TunnelName</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2" Color="Color.Secondary">Tunnel ID</MudText></td>
+                                <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@VM.SavedConfig.TunnelId</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2" Color="Color.Secondary">Zone</MudText></td>
+                                <td><MudText Typo="Typo.body2">@VM.SavedConfig.CloudflareZoneName</MudText></td>
+                            </tr>
+                            <tr>
+                                <td><MudText Typo="Typo.body2" Color="Color.Secondary">Account ID</MudText></td>
+                                <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@VM.SavedConfig.CloudflareAccountId</MudText></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Key"
+                                   Disabled="@VM.IsBusy"
+                                   OnClick="@RefreshToken">
+                            Show Connector Token
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.DeleteForever"
+                                   Disabled="@VM.IsBusy"
+                                   OnClick="@ClearConfig">
+                            Disconnect
+                        </MudButton>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        }
+
+        @* ─────────────────────────────────────────────────────── *@
+        @* STEP 1 - CREDENTIALS *@
+        @* ─────────────────────────────────────────────────────── *@
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">1. Cloudflare Credentials</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+                    <MudText Typo="Typo.body2">
+                        Create an API token with these permissions:
+                    </MudText>
+                    <ul class="mt-2 ml-4">
+                        <li><MudText Typo="Typo.body2">Account &rarr; Cloudflare Tunnel &rarr; Edit</MudText></li>
+                        <li><MudText Typo="Typo.body2">Zone &rarr; DNS &rarr; Edit</MudText></li>
+                        <li><MudText Typo="Typo.body2">Zone &rarr; Zone &rarr; Read</MudText></li>
+                    </ul>
+                    <MudText Typo="Typo.body2" Class="mt-2">
+                        The same token also works for the DNS Configuration page.
+                    </MudText>
+                </MudAlert>
+
+                <MudTextField @bind-Value="_apiToken"
+                              Label="API Token"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              InputType="InputType.Password"
+                              HelperText="Stored encrypted. Re-enter it to change any setting below."
+                              Class="mb-4" />
+
+                <MudTextField @bind-Value="_accountId"
+                              Label="Account ID"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              HelperText="Cloudflare dashboard → Workers & Pages → Account details"
+                              Class="mb-4" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.CloudSync"
+                           Disabled="@(VM.IsBusy || string.IsNullOrWhiteSpace(_apiToken) || string.IsNullOrWhiteSpace(_accountId))"
+                           OnClick="@LoadAccount">
+                    @if (VM.IsBusy)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Connect
+                </MudButton>
+            </MudCardContent>
+        </MudCard>
+
+        @* ─────────────────────────────────────────────────────── *@
+        @* STEP 2 - ZONE + TUNNEL *@
+        @* ─────────────────────────────────────────────────────── *@
+        @if (VM.Zones.Count > 0)
+        {
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">2. Zone &amp; Tunnel</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSelect T="string"
+                               @bind-Value="_selectedZoneId"
+                               Label="Zone"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               HelperText="Hostnames you publish must belong to this zone"
+                               Class="mb-4">
+                        @foreach (var zone in VM.Zones)
+                        {
+                            <MudSelectItem Value="@zone.Id">@zone.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <MudDivider Class="my-4" />
+
+                    @if (VM.Tunnels.Count > 0)
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Adopt an existing tunnel</MudText>
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-3">
+                            Adopting a tunnel that currently serves traffic will interrupt it.
+                            StageZero becomes the source of truth for its routes, so any hostnames
+                            it already serves must be re-created here before they work again.
+                        </MudAlert>
+                        <MudTable Items="@VM.Tunnels" Dense="true" Hover="true" Elevation="0" Class="mb-4">
+                            <HeaderContent>
+                                <MudTh>Name</MudTh>
+                                <MudTh>Config</MudTh>
+                                <MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Name">
+                                    <MudText Typo="Typo.body2">@context.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@context.Id</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Config">
+                                    @if (context.IsRemotelyManaged)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Remote</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudTooltip Text="Will be switched to remotely-managed config on adopt">
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning">Local file</MudChip>
+                                        </MudTooltip>
+                                    }
+                                </MudTd>
+                                <MudTd>
+                                    <MudButton Variant="Variant.Outlined"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               Disabled="@(VM.IsBusy || string.IsNullOrWhiteSpace(_selectedZoneId))"
+                                               OnClick="@(() => AdoptTunnel(context))">
+                                        Adopt
+                                    </MudButton>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+
+                        <MudDivider Class="my-4" />
+                    }
+
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Or create a new one</MudText>
+                    <MudTextField @bind-Value="_newTunnelName"
+                                  Label="Tunnel Name"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Placeholder="stagezero"
+                                  Class="mb-4" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               Disabled="@(VM.IsBusy || string.IsNullOrWhiteSpace(_newTunnelName) || string.IsNullOrWhiteSpace(_selectedZoneId))"
+                               OnClick="@CreateTunnel">
+                        Create Tunnel
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+        }
+
+        @* ─────────────────────────────────────────────────────── *@
+        @* STEP 3 - INSTALL THE CONNECTOR *@
+        @* ─────────────────────────────────────────────────────── *@
+        @if (!string.IsNullOrEmpty(VM.ConnectorToken))
+        {
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">3. Install the Connector</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                        Treat this token like a password &mdash; anyone holding it can serve
+                        traffic through your tunnel.
+                    </MudAlert>
+
+                    <MudTextField Value="@VM.ConnectorToken"
+                                  T="string"
+                                  Label="Connector Token"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  ReadOnly="true"
+                                  Lines="3"
+                                  Class="mb-4"
+                                  Style="font-family: monospace; word-break: break-all;" />
+
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        Run these on the machine that should serve the traffic:
+                    </MudText>
+
+                    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_osTabIndex">
+                        <MudTabPanel Text="macOS" Icon="@Icons.Material.Filled.Laptop">
+                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">brew install cloudflared
+sudo cloudflared service install @VM.ConnectorToken</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
+                                Installs a launchd service. Verify with
+                                <code>sudo launchctl list | grep cloudflared</code>.
+                            </MudText>
+                        </MudTabPanel>
+
+                        <MudTabPanel Text="Windows" Icon="@Icons.Material.Filled.DesktopWindows">
+                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">winget install --id Cloudflare.cloudflared
+cloudflared service install @VM.ConnectorToken</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
+                                Run in an Administrator terminal. Verify with
+                                <code>Get-Service cloudflared</code>.
+                            </MudText>
+                        </MudTabPanel>
+
+                        <MudTabPanel Text="Linux" Icon="@Icons.Material.Filled.Terminal">
+                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+  | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+  | sudo tee /etc/apt/sources.list.d/cloudflared.list
+sudo apt update &amp;&amp; sudo apt install cloudflared
+sudo cloudflared service install @VM.ConnectorToken</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
+                                Installs a systemd unit. Verify with
+                                <code>systemctl status cloudflared</code>.
+                            </MudText>
+                        </MudTabPanel>
+
+                        <MudTabPanel Text="Docker" Icon="@Icons.Material.Filled.Inventory2">
+                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">TUNNEL_TOKEN=@VM.ConnectorToken
+
+docker compose -f prod.docker-compose.yml --profile tunnel up -d</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
+                                Put the token in <code>.env</code>, then start the stack with the
+                                <code>tunnel</code> profile. The connector stops when the stack does &mdash;
+                                a host service is more resilient.
+                            </MudText>
+                        </MudTabPanel>
+                    </MudTabs>
+
+                    @if (_wasAdopted)
+                    {
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
+                            This tunnel previously used a local <code>config.yml</code>. After installing
+                            with the token above, run <code>cloudflared service uninstall</code> for the old
+                            service first, then delete the old <code>config.yml</code> so it can't take
+                            precedence.
+                        </MudAlert>
+                    }
+
+                    <div class="d-flex gap-2 mt-4">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Hub"
+                                   Href="/tunnel-routes">
+                            Go to Tunnel Routes
+                        </MudButton>
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    private string _apiToken = string.Empty;
+    private string _accountId = string.Empty;
+    private string _selectedZoneId = string.Empty;
+    private string _newTunnelName = "stagezero";
+    private string? _errorMessage;
+    private bool _wasAdopted;
+
+    // Default the instructions to whatever OS this process is on. In a container
+    // that is Linux regardless of the host, so the user can still switch tabs.
+    private int _osTabIndex =
+        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? 0
+        : RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 1
+        : 2;
+
+    protected override async Task OnInitializedAsync()
+    {
+        VM.PropertyChanged += OnVmPropertyChanged;
+        await VM.OnInitializedAsync();
+
+        if (VM.SavedConfig is not null)
+        {
+            _accountId = VM.SavedConfig.CloudflareAccountId;
+            _selectedZoneId = VM.SavedConfig.CloudflareZoneId ?? string.Empty;
+            _newTunnelName = VM.SavedConfig.TunnelName ?? "stagezero";
+        }
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    private async Task LoadAccount()
+    {
+        _errorMessage = null;
+        try
+        {
+            await VM.LoadAccountAsync(_apiToken.Trim(), _accountId.Trim());
+            Snackbar.Add($"Found {VM.Zones.Count} zone(s) and {VM.Tunnels.Count} tunnel(s)", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task CreateTunnel()
+    {
+        _errorMessage = null;
+        try
+        {
+            _wasAdopted = false;
+            await VM.CreateTunnelAsync(
+                _apiToken.Trim(), _accountId.Trim(), _selectedZoneId, SelectedZoneName(), _newTunnelName.Trim());
+            Snackbar.Add("Tunnel created", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task AdoptTunnel(TunnelInfo tunnel)
+    {
+        _errorMessage = null;
+        try
+        {
+            _wasAdopted = !tunnel.IsRemotelyManaged;
+            await VM.AdoptTunnelAsync(
+                _apiToken.Trim(), _accountId.Trim(), _selectedZoneId, SelectedZoneName(), tunnel);
+            Snackbar.Add($"Adopted tunnel {tunnel.Name}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task RefreshToken()
+    {
+        _errorMessage = null;
+        try
+        {
+            await VM.RefreshConnectorTokenAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ClearConfig()
+    {
+        _errorMessage = null;
+        try
+        {
+            await VM.ClearConfigurationAsync();
+            Snackbar.Add("Tunnel configuration cleared", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private string SelectedZoneName()
+        => VM.Zones.FirstOrDefault(z => z.Id == _selectedZoneId)?.Name ?? string.Empty;
+
+    public void Dispose()
+    {
+        VM.PropertyChanged -= OnVmPropertyChanged;
+    }
+}

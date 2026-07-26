@@ -23,7 +23,6 @@ services:
     volumes:
       # Source code mounts for hot reload (debug only)
       - ./StageZero:/src/StageZero
-      - ./StageZero.ReverseProxy:/src/StageZero.ReverseProxy
       - ./Lifted.BlazorAuth.Basic:/src/Lifted.BlazorAuth.Basic
 
     

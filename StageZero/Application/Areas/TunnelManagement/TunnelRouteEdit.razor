@@ -1,0 +1,206 @@
+@page "/tunnel-routes/add"
+@page "/tunnel-routes/edit/{Id:int}"
+@using Microsoft.AspNetCore.WebUtilities
+@inject ITunnelManagementViewModel VM
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(Id.HasValue ? "Edit" : "Add") Tunnel Route - StageZero</PageTitle>
+
+<RequireAuth>
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Loading...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-6">@(Id.HasValue ? "Edit" : "Add") Tunnel Route</MudText>
+
+        <EditForm Model="@_route" OnValidSubmit="@HandleSubmit">
+            <DataAnnotationsValidator />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+            }
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Public Hostname</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="_route.DomainName"
+                                  Label="Hostname"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  HelperText="Must be in the zone selected during tunnel setup. A proxied CNAME is created automatically."
+                                  Placeholder="app.yourdomain.com"
+                                  Required="true"
+                                  Class="mb-4" />
+
+                    <MudTextField @bind-Value="_route.Notes"
+                                  Label="Notes (Optional)"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Lines="2" />
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Local Service</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                        Where the connector forwards requests. This is resolved from the machine
+                        running <code>cloudflared</code>, so it can be a private address.
+                    </MudText>
+
+                    <MudSelect @bind-Value="_route.ForwardScheme"
+                               Label="Scheme"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Class="mb-4">
+                        <MudSelectItem Value="@("http")">HTTP</MudSelectItem>
+                        <MudSelectItem Value="@("https")">HTTPS</MudSelectItem>
+                    </MudSelect>
+
+                    <MudTextField @bind-Value="_route.ForwardHost"
+                                  Label="Forward Host"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  HelperText="IP address, hostname, or Docker container name"
+                                  Placeholder="localhost or 192.168.1.100"
+                                  Required="true"
+                                  Class="mb-4" />
+
+                    <MudNumericField @bind-Value="_route.ForwardPort"
+                                     Label="Forward Port"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Min="1"
+                                     Max="65535"
+                                     Required="true" />
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Status</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSwitch @bind-Value="_route.IsEnabled"
+                               Label="Enabled"
+                               Color="Color.Success" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Disabling removes the ingress rule but keeps the DNS record, so
+                        re-enabling takes effect immediately.
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+
+            @* Action Buttons *@
+            <div class="d-flex gap-2 mt-4">
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Disabled="@_isSubmitting"
+                           StartIcon="@Icons.Material.Filled.Save">
+                    @if (_isSubmitting)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    @(Id.HasValue ? "Update" : "Create") Route
+                </MudButton>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           OnClick="@Cancel"
+                           Disabled="@_isSubmitting">
+                    Cancel
+                </MudButton>
+            </div>
+        </EditForm>
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private TunnelRoute _route = new()
+    {
+        ForwardScheme = "http",
+        ForwardHost = "localhost",
+        ForwardPort = 8080,
+        IsEnabled = true
+    };
+
+    private bool _isLoading = true;
+    private bool _isSubmitting = false;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var existing = await VM.GetRouteAsync(Id.Value);
+            if (existing != null)
+            {
+                _route = existing;
+            }
+            else
+            {
+                Navigation.NavigateTo("/tunnel-routes");
+                return;
+            }
+        }
+        else
+        {
+            // Allow deep-linking from elsewhere in the app with ?domain=
+            var uri = new Uri(Navigation.Uri);
+            var queryParams = QueryHelpers.ParseQuery(uri.Query);
+
+            if (queryParams.TryGetValue("domain", out var domain) && !string.IsNullOrEmpty(domain))
+            {
+                _route.DomainName = domain.ToString();
+            }
+        }
+
+        _isLoading = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        _isSubmitting = true;
+        _errorMessage = null;
+
+        try
+        {
+            await VM.SaveRouteAsync(_route);
+            Snackbar.Add($"Route for {_route.DomainName} saved and pushed to Cloudflare", Severity.Success);
+            Navigation.NavigateTo("/tunnel-routes");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void Cancel() => Navigation.NavigateTo("/tunnel-routes");
+}

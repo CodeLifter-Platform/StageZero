@@ -7,7 +7,6 @@ WORKDIR /src
 # Copy solution file and all project files
 COPY StageZero.sln ./
 COPY StageZero/*.csproj ./StageZero/
-COPY StageZero.ReverseProxy/*.csproj ./StageZero.ReverseProxy/
 COPY Lifted.BlazorAuth.Basic/*.csproj ./Lifted.BlazorAuth.Basic/
 
 # Restore dependencies
@@ -15,7 +14,6 @@ RUN dotnet restore StageZero/StageZero.csproj
 
 # Copy all source files
 COPY StageZero/ ./StageZero/
-COPY StageZero.ReverseProxy/ ./StageZero.ReverseProxy/
 COPY Lifted.BlazorAuth.Basic/ ./Lifted.BlazorAuth.Basic/
 
 # Set working directory to the main project
@@ -39,7 +37,6 @@ WORKDIR /src
 # Copy solution file and all project files
 COPY StageZero.sln ./
 COPY StageZero/*.csproj ./StageZero/
-COPY StageZero.ReverseProxy/*.csproj ./StageZero.ReverseProxy/
 COPY Lifted.BlazorAuth.Basic/*.csproj ./Lifted.BlazorAuth.Basic/
 
 # Restore dependencies
@@ -47,7 +44,6 @@ RUN dotnet restore StageZero/StageZero.csproj
 
 # Copy all source files
 COPY StageZero/ ./StageZero/
-COPY StageZero.ReverseProxy/ ./StageZero.ReverseProxy/
 COPY Lifted.BlazorAuth.Basic/ ./Lifted.BlazorAuth.Basic/
 
 # Build and publish
