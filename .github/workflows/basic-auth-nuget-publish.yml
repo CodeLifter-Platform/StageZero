@@ -85,7 +85,10 @@ jobs:
         run: dotnet restore ${{ env.PROJECT_PATH }}
 
       - name: Build
-        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+        # GeneratePackageOnBuild is set in the csproj, which emits a 0.0.1 package here
+        # and gets pushed alongside the real one. The explicit pack step below owns
+        # packaging, and it is the only step that knows the computed version.
+        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore -p:GeneratePackageOnBuild=false
 
       - name: Run tests (if any)
         run: dotnet test --configuration Release --verbosity normal
@@ -114,6 +117,10 @@ jobs:
     needs: [version, build]
     if: ${{ needs.version.outputs.is_release == 'true' }}
     runs-on: ubuntu-latest
+    env:
+      # Secrets are not readable in a step-level `if:`, so surface presence as job env —
+      # the same pattern the signing jobs in the other repos use.
+      HAS_NUGET_KEY: ${{ secrets.NUGET_API_KEY != '' }}
     steps:
       - name: Download NuGet package artifact
         uses: actions/download-artifact@v4
@@ -126,7 +133,15 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
+      - name: Warn when the NuGet key is unavailable
+        if: ${{ env.HAS_NUGET_KEY != 'true' }}
+        run: echo "::warning::NUGET_API_KEY secret not set — skipping the NuGet.org push. The package is still built, attached as an artifact, and published to GitHub Packages."
+
+      # Publish when the key is present, never fail the build when it is absent — the
+      # platform rule that already governs code signing. Without this the whole pipeline
+      # went red on main for a missing credential, after a build that succeeded.
       - name: Publish to NuGet.org
+        if: ${{ env.HAS_NUGET_KEY == 'true' }}
         run: |
           dotnet nuget push ${{ env.PACKAGE_OUTPUT_DIR }}/*.nupkg \
             --api-key "$NUGET_API_KEY" \
