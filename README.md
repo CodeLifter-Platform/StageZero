@@ -188,3 +188,22 @@ SQLite is used for data storage. The database file is created automatically at `
 
 [MIT](LICENSE) © CodeLifter LLC
 
+## Downloads
+
+| Platform | Formats | Get it |
+|---|---|---|
+| **Container** | `Dockerfile` (`debug` / `release` stages) | [build from source](..Documentation/OnboardDocker.md) |
+| **Any .NET 10 host** | `dotnet run` / published output | [Releases](https://github.com/CodeLifter-Platform/StageZero/releases) |
+| **NuGet** | `Lifted.BlazorAuth.Basic` | [nuget.org](https://www.nuget.org/packages/Lifted.BlazorAuth.Basic) |
+
+> StageZero is a server application — there is nothing to install on a desktop. The repo also
+> publishes the `Lifted.BlazorAuth.Basic` package; see `..Documentation/OnboardDocker.md`.
+
+## Release history
+
+Versions come from `BASE_VERSION` + the CI run number, with `RELEASE_LEVEL` adding the
+prerelease suffix. Releases happen on push to `main` — there are no hand-pushed tags, and
+reintroducing a `tags:` trigger is exactly what the platform versioning contract rules out.
+
+| Version | Date | Package | Notes |
+|---|---|---|---|
