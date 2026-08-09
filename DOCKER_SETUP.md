@@ -311,16 +311,18 @@ rm -rf .volumes/
 For production, use the release build:
 
 ```bash
-# Build release image
-docker-compose -f debug.docker-compose.yml build --build-arg target=release
-
-# Run in production mode
-docker-compose -f debug.docker-compose.yml -f docker-compose.prod.yml up -d
+./docker-run.sh up prod        # macOS / Linux
+.\docker-run.ps1 up prod       # Windows
 ```
 
-Consider using:
+This runs `prod.docker-compose.yml`: the release image on plain HTTP at
+`127.0.0.1:5100`, intended to sit behind a Cloudflare Tunnel. TLS and public
+ingress are handled by Cloudflare, so there is no reverse proxy or certificate to
+manage — see [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
+
+Consider also:
 - Proper secrets management (not .env files)
-- Reverse proxy (nginx, Traefik)
-- SSL certificates (Let's Encrypt)
+- A persistent volume for `/app-data` (holds the database **and** the
+  data-protection keys that decrypt the stored Cloudflare API token)
 - Container orchestration (Kubernetes, Docker Swarm)
 

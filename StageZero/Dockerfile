@@ -1,7 +1,7 @@
 # StageZero — Blazor Server dynamic DNS.
 #
 # Build context is the REPO ROOT, not this directory, because the web project references
-# ../StageZero.ReverseProxy and ../Lifted.BlazorAuth.Basic:
+# ../Lifted.BlazorAuth.Basic:
 #
 #   docker build -f StageZero/Dockerfile -t stagezero:local .
 #
@@ -37,7 +37,6 @@ WORKDIR /src
 # it is one of the repos the conformance checker flags for missing .NET pins. Add them
 # to this COPY when they land, or the restore layer will silently stop matching the build.
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
-COPY ["StageZero.ReverseProxy/StageZero.ReverseProxy.csproj", "StageZero.ReverseProxy/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
 
@@ -57,7 +56,6 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
 WORKDIR /src
 
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
-COPY ["StageZero.ReverseProxy/StageZero.ReverseProxy.csproj", "StageZero.ReverseProxy/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
 COPY . .

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using StageZero.Models;
-using StageZero.ReverseProxy.Models;
 using Lifted.BlazorAuth.Basic.Data;
 
 namespace StageZero.Data;
@@ -19,7 +18,8 @@ public class ApplicationDbContext : BasicAuthDbContext
     public DbSet<DnsProvider> DnsProviders => Set<DnsProvider>();
     public DbSet<DnsRecord> DnsRecords => Set<DnsRecord>();
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
-    public DbSet<ProxyHost> ProxyHosts => Set<ProxyHost>();
+    public DbSet<TunnelRoute> TunnelRoutes => Set<TunnelRoute>();
+    public DbSet<TunnelConfig> TunnelConfigs => Set<TunnelConfig>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -69,19 +69,29 @@ public class ApplicationDbContext : BasicAuthDbContext
             entity.HasIndex(e => e.Key).IsUnique();
         });
 
-        // Configure ProxyHost entity
-        builder.Entity<ProxyHost>(entity =>
+        // Configure TunnelRoute entity
+        builder.Entity<TunnelRoute>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.DomainName).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.ForwardScheme).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ForwardScheme).HasMaxLength(10).IsRequired();
             entity.Property(e => e.ForwardHost).HasMaxLength(255).IsRequired();
-            entity.Property(e => e.SslCertificatePath).HasMaxLength(255);
-            entity.Property(e => e.SslCertificateKeyPath).HasMaxLength(255);
-            entity.Property(e => e.LetsEncryptEmail).HasMaxLength(255);
             entity.Property(e => e.Notes).HasMaxLength(500);
             entity.HasIndex(e => e.DomainName).IsUnique();
             entity.HasIndex(e => e.IsEnabled);
+        });
+
+        // Configure TunnelConfig entity (single row)
+        builder.Entity<TunnelConfig>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CloudflareAccountId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.CloudflareZoneId).HasMaxLength(100);
+            entity.Property(e => e.CloudflareZoneName).HasMaxLength(255);
+            entity.Property(e => e.ProtectedApiToken).IsRequired();
+            entity.Property(e => e.TunnelId).HasMaxLength(100);
+            entity.Property(e => e.TunnelName).HasMaxLength(255);
+            entity.Ignore(e => e.IsConfigured);
         });
     }
 }

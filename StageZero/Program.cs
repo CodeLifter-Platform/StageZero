@@ -7,12 +7,16 @@ using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.DataAdapters.IpChecks;
 using StageZero.DataAdapters.Settings;
+using StageZero.DataAdapters.TunnelConfigs;
+using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
-using StageZero.ReverseProxy.Services;
+using StageZero.Services.Tunnel;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Lifted.BlazorAuth.Basic.Services;
 using Lifted.BlazorAuth.Basic.DataAdapters;
 using Serilog;
@@ -112,6 +116,34 @@ try
     builder.Services.AddHttpClient();
 
     // ═══════════════════════════════════════════════════════════════
+    // DATA PROTECTION
+    // ═══════════════════════════════════════════════════════════════
+    // Keys must live on the mounted data volume, not the container filesystem.
+    // Otherwise the encrypted Cloudflare API token in TunnelConfig becomes
+    // undecryptable after the next down/up cycle.
+    var dataProtectionKeysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "dp-keys");
+    Directory.CreateDirectory(dataProtectionKeysPath);
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+        .SetApplicationName("StageZero");
+
+    Log.Information("Data protection keys: {KeysPath}", dataProtectionKeysPath);
+
+    // ═══════════════════════════════════════════════════════════════
+    // FORWARDED HEADERS (Cloudflare Tunnel)
+    // ═══════════════════════════════════════════════════════════════
+    // cloudflared forwards plain HTTP to this app while Cloudflare terminates TLS
+    // at the edge. Without these the app sees http:// and generates insecure links.
+    // The connector's source address is not fixed, so the known-proxy allowlists
+    // are cleared.
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+
+    // ═══════════════════════════════════════════════════════════════
     // DATA ADAPTERS REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IUserReader, UserReader>();
@@ -124,6 +156,10 @@ try
     builder.Services.AddScoped<IDnsProviderWriter, DnsProviderWriter>();
     builder.Services.AddScoped<IDnsRecordReader, DnsRecordReader>();
     builder.Services.AddScoped<IDnsRecordWriter, DnsRecordWriter>();
+    builder.Services.AddScoped<ITunnelRouteReader, TunnelRouteReader>();
+    builder.Services.AddScoped<ITunnelRouteWriter, TunnelRouteWriter>();
+    builder.Services.AddScoped<ITunnelConfigReader, TunnelConfigReader>();
+    builder.Services.AddScoped<ITunnelConfigWriter, TunnelConfigWriter>();
 
     // ═══════════════════════════════════════════════════════════════
     // SERVICES REGISTRATION
@@ -136,24 +172,12 @@ try
     builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
     builder.Services.AddScoped<IDnsVerificationService, DnsVerificationService>();
 
-    // Register DbContext as base class for reverse proxy library
-    builder.Services.AddScoped<DbContext>(sp => sp.GetRequiredService<ApplicationDbContext>());
-
-    // Register Proxy Configuration Service (stub for now - will be replaced when YARP is fully integrated)
-    builder.Services.AddScoped<IProxyConfigurationService, StubProxyConfigurationService>();
-
-    // Register Proxy Host Manager
-    builder.Services.AddScoped<IProxyHostManager, ProxyHostManager>();
-
     // ═══════════════════════════════════════════════════════════════
-    // LET'S ENCRYPT CERTIFICATE SERVICES
+    // CLOUDFLARE TUNNEL SERVICES
     // ═══════════════════════════════════════════════════════════════
-    // The challenge store is a singleton so the scoped CertificateService can
-    // publish HTTP-01 responses that the /.well-known/acme-challenge endpoint
-    // (served in a separate request scope) can read back.
-    builder.Services.AddSingleton<IAcmeChallengeStore, InMemoryAcmeChallengeStore>();
-    builder.Services.AddScoped<ICertificateService, CertificateService>();
-    builder.Services.AddHostedService<CertificateRenewalBackgroundService>();
+    builder.Services.AddScoped<ITunnelTokenProtector, TunnelTokenProtector>();
+    builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
+    builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
 
     // ═══════════════════════════════════════════════════════════════
     // BACKGROUND SERVICES REGISTRATION
@@ -168,6 +192,8 @@ try
     builder.Services.AddScoped<StageZero.Application.Areas.Home.IHomeViewModel, StageZero.Application.Areas.Home.HomeViewModel>();
     builder.Services.AddScoped<StageZero.Application.Areas.IpMonitor.IIpMonitorViewModel, StageZero.Application.Areas.IpMonitor.IpMonitorViewModel>();
     builder.Services.AddScoped<StageZero.Application.Areas.DnsConfig.IDnsConfigViewModel, StageZero.Application.Areas.DnsConfig.DnsConfigViewModel>();
+    builder.Services.AddScoped<StageZero.Application.Areas.TunnelManagement.ITunnelManagementViewModel, StageZero.Application.Areas.TunnelManagement.TunnelManagementViewModel>();
+    builder.Services.AddScoped<StageZero.Application.Areas.TunnelManagement.ITunnelSettingsViewModel, StageZero.Application.Areas.TunnelManagement.TunnelSettingsViewModel>();
 
     // ═══════════════════════════════════════════════════════════════
     // BUILD APPLICATION
@@ -306,7 +332,9 @@ try
             Log.Warning(ex, "Could not add email verification and password reset columns (may already exist)");
         }
 
-        // Create ProxyHosts table if it doesn't exist (for existing databases)
+        // Migrate the retired reverse proxy schema to the Cloudflare Tunnel schema.
+        // ProxyHosts belonged to the YARP/Let's Encrypt layer that Cloudflare Tunnel
+        // replaces; the proxy never actually routed traffic, so no data is lost.
         try
         {
             var connection = db.Database.GetDbConnection();
@@ -315,57 +343,79 @@ try
 
             using var command = connection.CreateCommand();
 
-            // Check if ProxyHosts table exists
             command.CommandText = @"
                 SELECT COUNT(*)
                 FROM sqlite_master
                 WHERE type='table' AND name='ProxyHosts'";
-            var tableExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+            var proxyHostsExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
 
-            if (!tableExists)
+            if (proxyHostsExists)
             {
-                Log.Information("Creating ProxyHosts table");
+                Log.Information("Dropping retired ProxyHosts table (replaced by TunnelRoutes)");
+                command.CommandText = "DROP TABLE ProxyHosts";
+                await command.ExecuteNonQueryAsync();
+            }
+
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE type='table' AND name='TunnelRoutes'";
+            var tunnelRoutesExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!tunnelRoutesExists)
+            {
+                Log.Information("Creating TunnelRoutes table");
                 command.CommandText = @"
-                    CREATE TABLE ProxyHosts (
+                    CREATE TABLE TunnelRoutes (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         DomainName TEXT NOT NULL,
                         ForwardScheme TEXT NOT NULL,
                         ForwardHost TEXT NOT NULL,
                         ForwardPort INTEGER NOT NULL,
-                        CacheAssets INTEGER NOT NULL DEFAULT 0,
-                        BlockCommonExploits INTEGER NOT NULL DEFAULT 0,
-                        WebSocketsSupport INTEGER NOT NULL DEFAULT 0,
-                        SslEnabled INTEGER NOT NULL DEFAULT 0,
-                        SslForced INTEGER NOT NULL DEFAULT 0,
-                        Http2Support INTEGER NOT NULL DEFAULT 1,
-                        HstsEnabled INTEGER NOT NULL DEFAULT 0,
-                        HstsMaxAge INTEGER NOT NULL DEFAULT 31536000,
-                        SslCertificatePath TEXT,
-                        SslCertificateKeyPath TEXT,
-                        SslCertificateExpiry TEXT,
-                        UseLetsEncrypt INTEGER NOT NULL DEFAULT 0,
-                        LetsEncryptEmail TEXT,
                         IsEnabled INTEGER NOT NULL DEFAULT 1,
+                        Notes TEXT,
                         CreatedAt TEXT NOT NULL,
-                        UpdatedAt TEXT NOT NULL,
-                        Notes TEXT
+                        UpdatedAt TEXT NOT NULL
                     )";
                 await command.ExecuteNonQueryAsync();
 
-                // Create unique index on DomainName
-                command.CommandText = "CREATE UNIQUE INDEX IX_ProxyHosts_DomainName ON ProxyHosts (DomainName)";
+                command.CommandText = "CREATE UNIQUE INDEX IX_TunnelRoutes_DomainName ON TunnelRoutes (DomainName)";
                 await command.ExecuteNonQueryAsync();
 
-                // Create index on IsEnabled
-                command.CommandText = "CREATE INDEX IX_ProxyHosts_IsEnabled ON ProxyHosts (IsEnabled)";
+                command.CommandText = "CREATE INDEX IX_TunnelRoutes_IsEnabled ON TunnelRoutes (IsEnabled)";
                 await command.ExecuteNonQueryAsync();
 
-                Log.Information("ProxyHosts table created successfully");
+                Log.Information("TunnelRoutes table created successfully");
+            }
+
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE type='table' AND name='TunnelConfigs'";
+            var tunnelConfigsExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!tunnelConfigsExists)
+            {
+                Log.Information("Creating TunnelConfigs table");
+                command.CommandText = @"
+                    CREATE TABLE TunnelConfigs (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        CloudflareAccountId TEXT NOT NULL,
+                        CloudflareZoneId TEXT,
+                        CloudflareZoneName TEXT,
+                        ProtectedApiToken TEXT NOT NULL,
+                        TunnelId TEXT,
+                        TunnelName TEXT,
+                        UpdatedAt TEXT NOT NULL
+                    )";
+                await command.ExecuteNonQueryAsync();
+
+                Log.Information("TunnelConfigs table created successfully");
             }
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Could not create ProxyHosts table (may already exist)");
+            Log.Warning(ex, "Could not migrate the tunnel schema");
         }
 
         // Seed default admin user if no users exist
@@ -375,27 +425,26 @@ try
         }
     }
 
+    // Must run before anything that inspects the scheme or client IP, so the app
+    // sees the original https:// request rather than the connector's plain HTTP hop.
+    app.UseForwardedHeaders();
+
     if (!app.Environment.IsDevelopment())
     {
         app.UseExceptionHandler("/Error");
         app.UseHsts();
     }
 
-    app.UseHttpsRedirection();
+    // Only redirect in Development. In production Cloudflare terminates TLS and the
+    // container listens on HTTP only, so redirecting here would loop against a
+    // listener that does not exist.
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseHttpsRedirection();
+    }
+
     app.UseStaticFiles();
     app.UseAntiforgery();
-
-    // ACME HTTP-01 challenge endpoint for Let's Encrypt domain validation.
-    // Let's Encrypt fetches http://{domain}/.well-known/acme-challenge/{token}
-    // during certificate issuance; we serve the key authorization published by
-    // CertificateService. Must remain reachable over plain HTTP (Let's Encrypt
-    // follows the 301 from UseHttpsRedirection, but the route itself is anonymous).
-    app.MapGet("/.well-known/acme-challenge/{token}", (string token, IAcmeChallengeStore store) =>
-    {
-        return store.TryGetChallenge(token, out var keyAuthorization) && keyAuthorization is not null
-            ? Results.Text(keyAuthorization, "text/plain")
-            : Results.NotFound();
-    });
 
     app.MapRazorComponents<StageZero.Application.App>()
         .AddInteractiveServerRenderMode();
@@ -409,20 +458,6 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STUB PROXY CONFIGURATION SERVICE
-// This is a temporary stub until YARP reverse proxy is fully integrated
-// ═══════════════════════════════════════════════════════════════
-public class StubProxyConfigurationService : IProxyConfigurationService
-{
-    public Task ReloadConfigurationAsync()
-    {
-        // Stub implementation - does nothing for now
-        // Will be replaced with actual YARP configuration when reverse proxy is fully integrated
-        return Task.CompletedTask;
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -1,11 +1,11 @@
 @page "/dns-config"
 @using StageZero.Application.Areas.DnsConfig
+@using StageZero.Application.Areas.TunnelManagement
 @using StageZero.Models
-@using StageZero.ReverseProxy.Services
 @inject IDnsConfigViewModel VM
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
-@inject IProxyHostManager ProxyManager
+@inject ITunnelManagementViewModel TunnelVM
 @inject NavigationManager Navigation
 
 <PageTitle>DNS Configuration - StageZero</PageTitle>
@@ -195,10 +195,10 @@ else
                                                                  OnClick="@(() => EditRecord(context.Id))">
                                                         Edit Record
                                                     </MudMenuItem>
-                                                    <MudMenuItem Icon="@Icons.Material.Filled.Dns"
+                                                    <MudMenuItem Icon="@Icons.Material.Filled.Hub"
                                                                  IconColor="Color.Info"
-                                                                 OnClick="@(() => ConfigureProxy(context.RecordName))">
-                                                        Configure Proxy
+                                                                 OnClick="@(() => ConfigureTunnelRoute(context.RecordName))">
+                                                        Configure Tunnel Route
                                                     </MudMenuItem>
                                                     <MudDivider />
                                                 }
@@ -503,27 +503,28 @@ else
         return "";
     }
 
-    private async Task ConfigureProxy(string domainName)
+    private async Task ConfigureTunnelRoute(string domainName)
     {
         try
         {
-            // Check if a proxy host already exists for this domain
-            var existingProxy = await ProxyManager.GetByDomainAsync(domainName);
+            // Jump straight to the existing route for this hostname if there is one,
+            // otherwise open the add form with the hostname pre-filled.
+            await TunnelVM.OnInitializedAsync();
+            var existing = TunnelVM.Routes.FirstOrDefault(r =>
+                string.Equals(r.DomainName, domainName, StringComparison.OrdinalIgnoreCase));
 
-            if (existingProxy != null)
+            if (existing != null)
             {
-                // Navigate to edit existing proxy
-                Navigation.NavigateTo($"/proxy-hosts/edit/{existingProxy.Id}");
+                Navigation.NavigateTo($"/tunnel-routes/edit/{existing.Id}");
             }
             else
             {
-                // Navigate to add new proxy with domain pre-populated
-                Navigation.NavigateTo($"/proxy-hosts/add?domain={Uri.EscapeDataString(domainName)}");
+                Navigation.NavigateTo($"/tunnel-routes/add?domain={Uri.EscapeDataString(domainName)}");
             }
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error navigating to proxy configuration: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error opening tunnel route: {ex.Message}", Severity.Error);
         }
     }
 }
