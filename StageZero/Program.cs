@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using StageZero.Application.Layout;
@@ -91,6 +92,18 @@ try
 
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseSqlite(connectionString));
+
+    // Persist the Data Protection keys alongside the database. Without this ASP.NET keeps
+    // them under the user profile, which in a container is ephemeral — every restart
+    // invalidates auth cookies and antiforgery tokens, logging everyone out and breaking
+    // form posts until they reload. The keys directory follows DataPathService, so it
+    // lands on the mounted volume in a container and in the normal app data directory
+    // everywhere else.
+    var keysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "keys");
+    Directory.CreateDirectory(keysPath);
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
+        .SetApplicationName("StageZero");
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
