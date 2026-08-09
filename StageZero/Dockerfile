@@ -50,10 +50,29 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
 
 # ── debug: what debug.docker-compose.yml targets ────────────────────
-FROM base AS debug
+# This is a hot-reload dev stage, not the published app with a different env var.
+# It runs `dotnet watch` off the SDK image so edits on the mounted source take effect
+# without a rebuild — which is the entire reason debug.docker-compose.yml exists.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
+WORKDIR /src
+
+COPY ["StageZero/StageZero.csproj", "StageZero/"]
+COPY ["StageZero.ReverseProxy/StageZero.ReverseProxy.csproj", "StageZero.ReverseProxy/"]
+COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
+RUN dotnet restore "StageZero/StageZero.csproj"
+COPY . .
+
+RUN mkdir -p /app-data
+VOLUME /app-data
+EXPOSE 8080
+EXPOSE 443
+
+WORKDIR /src/StageZero
+# Polling is required: inotify does not fire for edits made on the host and seen
+# through a bind mount.
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 ENV ASPNETCORE_ENVIRONMENT=Development
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "StageZero.dll"]
+ENTRYPOINT ["dotnet", "watch", "run", "--launch-profile", "Docker"]
 
 # ── release: what beta.docker-compose.yml targets, and the default ──
 FROM base AS release
