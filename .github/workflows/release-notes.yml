@@ -1,0 +1,88 @@
+# Pushes this app's shipped pull requests to the release notes API on
+# codelifter.net, which curates them and posts the note into the app's Release
+# Notes thread in the forum. Called by the release job once the tag exists.
+#
+# A GitHub release created with GITHUB_TOKEN does not trigger `on: release`,
+# which is why this is a called workflow rather than a step in that job. The
+# workflow_dispatch below is the backfill button for a version that was missed.
+#
+# Copied from Platform-Standards/templates/release-notes/. Full spec:
+# Platform-Standards/process/release-notes.md
+
+name: Release notes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version that was built, e.g. 0.9.14 or 0.9.14-pre.
+        required: true
+        type: string
+      tag:
+        description: Its tag. Empty defaults to v<version>.
+        type: string
+        default: ''
+      prerelease:
+        description: false publishes the consolidated note to the forum.
+        type: boolean
+        default: true
+      commit:
+        description: The commit that was built. Empty = the triggering commit.
+        type: string
+        default: ''
+      promoted_from:
+        description: For a promoted release, the pre-release tag it was rebuilt from.
+        type: string
+        default: ''
+    secrets:
+      RELEASE_NOTES_TOKEN:
+        description: This app's push token. Absent means the push is skipped with a warning.
+        required: false
+
+  # Backfill or retry a version by hand.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to report, e.g. 0.9.14.
+        required: true
+      tag:
+        description: Its tag. Empty defaults to v<version>.
+        default: ''
+      prerelease:
+        description: false publishes the consolidated note to the forum.
+        type: boolean
+        default: false
+      commit:
+        description: The commit that was built. Empty = the tag, else HEAD.
+        default: ''
+      promoted_from:
+        description: For a promoted release, the pre-release tag it came from.
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  push:
+    name: Push to codelifter.net
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 is REQUIRED — the commit range comes from the tags, and
+      # a shallow clone has none, so every build would report its whole history.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.commit || inputs.tag || github.sha }}
+
+      - name: Collect merged pull requests and push them
+        env:
+          APP: stagezero
+          VERSION: ${{ inputs.version }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          COMMIT: ${{ inputs.commit }}
+          PROMOTED_FROM: ${{ inputs.promoted_from }}
+          RELEASE_NOTES_TOKEN: ${{ secrets.RELEASE_NOTES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./.github/scripts/collect-release-notes.sh
