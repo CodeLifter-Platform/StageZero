@@ -192,6 +192,13 @@ jobs:
   # full release is cut.
   # Spec: Platform-Standards/process/release-notes.md
   release-notes:
+    # Job-level, deliberately. This workflow's default is `contents: write` for
+    # the release job, which zeroes every other scope, and a called workflow may
+    # only downgrade what the caller grants — so reading pull requests has to be
+    # granted here or `gh api .../pulls/N` 403s on a private repo.
+    permissions:
+      contents: read
+      pull-requests: read
     needs: [version, publish-nuget]
     if: ${{ needs.version.outputs.is_release == 'true' }}
     uses: ./.github/workflows/release-notes.yml
