@@ -12,6 +12,7 @@ using StageZero.DataAdapters.TunnelConfigs;
 using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
+using StageZero.Services.Access;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
@@ -181,6 +182,16 @@ try
     builder.Services.AddScoped<ITunnelTokenProtector, TunnelTokenProtector>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLOUDFLARE ACCESS SERVICES
+    // ═══════════════════════════════════════════════════════════════
+    builder.Services.AddScoped<ICloudflareAccessService, CloudflareAccessService>();
+    builder.Services.AddScoped<IAccessProvisioningService, AccessProvisioningService>();
+
+    // Swap this registration to route a freshly minted service token secret into a vault.
+    // The default only records that a token was minted; it never writes the secret anywhere.
+    builder.Services.AddScoped<IAccessSecretSink, LoggingAccessSecretSink>();
 
     // ═══════════════════════════════════════════════════════════════
     // BACKGROUND SERVICES REGISTRATION
