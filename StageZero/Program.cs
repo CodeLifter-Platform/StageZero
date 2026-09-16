@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using StageZero.Application.Layout;
 using StageZero.Data;
+using StageZero.DataAdapters.AccessServiceTokens;
 using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.DataAdapters.IpChecks;
@@ -160,6 +161,8 @@ try
     builder.Services.AddScoped<ITunnelRouteWriter, TunnelRouteWriter>();
     builder.Services.AddScoped<ITunnelConfigReader, TunnelConfigReader>();
     builder.Services.AddScoped<ITunnelConfigWriter, TunnelConfigWriter>();
+    builder.Services.AddScoped<IAccessServiceTokenReader, AccessServiceTokenReader>();
+    builder.Services.AddScoped<IAccessServiceTokenWriter, AccessServiceTokenWriter>();
 
     // ═══════════════════════════════════════════════════════════════
     // SERVICES REGISTRATION
@@ -416,6 +419,86 @@ try
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not migrate the tunnel schema");
+        }
+
+        // Add the Cloudflare Access columns and the service token table. Existing routes are
+        // backfilled to 'none' rather than the 'identity' default used for new hostnames:
+        // turning Access on for a hostname that is already serving traffic would lock out
+        // whoever is using it, so adopting Access is an explicit per-route choice.
+        try
+        {
+            var connection = db.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+                await connection.OpenAsync();
+
+            using var command = connection.CreateCommand();
+
+            var accessColumns = new (string Name, string Definition)[]
+            {
+                ("AccessMode", "TEXT NOT NULL DEFAULT 'none'"),
+                ("AccessAllowedEmails", "TEXT"),
+                ("AccessAllowedEmailDomains", "TEXT"),
+                ("AccessAllowedIdpIds", "TEXT"),
+                ("AccessSessionDuration", "TEXT"),
+                ("AccessCreateServiceToken", "INTEGER NOT NULL DEFAULT 0"),
+                ("AccessServiceTokenName", "TEXT"),
+                ("AccessServiceTokenId", "TEXT"),
+                ("AccessServiceTokenDuration", "TEXT"),
+                ("AccessApplicationId", "TEXT"),
+                ("AccessIdentityPolicyId", "TEXT"),
+                ("AccessServiceTokenPolicyId", "TEXT"),
+                ("AccessSyncedAt", "TEXT")
+            };
+
+            foreach (var (name, definition) in accessColumns)
+            {
+                command.CommandText = $@"
+                    SELECT COUNT(*)
+                    FROM pragma_table_info('TunnelRoutes')
+                    WHERE name='{name}'";
+                var columnExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+                if (!columnExists)
+                {
+                    Log.Information("Adding {ColumnName} column to TunnelRoutes table", name);
+                    command.CommandText = $"ALTER TABLE TunnelRoutes ADD COLUMN {name} {definition}";
+                    await command.ExecuteNonQueryAsync();
+                }
+            }
+
+            command.CommandText = @"
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE type='table' AND name='AccessServiceTokens'";
+            var accessTokensExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
+
+            if (!accessTokensExists)
+            {
+                Log.Information("Creating AccessServiceTokens table");
+                command.CommandText = @"
+                    CREATE TABLE AccessServiceTokens (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        CloudflareTokenId TEXT NOT NULL,
+                        Name TEXT NOT NULL,
+                        ClientId TEXT,
+                        CreatedByStageZero INTEGER NOT NULL DEFAULT 0,
+                        Duration TEXT,
+                        CreatedAt TEXT NOT NULL,
+                        ExpiresAt TEXT
+                    )";
+                await command.ExecuteNonQueryAsync();
+
+                command.CommandText =
+                    "CREATE UNIQUE INDEX IX_AccessServiceTokens_CloudflareTokenId "
+                    + "ON AccessServiceTokens (CloudflareTokenId)";
+                await command.ExecuteNonQueryAsync();
+
+                Log.Information("AccessServiceTokens table created successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not migrate the Cloudflare Access schema");
         }
 
         // Seed default admin user if no users exist
