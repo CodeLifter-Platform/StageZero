@@ -31,8 +31,11 @@ public interface ITunnelSyncService
     /// </summary>
     Task<RouteSyncResult> SyncRouteAsync(TunnelRoute route);
 
-    /// <summary>Syncs ingress and removes the hostname's CNAME.</summary>
-    Task RemoveRouteAsync(TunnelRoute route);
+    /// <summary>
+    /// Syncs ingress, removes the hostname's CNAME, and tears down its Access application
+    /// and policies. Returns what teardown removed and what it deliberately left behind.
+    /// </summary>
+    Task<AccessTeardownResult> RemoveRouteAsync(TunnelRoute route);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -209,14 +212,21 @@ public class TunnelSyncService : ITunnelSyncService
         }
     }
 
-    public async Task RemoveRouteAsync(TunnelRoute route)
+    public async Task<AccessTeardownResult> RemoveRouteAsync(TunnelRoute route)
     {
         var config = await RequireConfigAsync();
 
+        // Take the hostname down first. Access teardown reports problems rather than
+        // throwing, so the ordering means a cleanup failure can never leave a hostname
+        // reachable — at worst it leaves an unused application that denies everything.
         await PushIngressAsync(config);
         await _tunnelService.RemoveCnameAsync(config.ApiToken, config.ZoneId, route.DomainName);
 
+        var teardown = await _accessProvisioning.TeardownAsync(config, route);
+
         _logger.LogInformation("Removed tunnel route {DomainName}", route.DomainName);
+
+        return teardown;
     }
 
     private async Task PushIngressAsync(ResolvedTunnelConfig config)

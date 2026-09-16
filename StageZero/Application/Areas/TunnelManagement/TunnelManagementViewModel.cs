@@ -42,7 +42,11 @@ public interface ITunnelManagementViewModel : INotifyPropertyChanged
     /// <summary>Flips the route's enabled flag. Returns a sync result when re-enabling.</summary>
     Task<RouteSyncResult?> ToggleRouteAsync(int id);
 
-    Task DeleteRouteAsync(int id);
+    /// <summary>
+    /// Deletes the route and everything Cloudflare holds for it. The result says whether an
+    /// attached service token was removed or deliberately left in place.
+    /// </summary>
+    Task<AccessTeardownResult?> DeleteRouteAsync(int id);
 
     /// <summary>Live Access configuration for a route, for the access status page.</summary>
     Task<AccessStatus> GetAccessStatusAsync(int id);
@@ -363,18 +367,20 @@ public class TunnelManagementViewModel : ITunnelManagementViewModel
                    "Cloudflare Tunnel is not configured. Complete setup at /tunnel-settings first.");
     }
 
-    public async Task DeleteRouteAsync(int id)
+    public async Task<AccessTeardownResult?> DeleteRouteAsync(int id)
     {
         try
         {
             var route = await _routeReader.GetByIdAsync(id);
-            if (route is null) return;
+            if (route is null) return null;
 
             _logger.LogInformation("Deleting tunnel route {DomainName}", route.DomainName);
 
             await _routeWriter.DeleteAsync(route);
-            await _syncService.RemoveRouteAsync(route);
+            var teardown = await _syncService.RemoveRouteAsync(route);
             await LoadRoutesAsync();
+
+            return teardown;
         }
         catch (Exception ex)
         {

@@ -28,6 +28,16 @@ public interface IAccessProvisioningService
     /// </summary>
     Task<AccessProvisionResult> ProvisionAsync(ResolvedTunnelConfig config, TunnelRoute route);
 
+    /// <summary>
+    /// Removes the Access application and the reusable policies StageZero created for a
+    /// hostname.
+    ///
+    /// The service token is removed only when StageZero minted it and no other route still
+    /// references it; a token an operator created elsewhere, or one shared with another
+    /// hostname, is left in place and the result says so.
+    /// </summary>
+    Task<AccessTeardownResult> TeardownAsync(ResolvedTunnelConfig config, TunnelRoute route);
+
     /// <summary>Reads the live Access configuration for a hostname, flagging any drift.</summary>
     Task<AccessStatus> GetStatusAsync(ResolvedTunnelConfig config, TunnelRoute route);
 
@@ -66,6 +76,30 @@ public class AccessProvisionResult
 
     /// <summary>True when switching to mode none removed an application a previous run made.</summary>
     public bool RemovedApplication { get; set; }
+}
+
+/// <summary>What one teardown removed, and what it deliberately left behind.</summary>
+public class AccessTeardownResult
+{
+    public string Hostname { get; set; } = string.Empty;
+
+    public bool ApplicationRemoved { get; set; }
+
+    public int PoliciesRemoved { get; set; }
+
+    public bool ServiceTokenRemoved { get; set; }
+
+    public string? ServiceTokenName { get; set; }
+
+    /// <summary>Why an attached service token was kept. Null when there was nothing to keep.</summary>
+    public string? ServiceTokenRetainedReason { get; set; }
+
+    /// <summary>
+    /// Problems hit while cleaning up. These do not fail the removal: by the time teardown
+    /// runs the hostname no longer resolves, and a leftover Access application denies
+    /// traffic rather than allowing it.
+    /// </summary>
+    public List<string> Warnings { get; set; } = new();
 }
 
 /// <summary>Live Access configuration for a hostname, as the status page shows it.</summary>
@@ -559,6 +593,102 @@ public class AccessProvisioningService : IAccessProvisioningService
         settings.SyncedAt = null;
 
         return removed;
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // TEARDOWN
+    // ───────────────────────────────────────────────────────────
+
+    public async Task<AccessTeardownResult> TeardownAsync(ResolvedTunnelConfig config, TunnelRoute route)
+    {
+        var settings = route.Access;
+        var result = new AccessTeardownResult
+        {
+            Hostname = route.DomainName,
+            ServiceTokenName = settings.ServiceTokenName
+        };
+
+        var policyIds = new[] { settings.IdentityPolicyId, settings.ServiceTokenPolicyId }
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToList();
+
+        try
+        {
+            result.ApplicationRemoved = await RemoveApplicationAndPoliciesAsync(config, route);
+            result.PoliciesRemoved = policyIds.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Could not remove the Access application for {Hostname}", route.DomainName);
+            result.Warnings.Add(
+                $"The Access application for {route.DomainName} could not be removed: {ex.Message} "
+                + "Delete it in the Cloudflare dashboard.");
+        }
+
+        try
+        {
+            await TeardownServiceTokenAsync(config, route, result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Could not remove the Access service token for {Hostname}", route.DomainName);
+            result.Warnings.Add(
+                $"The service token for {route.DomainName} could not be removed: {ex.Message}");
+        }
+
+        _logger.LogInformation(
+            "Access torn down for {Hostname}: application removed {ApplicationRemoved}, "
+            + "policies removed {PoliciesRemoved}, service token removed {TokenRemoved}",
+            route.DomainName, result.ApplicationRemoved, result.PoliciesRemoved, result.ServiceTokenRemoved);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Applies the retention rules: a token is deleted only when StageZero minted it and it
+    /// is the last route using it. Everything else is left alone, with the reason recorded
+    /// so the operator is told rather than left guessing.
+    /// </summary>
+    private async Task TeardownServiceTokenAsync(
+        ResolvedTunnelConfig config,
+        TunnelRoute route,
+        AccessTeardownResult result)
+    {
+        var tokenId = route.Access.ServiceTokenId;
+
+        if (string.IsNullOrWhiteSpace(tokenId))
+        {
+            return;
+        }
+
+        var record = await _tokenReader.GetByCloudflareIdAsync(tokenId);
+        result.ServiceTokenName = record?.Name ?? route.Access.ServiceTokenName;
+
+        if (record is null || !record.CreatedByStageZero)
+        {
+            result.ServiceTokenRetainedReason =
+                $"Service token '{result.ServiceTokenName ?? tokenId}' was left in place because "
+                + "StageZero did not create it.";
+            return;
+        }
+
+        // The route row may or may not have been deleted yet, so exclude it either way.
+        var otherRoutes = await _tokenReader.CountRoutesUsingAsync(tokenId, excludingRouteId: route.Id);
+        if (otherRoutes > 0)
+        {
+            result.ServiceTokenRetainedReason =
+                $"Service token '{record.Name}' was left in place because {otherRoutes} other "
+                + $"route{(otherRoutes == 1 ? "" : "s")} still reference it.";
+            return;
+        }
+
+        await _accessService.DeleteServiceTokenAsync(config.ApiToken, config.AccountId, tokenId);
+        await _tokenWriter.DeleteAsync(tokenId);
+
+        route.Access.ServiceTokenId = null;
+        result.ServiceTokenRemoved = true;
     }
 
     // ───────────────────────────────────────────────────────────

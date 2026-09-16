@@ -240,8 +240,19 @@ else
         {
             try
             {
-                await VM.DeleteRouteAsync(id);
+                var teardown = await VM.DeleteRouteAsync(id);
                 Snackbar.Add("Route deleted", Severity.Success);
+
+                // Say what was left behind rather than letting a retained token go unnoticed.
+                if (teardown?.ServiceTokenRetainedReason is not null)
+                {
+                    Snackbar.Add(teardown.ServiceTokenRetainedReason, Severity.Info);
+                }
+
+                foreach (var warning in teardown?.Warnings ?? new List<string>())
+                {
+                    Snackbar.Add(warning, Severity.Warning);
+                }
             }
             catch (Exception ex)
             {
