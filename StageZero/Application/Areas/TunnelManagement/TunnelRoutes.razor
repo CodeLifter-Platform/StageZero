@@ -1,6 +1,8 @@
 @page "/tunnel-routes"
 @implements IDisposable
 @using StageZero.Application.Areas.DnsConfig
+@using StageZero.Models
+@using StageZero.Services.Access
 @inject ITunnelManagementViewModel VM
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
@@ -83,6 +85,7 @@ else
                         <HeaderContent>
                             <MudTh>Hostname</MudTh>
                             <MudTh>Forwards To</MudTh>
+                            <MudTh>Access</MudTh>
                             <MudTh>Status</MudTh>
                             <MudTh>Actions</MudTh>
                         </HeaderContent>
@@ -97,6 +100,22 @@ else
                             <MudTd DataLabel="Forwards To">
                                 <MudText Typo="Typo.body2" Style="font-family: monospace;">@context.ForwardUrl</MudText>
                             </MudTd>
+                            <MudTd DataLabel="Access">
+                                @if (context.Access.Mode == AccessMode.None)
+                                {
+                                    <MudTooltip Text="No Access policy — anyone can reach this hostname">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Error" Icon="@Icons.Material.Filled.LockOpen">
+                                            Public
+                                        </MudChip>
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.Lock">
+                                        @context.Access.Mode.ToDisplayName()
+                                    </MudChip>
+                                }
+                            </MudTd>
                             <MudTd DataLabel="Status">
                                 @if (context.IsEnabled)
                                 {
@@ -108,6 +127,12 @@ else
                                 }
                             </MudTd>
                             <MudTd DataLabel="Actions">
+                                <MudTooltip Text="Access status">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Shield"
+                                                   Size="Size.Small"
+                                                   Color="Color.Info"
+                                                   OnClick="@(() => NavigateToAccessStatus(context.Id))" />
+                                </MudTooltip>
                                 <MudTooltip Text="Edit">
                                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
                                                    Size="Size.Small"
@@ -150,17 +175,49 @@ else
 
     private void NavigateToEdit(int id) => Navigation.NavigateTo($"/tunnel-routes/edit/{id}");
 
+    private void NavigateToAccessStatus(int id) => Navigation.NavigateTo($"/tunnel-routes/access/{id}");
+
     private async Task ToggleRoute(int id)
     {
         try
         {
-            await VM.ToggleRouteAsync(id);
+            var result = await VM.ToggleRouteAsync(id);
             Snackbar.Add("Route status updated", Severity.Success);
+
+            // Re-enabling a route can mint a service token that was still pending. Its
+            // secret exists only in this result, so it has to be shown now.
+            if (result?.Access?.NewServiceToken is not null)
+            {
+                await ShowServiceTokenAsync(result.Access.NewServiceToken, result.Access.Hostname);
+            }
         }
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
+    }
+
+    private async Task ShowServiceTokenAsync(MintedServiceToken token, string hostname)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Token"] = token,
+            ["Hostname"] = hostname
+        };
+
+        // Not dismissable: closing it by accident would destroy the only copy of the secret.
+        var options = new DialogOptions
+        {
+            CloseButton = false,
+            BackdropClick = false,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<ServiceTokenSecretDialog>(
+            "Service token created", parameters, options);
+
+        await dialog.Result;
     }
 
     private async Task DeleteRoute(int id)
@@ -170,7 +227,7 @@ else
 
         var parameters = new DialogParameters
         {
-            ["ContentText"] = $"Delete the route for '{route.DomainName}'? This removes both the tunnel ingress rule and the DNS record.",
+            ["ContentText"] = $"Delete the route for '{route.DomainName}'? This removes the tunnel ingress rule, the DNS record, and its Cloudflare Access application and policies.",
             ["ButtonText"] = "Delete",
             ["Color"] = Color.Error
         };

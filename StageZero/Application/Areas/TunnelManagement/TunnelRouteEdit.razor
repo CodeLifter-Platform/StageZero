@@ -1,9 +1,11 @@
 @page "/tunnel-routes/add"
 @page "/tunnel-routes/edit/{Id:int}"
 @using Microsoft.AspNetCore.WebUtilities
+@using StageZero.Services.Access
 @inject ITunnelManagementViewModel VM
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>@(Id.HasValue ? "Edit" : "Add") Tunnel Route - StageZero</PageTitle>
 
@@ -95,6 +97,145 @@ else
             <MudCard Elevation="2" Class="mb-4">
                 <MudCardHeader>
                     <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Cloudflare Access</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Who is allowed to reach this hostname. Publishing it without a policy
+                            puts the service on the open internet.
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSelect @bind-Value="_route.Access.Mode"
+                               T="AccessMode"
+                               Label="Protection"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense"
+                               Class="mb-4">
+                        <MudSelectItem Value="@AccessMode.Identity">Identity — people sign in</MudSelectItem>
+                        <MudSelectItem Value="@AccessMode.ServiceToken">Service token — machines only</MudSelectItem>
+                        <MudSelectItem Value="@AccessMode.Both">Both — people and machines</MudSelectItem>
+                        <MudSelectItem Value="@AccessMode.None">None — public, no policy</MudSelectItem>
+                    </MudSelect>
+
+                    @if (_route.Access.Mode == AccessMode.None)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mb-4">
+                            Anyone who knows this hostname will be able to reach the service.
+                            Any Access application StageZero created for it will be removed.
+                        </MudAlert>
+                    }
+
+                    @if (_route.Access.Mode != AccessMode.None)
+                    {
+                        <MudTextField @bind-Value="_route.Access.SessionDuration"
+                                      Label="Session duration"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      HelperText="How long a session lasts before re-authentication. For example 30m, 24h, 2h45m."
+                                      Placeholder="24h"
+                                      Class="mb-4" />
+                    }
+
+                    @if (_route.Access.Mode.RequiresIdentityPolicy())
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Who can sign in</MudText>
+
+                        <MudTextField @bind-Value="_route.Access.AllowedEmails"
+                                      Label="Allowed emails"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Lines="3"
+                                      HelperText="One per line. Defaults to the owner email for new hostnames."
+                                      Class="mb-4" />
+
+                        <MudTextField @bind-Value="_route.Access.AllowedEmailDomains"
+                                      Label="Allowed email domains"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense"
+                                      Lines="2"
+                                      HelperText="One per line, for example codelifter.net. Anyone with an address at the domain is let in."
+                                      Class="mb-4" />
+
+                        @if (_identityProviders.Count > 0)
+                        {
+                            <MudSelect T="string"
+                                       Label="Identity providers"
+                                       MultiSelection="true"
+                                       SelectedValues="@_selectedIdpIds"
+                                       SelectedValuesChanged="@OnIdpSelectionChanged"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       HelperText="Leave empty to offer every provider configured on the account."
+                                       Class="mb-4">
+                                @foreach (var idp in _identityProviders)
+                                {
+                                    <MudSelectItem T="string" Value="@idp.Id">@idp.Name (@idp.Type)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                    }
+
+                    @if (_route.Access.Mode.RequiresServiceTokenPolicy())
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Service token</MudText>
+
+                        <MudSwitch @bind-Value="_route.Access.CreateServiceToken"
+                                   T="bool"
+                                   Label="Create a new token"
+                                   Color="Color.Primary" />
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">
+                            The client secret is shown once, when the token is created, and is
+                            never stored by StageZero. A token that already exists with the same
+                            name is reused rather than duplicated.
+                        </MudText>
+
+                        @if (_route.Access.CreateServiceToken)
+                        {
+                            <MudTextField @bind-Value="_route.Access.ServiceTokenName"
+                                          Label="Token name"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          Required="true"
+                                          Class="mb-4" />
+
+                            <MudTextField @bind-Value="_route.Access.ServiceTokenDuration"
+                                          Label="Token lifetime (optional)"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          HelperText="For example 720h, or forever. Cloudflare defaults to one year."
+                                          Class="mb-4" />
+                        }
+                        else if (_serviceTokens.Count > 0)
+                        {
+                            <MudSelect @bind-Value="_route.Access.ServiceTokenId"
+                                       T="string"
+                                       Label="Existing token"
+                                       Variant="Variant.Outlined"
+                                       Margin="Margin.Dense"
+                                       Clearable="true"
+                                       Class="mb-4">
+                                @foreach (var token in _serviceTokens)
+                                {
+                                    <MudSelectItem T="string" Value="@token.Id">@token.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+                        else
+                        {
+                            <MudTextField @bind-Value="_route.Access.ServiceTokenName"
+                                          Label="Existing token name"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense"
+                                          HelperText="No tokens found on the account. Turn on 'Create a new token' to mint one."
+                                          Class="mb-4" />
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
                         <MudText Typo="Typo.h6">Status</MudText>
                     </CardHeaderContent>
                 </MudCardHeader>
@@ -150,6 +291,10 @@ else
     private bool _isSubmitting = false;
     private string? _errorMessage;
 
+    private List<AccessIdentityProvider> _identityProviders = new();
+    private List<AccessServiceTokenInfo> _serviceTokens = new();
+    private IEnumerable<string> _selectedIdpIds = Array.Empty<string>();
+
     protected override async Task OnInitializedAsync()
     {
         if (Id.HasValue)
@@ -167,6 +312,9 @@ else
         }
         else
         {
+            // New hostnames start protected: identity mode allowing the owner email.
+            _route.Access = await VM.BuildDefaultAccessAsync();
+
             // Allow deep-linking from elsewhere in the app with ?domain=
             var uri = new Uri(Navigation.Uri);
             var queryParams = QueryHelpers.ParseQuery(uri.Query);
@@ -177,7 +325,22 @@ else
             }
         }
 
+        _selectedIdpIds = _route.Access.AllowedIdpIdList.ToList();
+
+        // Both lists come back empty when the account is unreachable, which leaves the form
+        // usable with free-text fallbacks rather than blocking on Cloudflare.
+        _identityProviders = await VM.GetIdentityProvidersAsync();
+        _serviceTokens = await VM.GetServiceTokensAsync();
+
         _isLoading = false;
+    }
+
+    private void OnIdpSelectionChanged(IEnumerable<string> selected)
+    {
+        _selectedIdpIds = selected?.ToList() ?? new List<string>();
+        _route.Access.AllowedIdpIds = _selectedIdpIds.Any()
+            ? string.Join("\n", _selectedIdpIds)
+            : null;
     }
 
     private async Task HandleSubmit()
@@ -187,8 +350,15 @@ else
 
         try
         {
-            await VM.SaveRouteAsync(_route);
+            var result = await VM.SaveRouteAsync(_route);
             Snackbar.Add($"Route for {_route.DomainName} saved and pushed to Cloudflare", Severity.Success);
+
+            // A minted secret exists only in this result. Show it before navigating away.
+            if (result.Access?.NewServiceToken is not null)
+            {
+                await ShowServiceTokenAsync(result.Access.NewServiceToken, _route.DomainName);
+            }
+
             Navigation.NavigateTo("/tunnel-routes");
         }
         catch (Exception ex)
@@ -200,6 +370,29 @@ else
         {
             _isSubmitting = false;
         }
+    }
+
+    private async Task ShowServiceTokenAsync(MintedServiceToken token, string hostname)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Token"] = token,
+            ["Hostname"] = hostname
+        };
+
+        // Not dismissable: closing it by accident would destroy the only copy of the secret.
+        var options = new DialogOptions
+        {
+            CloseButton = false,
+            BackdropClick = false,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<ServiceTokenSecretDialog>(
+            "Service token created", parameters, options);
+
+        await dialog.Result;
     }
 
     private void Cancel() => Navigation.NavigateTo("/tunnel-routes");

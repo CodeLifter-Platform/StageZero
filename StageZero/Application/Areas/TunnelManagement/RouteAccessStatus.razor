@@ -1,0 +1,274 @@
+@page "/tunnel-routes/access/{Id:int}"
+@using StageZero.Models
+@using StageZero.Services.Access
+@inject ITunnelManagementViewModel VM
+@inject NavigationManager Navigation
+
+@* The "access status <hostname>" view: what Cloudflare actually has for this hostname —
+   the application, its policies, and whether a service token is attached. Read live from
+   Cloudflare rather than from StageZero's own record, so drift shows up. *@
+
+<PageTitle>Access Status - StageZero</PageTitle>
+
+<RequireAuth>
+@if (_isLoading)
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-16">
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4 text-center">Reading Access configuration...</MudText>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+        <MudText Typo="Typo.h4" Class="mb-2">Access Status</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+            Live from Cloudflare for <strong>@_hostname</strong>.
+        </MudText>
+
+        @if (_errorMessage is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+        }
+        else if (_status is not null)
+        {
+            @foreach (var warning in _status.Warnings)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-4">@warning</MudAlert>
+            }
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Application</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_status.Application is null)
+                    {
+                        <MudAlert Severity="Severity.Error" Dense="true">
+                            No Access application covers this hostname. It is reachable by anyone
+                            who knows the address.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                            <tbody>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Configured mode</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@_status.ConfiguredMode.ToDisplayName()</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Name</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@_status.Application.Name</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Domain</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@_status.Application.Domain</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Session duration</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@(_status.Application.SessionDuration ?? "Cloudflare default")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Audience (aud)</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">@(_status.Application.Aud ?? "—")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Identity providers</MudText></td>
+                                    <td>
+                                        <MudText Typo="Typo.body2">
+                                            @(_status.Application.AllowedIdpIds.Count == 0
+                                                ? "All providers on the account"
+                                                : string.Join(", ", _status.Application.AllowedIdpIds))
+                                        </MudText>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Policies</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Account-level reusable policies, in the order Access evaluates them.
+                        </MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_status.Policies.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No policies are attached.
+                        </MudText>
+                    }
+                    else
+                    {
+                        @foreach (var policy in _status.Policies)
+                        {
+                            <MudPaper Elevation="0" Class="pa-3 mb-2" Style="border: 1px solid var(--mud-palette-lines-default);">
+                                <div class="d-flex align-center gap-2 mb-2">
+                                    <MudText Typo="Typo.subtitle2">@policy.Name</MudText>
+                                    <MudChip T="string" Size="Size.Small" Color="@DecisionColor(policy.Decision)">
+                                        @policy.Decision
+                                    </MudChip>
+                                </div>
+                                @foreach (var rule in policy.IncludeSummary)
+                                {
+                                    <MudText Typo="Typo.body2" Style="font-family: monospace;">@rule</MudText>
+                                }
+                            </MudPaper>
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Service Token</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_status.ServiceToken is null)
+                    {
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            No service token is attached to this hostname.
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Hover="false" Elevation="0">
+                            <tbody>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Name</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@_status.ServiceToken.Name</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Client ID</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">@(_status.ServiceToken.ClientId ?? "—")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Expires</MudText></td>
+                                    <td><MudText Typo="Typo.body2">@(_status.ServiceToken.ExpiresAt?.ToString("u") ?? "Does not expire")</MudText></td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Created by</MudText></td>
+                                    <td>
+                                        <MudText Typo="Typo.body2">
+                                            @(_status.ServiceTokenCreatedByStageZero ? "StageZero" : "Someone else")
+                                        </MudText>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><MudText Typo="Typo.body2" Color="Color.Secondary">Used by</MudText></td>
+                                    <td>
+                                        <MudText Typo="Typo.body2">
+                                            @_status.ServiceTokenRouteCount route@(_status.ServiceTokenRouteCount == 1 ? "" : "s")
+                                        </MudText>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </MudSimpleTable>
+
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 d-block">
+                            The client secret is shown only when a token is created and is never
+                            stored by StageZero. If it has been lost, rotate the token in the
+                            Cloudflare dashboard.
+                        </MudText>
+
+                        @if (!_status.ServiceTokenCreatedByStageZero)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                                StageZero did not create this token, so deleting the route will
+                                leave it in place.
+                            </MudAlert>
+                        }
+                        else if (_status.ServiceTokenRouteCount > 1)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-3">
+                                Other routes use this token, so deleting this route will leave it
+                                in place.
+                            </MudAlert>
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+        }
+
+        <div class="d-flex gap-2 mt-4">
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       Href="/tunnel-routes">
+                Back to Routes
+            </MudButton>
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="@(() => Navigation.NavigateTo($"/tunnel-routes/edit/{Id}"))">
+                Edit Route
+            </MudButton>
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       OnClick="@LoadAsync">
+                Refresh
+            </MudButton>
+        </div>
+    </MudContainer>
+}
+</RequireAuth>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private StageZero.Services.Access.AccessStatus? _status;
+    private string _hostname = string.Empty;
+    private string? _errorMessage;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var route = await VM.GetRouteAsync(Id);
+            if (route is null)
+            {
+                Navigation.NavigateTo("/tunnel-routes");
+                return;
+            }
+
+            _hostname = route.DomainName;
+            _status = await VM.GetAccessStatusAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static Color DecisionColor(string decision) => decision switch
+    {
+        "allow" => Color.Success,
+        "non_identity" => Color.Info,
+        "bypass" => Color.Warning,
+        "deny" => Color.Error,
+        _ => Color.Default
+    };
+}
