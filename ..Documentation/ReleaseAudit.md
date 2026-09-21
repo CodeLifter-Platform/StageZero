@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 1 |
+| 3 · DDNS correctness | 6 | 2 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -126,7 +126,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 
 ## Phase 3 · DDNS correctness
 
-- [ ] **3.1 Updates strip the Cloudflare proxy.** `CloudflareDnsService.cs:106-107` sends
+- [x] **3.1 Updates strip the Cloudflare proxy.** `CloudflareDnsService.cs:106-107` sends
   `ttl = 1, proxied = false` on every update, silently turning off orange-cloud on any
   record StageZero touches. *Verified: code.* Fix: read the record's current `proxied` and
   `ttl` and preserve them (or `PATCH` only `content`).

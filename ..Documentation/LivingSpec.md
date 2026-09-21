@@ -26,7 +26,9 @@ versioning migration.
 - **Dynamic DNS.** `IpMonitorBackgroundService` polls the public IP (every 180 s), and
   every check runs `DnsVerificationService`, which rewrites any auto-update record in
   Cloudflare that doesn't match — after a change, or after someone edits the record by
-  hand. Each provider can be switched off without stopping monitoring. A change is
+  hand. The update is a PATCH of the address alone, so the record's proxy (orange cloud),
+  TTL, comment and tags are left as they are. Each provider can be switched off without
+  stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
   page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a

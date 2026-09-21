@@ -97,22 +97,16 @@ public class CloudflareService : ICloudflareService
             _logger.LogInformation("Updating Cloudflare DNS record {RecordName} to {IpAddress}", 
                 record.RecordName, ipAddress);
 
+            // PATCH with the address alone. A PUT replaces the whole record, and the old one
+            // sent proxied = false and ttl = 1, silently switching off Cloudflare's proxy (and
+            // any custom TTL) on every record it touched.
             var updateUrl = $"{CLOUDFLARE_API_BASE}/zones/{provider.ZoneId}/dns_records/{record.RecordId}";
-            var updatePayload = new
-            {
-                type = record.RecordType,
-                name = record.RecordName,
-                content = ipAddress,
-                ttl = 1, // Auto TTL
-                proxied = false
-            };
-
             var content = new StringContent(
-                JsonSerializer.Serialize(updatePayload),
+                JsonSerializer.Serialize(new { content = ipAddress }),
                 Encoding.UTF8,
                 "application/json");
 
-            var response = await httpClient.PutAsync(updateUrl, content);
+            var response = await httpClient.PatchAsync(updateUrl, content);
             var responseBody = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
@@ -219,7 +213,7 @@ public class CloudflareService : ICloudflareService
     private async Task<string?> FindRecordIdAsync(HttpClient httpClient, string zoneId, string recordName, string recordType)
     {
         var response = await httpClient.GetAsync(
-            $"{CLOUDFLARE_API_BASE}/zones/{zoneId}/dns_records?name={recordName}&type={recordType}");
+            $"{CLOUDFLARE_API_BASE}/zones/{zoneId}/dns_records?name={Uri.EscapeDataString(recordName)}&type={Uri.EscapeDataString(recordType)}");
 
         if (!response.IsSuccessStatusCode)
         {
