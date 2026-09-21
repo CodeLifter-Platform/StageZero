@@ -30,7 +30,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | 1 · Install and log in | 6 | 1 |
 | 2 · Security | 8 | 1 |
 | 3 · DDNS correctness | 6 | 0 |
-| 4 · Hygiene and docs | 9 | 0 |
+| 4 · Hygiene and docs | 9 | 1 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
 | 7 · Marketing screenshots | 7 | 0 |
@@ -202,7 +202,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   **Decided:** delete the build leftovers and local DB/logs; move the `.docx` into
   `..Documentation/`.
 
-- [ ] **4.9 Compiler warnings and build props.** Six warnings today (CS8602 in
+- [x] **4.9 Compiler warnings and build props.** Six warnings today (CS8602 in
   `Login.razor:150`, CS8604 ×2 in `EmailService.cs`, CS0105 duplicate `using` in
   `Program.cs:18`). The harness requires warnings-as-errors and central package versions:
   add `Directory.Build.props` and `Directory.Packages.props`.

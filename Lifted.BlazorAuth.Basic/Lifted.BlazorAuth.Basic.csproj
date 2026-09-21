@@ -1,9 +1,6 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
 
     <!-- NuGet Package Configuration -->
@@ -37,17 +34,17 @@
 
   <!-- MudBlazor -->
   <ItemGroup>
-    <PackageReference Include="MudBlazor" Version="7.11.0" />
+    <PackageReference Include="MudBlazor" />
   </ItemGroup>
 
   <!-- Entity Framework Core -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
   </ItemGroup>
 
   <!-- Password Hashing -->
   <ItemGroup>
-    <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="BCrypt.Net-Next" />
   </ItemGroup>
 
 </Project>

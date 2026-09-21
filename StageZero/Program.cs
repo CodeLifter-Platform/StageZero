@@ -18,7 +18,6 @@ using StageZero.Services.Dns;
 using StageZero.Services.Auth;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Lifted.BlazorAuth.Basic.Services;
 using Lifted.BlazorAuth.Basic.DataAdapters;

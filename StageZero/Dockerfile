@@ -33,9 +33,9 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Restore against the project files alone first, so the layer cache survives source edits.
-# No Directory.Build.props / Directory.Packages.props / global.json in this repo yet —
-# it is one of the repos the conformance checker flags for missing .NET pins. Add them
-# to this COPY when they land, or the restore layer will silently stop matching the build.
+# The solution-wide props carry the package versions and build settings, so they belong in
+# this layer too — without Directory.Packages.props the restore has no versions to resolve.
+COPY ["global.json", "Directory.Build.props", "Directory.Packages.props", "./"]
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
@@ -55,6 +55,7 @@ RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /ap
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
 WORKDIR /src
 
+COPY ["global.json", "Directory.Build.props", "Directory.Packages.props", "./"]
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"

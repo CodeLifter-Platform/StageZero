@@ -147,7 +147,7 @@
         var dialog = await DialogService.ShowAsync<ChangePasswordDialog>("Account Setup", options);
         var result = await dialog.Result;
 
-        if (!result.Canceled)
+        if (result is { Canceled: false })
         {
             Snackbar.Add("Account setup completed successfully!", Severity.Success);
 
