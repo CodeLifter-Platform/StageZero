@@ -42,6 +42,11 @@ versioning migration.
   page, a private or reserved address, anything malformed is discarded). Two sources must
   agree for the IP to change; a lone answer can only confirm the last known IP. Otherwise
   the check is inconclusive: nothing is recorded and DNS is left alone.
+- **IP history grows with changes, not time.** Each `IpCheck` row is a run: the check that
+  first saw an address (`CheckedAt`), the last one to confirm it (`LastConfirmedAt`), and
+  how many did (`Confirmations`). An unchanged check extends the current row; a change
+  starts a new one. Upgrading folds the old one-row-per-check history into runs (a real
+  month of 2,715 rows became 11, every check still counted).
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
   tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for

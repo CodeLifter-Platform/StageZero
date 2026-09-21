@@ -11,6 +11,7 @@ namespace StageZero.DataAdapters.IpChecks;
 public interface IIpCheckWriter
 {
     Task<IpCheck> InsertAsync(IpCheck ipCheck);
+    Task UpdateAsync(IpCheck ipCheck);
     Task DeleteAsync(IpCheck ipCheck);
 }
 
@@ -33,6 +34,13 @@ public class IpCheckWriter : IIpCheckWriter
         db.IpChecks.Add(ipCheck);
         await db.SaveChangesAsync();
         return ipCheck;
+    }
+
+    public async Task UpdateAsync(IpCheck ipCheck)
+    {
+        await using var db = await _factory.CreateDbContextAsync();
+        db.IpChecks.Update(ipCheck);
+        await db.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(IpCheck ipCheck)

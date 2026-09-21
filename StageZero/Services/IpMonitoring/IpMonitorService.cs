@@ -70,18 +70,31 @@ public class IpMonitorService : IIpMonitorService
             _logger.LogDebug("Current IP: {IpAddress}", currentIp);
 
             var isChanged = lastCheck == null || lastCheck.IpAddress != currentIp;
+            var now = DateTime.UtcNow;
 
-            // Create new check record
-            var ipCheck = new IpCheck
+            IpCheck ipCheck;
+            if (isChanged)
             {
-                IpAddress = currentIp,
-                CheckedAt = DateTime.UtcNow,
-                IsChanged = isChanged,
-                PreviousIpAddress = isChanged ? lastCheck?.IpAddress : null
-            };
-
-            // Save to database
-            await _ipCheckWriter.InsertAsync(ipCheck);
+                // A new run starts.
+                ipCheck = new IpCheck
+                {
+                    IpAddress = currentIp,
+                    CheckedAt = now,
+                    LastConfirmedAt = now,
+                    Confirmations = 1,
+                    IsChanged = true,
+                    PreviousIpAddress = lastCheck?.IpAddress
+                };
+                await _ipCheckWriter.InsertAsync(ipCheck);
+            }
+            else
+            {
+                // Same address: extend the current run rather than add a row.
+                ipCheck = lastCheck!;
+                ipCheck.LastConfirmedAt = now;
+                ipCheck.Confirmations++;
+                await _ipCheckWriter.UpdateAsync(ipCheck);
+            }
 
             if (isChanged)
             {

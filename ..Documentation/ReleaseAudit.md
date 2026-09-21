@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 5 |
+| 3 · DDNS correctness | 6 | 6 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -158,7 +158,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   record per tick. *(code)* Fix: paginate; list each zone once per tick and match in memory.
   Done when: a zone with 150 records syncs a record on page 2.
 
-- [ ] **3.6 IP history never pruned.** A row every 180 s with no retention — 2,715 rows in
+- [x] **3.6 IP history never pruned.** A row every 180 s with no retention — 2,715 rows in
   one month in the old DB. Fix: store only changes plus a "last checked" timestamp, or
   prune beyond N days. Done when: the table stops growing on a stable IP.
 

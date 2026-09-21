@@ -127,7 +127,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel, IDisposable
 
             var check = await _ipMonitorService.CheckIpAsync();
             CurrentIp = check.IpAddress;
-            LastChecked = check.CheckedAt;
+            LastChecked = check.LastConfirmedAt;
 
             await LoadIpGroupsAsync();
 
@@ -148,7 +148,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel, IDisposable
     {
         var latestCheck = await _ipCheckReader.GetLatestAsync();
         CurrentIp = latestCheck?.IpAddress;
-        LastChecked = latestCheck?.CheckedAt;
+        LastChecked = latestCheck?.LastConfirmedAt;
 
         await LoadIpGroupsAsync();
     }
@@ -162,7 +162,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel, IDisposable
     {
         _logger.LogInformation("IP changed event received: {NewIp}", e.NewIp);
         CurrentIp = e.NewIp;
-        LastChecked = e.IpCheck.CheckedAt;
+        LastChecked = e.IpCheck.LastConfirmedAt;
 
         // Reload IP groups
         Task.Run(async () => await LoadIpGroupsAsync());
