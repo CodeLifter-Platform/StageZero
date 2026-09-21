@@ -245,7 +245,8 @@ try
 
     if (!app.Environment.IsDevelopment())
     {
-        app.UseExceptionHandler("/Error");
+        // Re-executes /Error (Application/Areas/Errors) in a fresh scope.
+        app.UseExceptionHandler("/Error", createScopeForErrors: true);
         app.UseHsts();
     }
 

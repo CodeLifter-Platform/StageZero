@@ -80,6 +80,10 @@ versioning migration.
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
   StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
   toggle swaps the whole UI and the choice persists per browser (`localStorage`).
+- **An error page.** Outside Development, an unhandled exception re-executes `/Error`: a
+  themed page with a reference (the request's trace ID) to find it in the logs, and never
+  the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
+  picks the render mode per page) so it needs no circuit and the reference stays.
 - **Serilog** structured logging to console and rolling files.
 
 **Partial**

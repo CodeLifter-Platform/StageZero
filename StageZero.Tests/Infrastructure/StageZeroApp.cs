@@ -24,16 +24,27 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
     /// <summary>What every outbound HTTP request gets instead of the internet.</summary>
     public FakeHttp Http { get; } = new();
 
-    public StageZeroApp()
+    private readonly string _environment;
+
+    public StageZeroApp(string environment = "Development")
     {
+        _environment = environment;
         Environment.SetEnvironmentVariable(DataPathService.HomeVariable, DataDirectory);
     }
 
+    /// <summary>Middleware added after the app's own pipeline — reached by any request no endpoint takes.</summary>
+    public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder>? AppendToPipeline { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment(_environment);
         builder.ConfigureTestServices(services =>
         {
+            if (AppendToPipeline is { } append)
+            {
+                services.AddTransient<Microsoft.AspNetCore.Hosting.IStartupFilter>(_ => new AppendStartupFilter(append));
+            }
+
             // The background services reach the internet (ipify, Cloudflare). Tests drive
             // those services directly instead.
             var background = services
@@ -93,4 +104,14 @@ internal static class TestEnvironment
     {
         Environment.SetEnvironmentVariable("STAGEZERO_DOTENV", "false");
     }
+}
+
+internal sealed class AppendStartupFilter(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> append) : Microsoft.AspNetCore.Hosting.IStartupFilter
+{
+    public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) =>
+        app =>
+        {
+            next(app);
+            append(app);
+        };
 }

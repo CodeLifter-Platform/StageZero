@@ -30,7 +30,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
 | 3 · DDNS correctness | 6 | 6 |
-| 4 · Hygiene and docs | 9 | 2 |
+| 4 · Hygiene and docs | 9 | 3 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
 | 7 · Marketing screenshots | 7 | 0 |
@@ -164,7 +164,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 
 ## Phase 4 · Hygiene and docs
 
-- [ ] **4.1 No error page.** `Program.cs:434` `UseExceptionHandler("/Error")` points at a
+- [x] **4.1 No error page.** `Program.cs:434` `UseExceptionHandler("/Error")` points at a
   page that doesn't exist (`/Error` → 404). Done when: a thrown exception in Production
   renders a themed error page.
 
