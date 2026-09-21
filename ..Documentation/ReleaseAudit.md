@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 4 |
+| 3 · DDNS correctness | 6 | 5 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -152,7 +152,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   parse-validate, require agreement before acting.
   Done when: a test feeds garbage from one source and no change is recorded.
 
-- [ ] **3.5 No Cloudflare pagination.** `GetZonesAsync` (default 20 per page) and
+- [x] **3.5 No Cloudflare pagination.** `GetZonesAsync` (default 20 per page) and
   `GetDnsRecordsAsync` (default 100) read one page; beyond that records are reported "not
   found" and updates quietly stop. Verification also re-lists the whole zone once per
   record per tick. *(code)* Fix: paginate; list each zone once per tick and match in memory.

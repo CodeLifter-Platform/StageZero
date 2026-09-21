@@ -33,8 +33,11 @@ internal static class CloudflareFakes
     }
 
     /// <summary>A Cloudflare list response ({ success, result: [...] }).</summary>
-    public static string List(params object[] records) =>
-        JsonSerializer.Serialize(new { success = true, result = records, result_info = new { page = 1, total_pages = 1 } });
+    public static string List(params object[] records) => Page(1, 1, records);
+
+    /// <summary>One page of a Cloudflare list.</summary>
+    public static string Page(int page, int totalPages, params object[] records) =>
+        JsonSerializer.Serialize(new { success = true, result = records, result_info = new { page, total_pages = totalPages } });
 
     public static object Record(string id, string name, string type, string content, bool proxied = false, int ttl = 1) =>
         new { id, name, type, content, proxied, ttl };

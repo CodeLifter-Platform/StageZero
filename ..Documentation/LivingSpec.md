@@ -30,8 +30,10 @@ versioning migration.
   TTL, comment and tags are left as they are. Only **A** records are auto-updated
   (`DnsRecord.SupportsAutoUpdate`): the IP lookup finds the IPv4 address, and the add/edit
   dialogs, the Cloudflare import and the verifier all apply that rule. AAAA and CNAME
-  records are tracked but never auto-updated. Each provider can be switched off without
-  stopping monitoring. A change is
+  records are tracked but never auto-updated. Each check lists every zone with tracked
+  records once (all pages — Cloudflare pages at 500 records) and matches the records in
+  memory, taking each record's current ID from the listing. Each provider can be switched
+  off without stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
   page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
 - **Public IP by consensus.** `PublicIpResolver` asks three independent services in

@@ -139,30 +139,11 @@ public class CloudflareService : ICloudflareService
         try
         {
             var httpClient = CreateAuthenticatedClient(apiToken);
-            var response = await httpClient.GetAsync($"{CLOUDFLARE_API_BASE}/zones");
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+            return await GetAllPagesAsync(httpClient, $"{CLOUDFLARE_API_BASE}/zones", ZonesPerPage, zone => new CloudflareZone
             {
-                throw new CloudflareServiceException($"Failed to get zones: {response.StatusCode}");
-            }
-
-            using var doc = JsonDocument.Parse(responseBody);
-            var zones = new List<CloudflareZone>();
-
-            if (doc.RootElement.TryGetProperty("result", out var result))
-            {
-                foreach (var zone in result.EnumerateArray())
-                {
-                    zones.Add(new CloudflareZone
-                    {
-                        Id = zone.GetProperty("id").GetString() ?? "",
-                        Name = zone.GetProperty("name").GetString() ?? ""
-                    });
-                }
-            }
-
-            return zones;
+                Id = zone.GetProperty("id").GetString() ?? "",
+                Name = zone.GetProperty("name").GetString() ?? ""
+            });
         }
         catch (Exception ex)
         {
@@ -176,38 +157,58 @@ public class CloudflareService : ICloudflareService
         try
         {
             var httpClient = CreateAuthenticatedClient(apiToken);
-            var response = await httpClient.GetAsync($"{CLOUDFLARE_API_BASE}/zones/{zoneId}/dns_records");
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+            return await GetAllPagesAsync(httpClient, $"{CLOUDFLARE_API_BASE}/zones/{zoneId}/dns_records", RecordsPerPage, record => new CloudflareDnsRecord
             {
-                throw new CloudflareServiceException($"Failed to get DNS records: {response.StatusCode}");
-            }
-
-            using var doc = JsonDocument.Parse(responseBody);
-            var records = new List<CloudflareDnsRecord>();
-
-            if (doc.RootElement.TryGetProperty("result", out var result))
-            {
-                foreach (var record in result.EnumerateArray())
-                {
-                    records.Add(new CloudflareDnsRecord
-                    {
-                        Id = record.GetProperty("id").GetString() ?? "",
-                        Name = record.GetProperty("name").GetString() ?? "",
-                        Type = record.GetProperty("type").GetString() ?? "",
-                        Content = record.GetProperty("content").GetString() ?? ""
-                    });
-                }
-            }
-
-            return records;
+                Id = record.GetProperty("id").GetString() ?? "",
+                Name = record.GetProperty("name").GetString() ?? "",
+                Type = record.GetProperty("type").GetString() ?? "",
+                Content = record.GetProperty("content").GetString() ?? ""
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting Cloudflare DNS records");
             throw new CloudflareServiceException("Could not get DNS records", ex);
         }
+    }
+
+    // Cloudflare's maxima for these two lists. Every page is read: a list stopped at page one
+    // silently hid every zone past the 20th and every record past the 100th.
+    private const int ZonesPerPage = 50;
+    private const int RecordsPerPage = 500;
+    private const int MaxPages = 200;
+
+    private static async Task<List<T>> GetAllPagesAsync<T>(
+        HttpClient httpClient, string url, int perPage, Func<JsonElement, T> map)
+    {
+        var items = new List<T>();
+        for (var page = 1; page <= MaxPages; page++)
+        {
+            var response = await httpClient.GetAsync($"{url}?page={page}&per_page={perPage}");
+            var responseBody = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new CloudflareServiceException($"Cloudflare list failed: {response.StatusCode}");
+            }
+
+            using var doc = JsonDocument.Parse(responseBody);
+            if (doc.RootElement.TryGetProperty("result", out var result))
+            {
+                items.AddRange(result.EnumerateArray().Select(map));
+            }
+
+            var totalPages = doc.RootElement.TryGetProperty("result_info", out var info)
+                && info.TryGetProperty("total_pages", out var total)
+                && total.TryGetInt32(out var pages)
+                ? pages
+                : 1;
+            if (page >= totalPages)
+            {
+                break;
+            }
+        }
+
+        return items;
     }
 
     private async Task<string?> FindRecordIdAsync(HttpClient httpClient, string zoneId, string recordName, string recordType)

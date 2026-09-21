@@ -98,7 +98,7 @@ public class CloudflareTunnelService : ICloudflareTunnelService
         {
             var httpClient = CreateAuthenticatedClient(apiToken);
             var response = await httpClient.GetAsync(
-                $"{CLOUDFLARE_API_BASE}/accounts/{accountId}/cfd_tunnel?is_deleted=false");
+                $"{CLOUDFLARE_API_BASE}/accounts/{accountId}/cfd_tunnel?is_deleted=false&per_page=1000");
 
             var root = await ReadResultAsync(response, "list tunnels");
             var tunnels = new List<TunnelInfo>();
