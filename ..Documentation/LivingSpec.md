@@ -84,7 +84,11 @@ versioning migration.
   themed page with a reference (the request's trace ID) to find it in the logs, and never
   the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
   picks the render mode per page) so it needs no circuit and the reference stays.
-- **Serilog** structured logging to console and rolling files.
+- **Serilog** structured logging to console and daily rolling files (31 kept). Debug in
+  Development, Information elsewhere; `STAGEZERO_LOG_LEVEL` overrides. ASP.NET Core,
+  EF Core, HttpClient and MudBlazor log at Warning and above whatever the level, so
+  per-request framework chatter never reaches the logs. Password-reset codes are logged at
+  Warning, so they show at every level.
 
 **Partial**
 

@@ -154,6 +154,10 @@ where `<data-dir>` is the mounted `/app-data` volume in Docker, `~/.config/stage
 Linux, `~/Library/Application Support/StageZero` on macOS, or `%APPDATA%\StageZero` on
 Windows. Deleting `stagezero.db` itself also works but loses every DNS and tunnel setting.
 
+**Log level:** Information by default (Debug in Development). Set `STAGEZERO_LOG_LEVEL`
+(`Debug`, `Information`, `Warning`, `Error`) to change it. Logs go to the console and to
+`logs/` in the data directory, one file a day, 31 kept.
+
 ### DNS Provider Control
 
 Each DNS provider (Cloudflare, etc.) can be individually enabled or disabled for updates:

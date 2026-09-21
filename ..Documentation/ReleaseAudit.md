@@ -30,7 +30,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
 | 3 · DDNS correctness | 6 | 6 |
-| 4 · Hygiene and docs | 9 | 3 |
+| 4 · Hygiene and docs | 9 | 4 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
 | 7 · Marketing screenshots | 7 | 0 |
@@ -177,7 +177,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   Fix: EF Core migrations with a baseline that adopts existing databases.
   Done when: a DB from the last release upgrades cleanly and `Program.cs` has no raw DDL.
 
-- [ ] **4.4 Production log level.** `MinimumLevel.Debug()` is unconditional
+- [x] **4.4 Production log level.** `MinimumLevel.Debug()` is unconditional
   (`Program.cs:58`). Fix: Information in Production, configurable by env var.
 
 - [ ] **4.5 Third-party assets.** `App.razor` loads a personal FontAwesome kit

@@ -60,19 +60,18 @@ for (int i = 0; loadDotEnv && i <= 5; i++)
 var logsDirectory = DataPathService.GetLogsDirectory();
 var logFilePath = Path.Combine(logsDirectory, "log-.txt");
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
-    .CreateLogger();
+// Debug in Development, Information otherwise; STAGEZERO_LOG_LEVEL overrides (LoggingSetup).
+var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+    ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+    ?? "Production";
+var minimumLevel = LoggingSetup.MinimumLevel(
+    environmentName, Environment.GetEnvironmentVariable(LoggingSetup.LevelVariable));
+
+Log.Logger = LoggingSetup.Configure(new LoggerConfiguration(), minimumLevel, logFilePath).CreateLogger();
 
 try
 {
-    Log.Information("Starting StageZero application");
+    Log.Information("Starting StageZero application (log level {Level})", minimumLevel);
     Log.Information(DataPathService.GetPlatformInfo());
 
     var builder = WebApplication.CreateBuilder(args);
