@@ -27,7 +27,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 
 | Phase | Items | Done |
 |---|---|---|
-| 1 · Install and log in | 6 | 1 |
+| 1 · Install and log in | 6 | 2 |
 | 2 · Security | 8 | 1 |
 | 3 · DDNS correctness | 6 | 0 |
 | 4 · Hygiene and docs | 9 | 1 |
@@ -44,7 +44,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   *Verified: ran it.* Fix: remove the project entry (and its config rows) from the `.sln`.
   Done when: the README quick-start command succeeds on a fresh clone.
 
-- [ ] **1.2 Auth pages load directly.** `/login`, `/setup`, `/forgot-password`,
+- [x] **1.2 Auth pages load directly.** `/login`, `/setup`, `/forgot-password`,
   `/reset-password` return 404 on direct load, refresh or bookmark; they only work via
   in-app navigation. *Verified: curl against the running app.* Cause: `Program.cs:449`
   `MapRazorComponents` never calls `.AddAdditionalAssemblies(typeof(Login).Assembly)`.

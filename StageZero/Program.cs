@@ -29,12 +29,16 @@ using dotenv.net;
 // ═══════════════════════════════════════════════════════════════
 
 // Load .env file if it exists (for local development)
-// Search in current directory and up to 5 parent directories
+// Search in current directory and up to 5 parent directories.
+// STAGEZERO_DOTENV=false skips it — the test suite sets that, so a developer's real
+// settings in the repo-root .env never reach a test host.
 var currentDir = Directory.GetCurrentDirectory();
 var envFilePath = ".env";
+var loadDotEnv = !string.Equals(
+    Environment.GetEnvironmentVariable("STAGEZERO_DOTENV"), "false", StringComparison.OrdinalIgnoreCase);
 
 // Try to find .env file in current directory or parent directories
-for (int i = 0; i <= 5; i++)
+for (int i = 0; loadDotEnv && i <= 5; i++)
 {
     var testPath = Path.Combine(currentDir, envFilePath);
     if (File.Exists(testPath))
@@ -573,6 +577,9 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+/// <summary>Public so the integration tests can host the app with WebApplicationFactory.</summary>
+public partial class Program;
 
 // ═══════════════════════════════════════════════════════════════
 // BASIC AUTH DB CONTEXT FACTORY WRAPPER

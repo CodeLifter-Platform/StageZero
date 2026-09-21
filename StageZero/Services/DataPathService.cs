@@ -4,7 +4,8 @@ namespace StageZero.Services;
 
 /// <summary>
 /// Provides platform-specific paths for application data storage.
-/// Uses standard locations for each operating system:
+/// <c>STAGEZERO_HOME</c>, when set, wins; otherwise the standard location for the host:
+/// - Container: /app-data
 /// - macOS: ~/Library/Application Support/StageZero/
 /// - Windows: %APPDATA%\StageZero\
 /// - Linux: ~/.config/stagezero/
@@ -13,6 +14,13 @@ public static class DataPathService
 {
     private const string AppName = "StageZero";
     private const string AppNameLinux = "stagezero"; // Linux convention: lowercase
+
+    /// <summary>
+    /// Overrides the data directory. Deliberately not <c>STAGEZERO_DATA_DIR</c>: the compose
+    /// files use that name for the host side of the volume and pass <c>.env</c> into the
+    /// container, so reading it here would point the app at a host path inside the container.
+    /// </summary>
+    public const string HomeVariable = "STAGEZERO_HOME";
 
     /// <summary>
     /// Checks if the application is running inside a Docker container.
@@ -53,8 +61,13 @@ public static class DataPathService
     {
         string appDataPath;
 
+        var home = Environment.GetEnvironmentVariable(HomeVariable);
+        if (!string.IsNullOrWhiteSpace(home))
+        {
+            appDataPath = home;
+        }
         // If running in Docker, use the mounted volume path
-        if (IsRunningInDocker())
+        else if (IsRunningInDocker())
         {
             appDataPath = "/app-data";
         }
