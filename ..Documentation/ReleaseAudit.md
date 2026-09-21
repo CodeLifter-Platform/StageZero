@@ -30,7 +30,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | 1 · Install and log in | 6 | 2 |
 | 2 · Security | 8 | 1 |
 | 3 · DDNS correctness | 6 | 0 |
-| 4 · Hygiene and docs | 9 | 1 |
+| 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
 | 7 · Marketing screenshots | 7 | 0 |
@@ -172,7 +172,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   reachable, last IP check recent) and a `HEALTHCHECK` in the Dockerfile.
   Done when: `docker ps` shows `healthy`.
 
-- [ ] **4.3 Real migrations.** Schema changes are hand-written `ALTER TABLE` blocks after
+- [x] **4.3 Real migrations.** Schema changes are hand-written `ALTER TABLE` blocks after
   `EnsureCreated` (`Program.cs:208-419`), each wrapped in a catch that logs and continues.
   Fix: EF Core migrations with a baseline that adopts existing databases.
   Done when: a DB from the last release upgrades cleanly and `Program.cs` has no raw DDL.
