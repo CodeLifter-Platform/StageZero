@@ -6,12 +6,15 @@ A Blazor Server application that keeps your domains pointed at the right IP
 addresses and publishes your local services to the internet through a Cloudflare
 Tunnel — no port forwarding, no certificate management, no public IP required.
 
-Two features, one Cloudflare API token:
+Three features, one Cloudflare API token:
 
 - **Dynamic DNS** — monitors your public IP and updates Cloudflare DNS records when it changes.
 - **Tunnel Routes** — maps public hostnames to services on your network by pushing
   ingress rules and proxied CNAMEs to Cloudflare. See
   [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
+- **Access (Zero Trust)** — puts an authentication policy in front of every hostname it
+  publishes, so a tunnel does not mean an open door. See
+  [CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
 
 ## Tech Stack
 
@@ -77,17 +80,19 @@ StageZero/
 │   │   ├── Areas/            # Feature areas
 │   │   │   ├── DnsConfig/        # DNS providers + records
 │   │   │   ├── IpMonitor/        # Public IP history
-│   │   │   └── TunnelManagement/ # Tunnel routes + setup wizard
+│   │   │   └── TunnelManagement/ # Tunnel routes, Access, setup wizard
 │   │   ├── Components/       # Shared components
 │   │   └── Layout/           # MainLayout, AppVM
 │   ├── Data/                 # DbContext
 │   ├── DataAdapters/         # Data access (Readers/Writers)
 │   ├── Models/               # Domain entities
 │   ├── Services/             # Business logic
+│   │   ├── Access/               # Cloudflare Access apps, policies, service tokens
 │   │   ├── Dns/                  # Cloudflare DNS + DDNS updates
 │   │   ├── IpMonitoring/         # Public IP polling
 │   │   └── Tunnel/               # Cloudflare Tunnel API + route sync
 │   └── wwwroot/              # Static assets
+├── StageZero.Tests/           # Unit tests (xUnit)
 ├── debug.docker-compose.yml   # Hot-reload development
 ├── prod.docker-compose.yml    # Release build + optional cloudflared sidecar
 ├── .env.example
@@ -153,18 +158,52 @@ This is useful for:
 
 ### Cloudflare API Token
 
-One token drives both features. Create it at **My Profile → API Tokens** with:
+One token drives all three features. Create it at **My Profile → API Tokens** with:
 
-| Scope | Permission |
-|---|---|
-| Account | Cloudflare Tunnel → Edit |
-| Zone | DNS → Edit |
-| Zone | Zone → Read |
+| Scope | Permission | Needed for |
+|---|---|---|
+| Account | Cloudflare Tunnel → Edit | Tunnel routes |
+| Zone | DNS → Edit | Dynamic DNS and tunnel CNAMEs |
+| Zone | Zone → Read | Listing zones during setup |
+| Account | Access: Apps → Edit | Access, any mode except `none` |
+| Account | Access: Service Tokens → Edit | Access, `service_token` and `both` modes |
+| Account | Access: Organizations, Identity Providers, and Groups → Read | Listing identity providers |
+
+The three Access permissions are **account-scoped**, unlike the zone-scoped DNS
+permissions — a token that writes DNS records fine may still have no Access rights
+at all. StageZero checks before provisioning and names any that are missing. Leave
+them off entirely if you only want DNS and tunnels; the rest of the app is
+unaffected.
 
 The tunnel token is encrypted with ASP.NET Data Protection before storage. The
 keyring lives in the app data directory (`/app-data/dp-keys` in Docker), which
 must be on a persistent volume — otherwise the token can't be decrypted after a
 restart.
+
+### Cloudflare Access
+
+Every hostname StageZero publishes is protected by Access by default. Each route
+picks one of four modes:
+
+| Mode | Who gets in |
+|---|---|
+| `identity` | People signing in through an identity provider, matched by email or email domain |
+| `service_token` | Machines presenting a Cloudflare service token |
+| `both` | Either |
+| `none` | Everyone — no Access application at all |
+
+New hostnames default to `identity`, allowing the owner email (the
+`Access.OwnerEmail` setting, or the first account created during setup). Choosing
+`none` is explicit and the UI marks those routes as public.
+
+When StageZero mints a service token, **Cloudflare returns the client secret only
+once**. It is shown in a dialog that must be acknowledged before it closes, and is
+never logged, stored, or written to disk. Implement `IAccessSecretSink` to also
+route it into a vault.
+
+Full details — modes, permissions, idempotency, teardown rules and the rollback
+behaviour when Access setup fails — are in
+[CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
 
 ### VS Code Debugging
 
@@ -183,6 +222,14 @@ The `.env` file will be automatically loaded when debugging.
 
 ### Database
 SQLite is used for data storage. The database file is created automatically at `StageZero.db`.
+
+## Tests
+
+```bash
+dotnet test StageZero.Tests/StageZero.Tests.csproj
+```
+
+Cloudflare is faked at the service interfaces, so the tests make no network calls.
 
 ## License
 

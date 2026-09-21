@@ -39,6 +39,12 @@ public class TunnelRoute
     [MaxLength(500)]
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Cloudflare Access settings for this hostname. Always present: a route that should be
+    /// public says so with <see cref="AccessMode.None"/> rather than by leaving this unset.
+    /// </summary>
+    public RouteAccessSettings Access { get; set; } = new();
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

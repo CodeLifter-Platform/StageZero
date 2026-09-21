@@ -20,6 +20,7 @@ public class ApplicationDbContext : BasicAuthDbContext
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
     public DbSet<TunnelRoute> TunnelRoutes => Set<TunnelRoute>();
     public DbSet<TunnelConfig> TunnelConfigs => Set<TunnelConfig>();
+    public DbSet<AccessServiceToken> AccessServiceTokens => Set<AccessServiceToken>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -79,6 +80,39 @@ public class ApplicationDbContext : BasicAuthDbContext
             entity.Property(e => e.Notes).HasMaxLength(500);
             entity.HasIndex(e => e.DomainName).IsUnique();
             entity.HasIndex(e => e.IsEnabled);
+
+            // The access section lives in the same row rather than a side table: a route and
+            // its Access settings are always read and written together, and one hostname
+            // never has more than one of them.
+            entity.OwnsOne(e => e.Access, access =>
+            {
+                access.Property(a => a.Mode)
+                    .HasColumnName("AccessMode")
+                    .HasMaxLength(20)
+                    .IsRequired()
+                    .HasConversion(
+                        mode => mode.ToWireValue(),
+                        value => AccessModes.Parse(value));
+
+                access.Property(a => a.AllowedEmails).HasColumnName("AccessAllowedEmails");
+                access.Property(a => a.AllowedEmailDomains).HasColumnName("AccessAllowedEmailDomains");
+                access.Property(a => a.AllowedIdpIds).HasColumnName("AccessAllowedIdpIds");
+                access.Property(a => a.SessionDuration).HasColumnName("AccessSessionDuration").HasMaxLength(50);
+                access.Property(a => a.CreateServiceToken).HasColumnName("AccessCreateServiceToken");
+                access.Property(a => a.ServiceTokenName).HasColumnName("AccessServiceTokenName").HasMaxLength(255);
+                access.Property(a => a.ServiceTokenId).HasColumnName("AccessServiceTokenId").HasMaxLength(100);
+                access.Property(a => a.ServiceTokenDuration).HasColumnName("AccessServiceTokenDuration").HasMaxLength(50);
+                access.Property(a => a.ApplicationId).HasColumnName("AccessApplicationId").HasMaxLength(100);
+                access.Property(a => a.IdentityPolicyId).HasColumnName("AccessIdentityPolicyId").HasMaxLength(100);
+                access.Property(a => a.ServiceTokenPolicyId).HasColumnName("AccessServiceTokenPolicyId").HasMaxLength(100);
+                access.Property(a => a.SyncedAt).HasColumnName("AccessSyncedAt");
+
+                access.Ignore(a => a.AllowedEmailList);
+                access.Ignore(a => a.AllowedEmailDomainList);
+                access.Ignore(a => a.AllowedIdpIdList);
+            });
+
+            entity.Navigation(e => e.Access).IsRequired();
         });
 
         // Configure TunnelConfig entity (single row)
@@ -92,6 +126,17 @@ public class ApplicationDbContext : BasicAuthDbContext
             entity.Property(e => e.TunnelId).HasMaxLength(100);
             entity.Property(e => e.TunnelName).HasMaxLength(255);
             entity.Ignore(e => e.IsConfigured);
+        });
+
+        // Configure AccessServiceToken entity
+        builder.Entity<AccessServiceToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CloudflareTokenId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Name).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ClientId).HasMaxLength(255);
+            entity.Property(e => e.Duration).HasMaxLength(50);
+            entity.HasIndex(e => e.CloudflareTokenId).IsUnique();
         });
     }
 }

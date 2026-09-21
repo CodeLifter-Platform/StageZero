@@ -16,14 +16,16 @@
 <!-- App-specific rules only. Platform-wide standards live in the harness. -->
 
 StageZero is a dynamic-DNS tool: a Blazor Server app (.NET 10, MudBlazor, EF Core/SQLite,
-Serilog) that keeps domains pointed at the right IP addresses automatically. The repo also
-publishes the `Lifted.BlazorAuth.Basic` NuGet package.
+Serilog) that keeps domains pointed at the right IP addresses automatically. It also
+publishes hostnames through Cloudflare Tunnels and puts Cloudflare Access policies in front
+of them. The repo also publishes the `Lifted.BlazorAuth.Basic` NuGet package.
 
 ## Quick start
 
 ```bash
 dotnet build StageZero.sln
 dotnet run --project StageZero
+dotnet test StageZero.Tests/StageZero.Tests.csproj
 ```
 
 ## App-specific notes
@@ -31,6 +33,11 @@ dotnet run --project StageZero
 - **This repo is PUBLIC.** Its macOS CI legs stay on GitHub-hosted runners; the
   `runs-on: macbook` rule applies to private repos only
   (`Platform-Standards/process/versioning-ci.md`).
+- **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
+  while DNS is zone-scoped, so the API token needs `Access: Apps Edit` and
+  `Access: Service Tokens Edit` on top of the tunnel and DNS permissions
+  (`CLOUDFLARE_ACCESS_SETUP.md`). A minted service token's client secret is returned by
+  Cloudflare exactly once — never log it, store it, or write it to disk.
 - **NuGet publish is keyed to the computed version, not a manual tag.** The package
   version comes from the `version` job (`BASE_VERSION` + run number), same as the app
   release. Do not reintroduce a `tags:` trigger.
