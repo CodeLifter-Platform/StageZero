@@ -178,3 +178,33 @@ jobs:
             --skip-duplicate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Release notes ─────────────────────────────────────────────────
+  # Pushes the pull requests this version shipped to codelifter.net, which
+  # curates them and posts the note into StageZero's Release Notes thread in
+  # the forum. No RELEASE_NOTES_TOKEN means a warning, never a failed publish.
+  #
+  # Two things are specific to this repo. It publishes packages and never
+  # pushes a tag, so `commit` is passed explicitly (there is no tag to check
+  # out) and the collector bounds its commit range by asking the site for the
+  # last commit it recorded. And RELEASE_LEVEL=beta makes every main build a
+  # pre-release, so notes accumulate and nothing reaches the forum until a
+  # full release is cut.
+  # Spec: Platform-Standards/process/release-notes.md
+  release-notes:
+    # Job-level, deliberately. This workflow's default is `contents: write` for
+    # the release job, which zeroes every other scope, and a called workflow may
+    # only downgrade what the caller grants — so reading pull requests has to be
+    # granted here or `gh api .../pulls/N` 403s on a private repo.
+    permissions:
+      contents: read
+      pull-requests: read
+    needs: [version, publish-nuget]
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      tag: ${{ needs.version.outputs.version_tag }}
+      prerelease: ${{ needs.version.outputs.is_prerelease == 'true' }}
+      commit: ${{ github.sha }}
+    secrets: inherit
