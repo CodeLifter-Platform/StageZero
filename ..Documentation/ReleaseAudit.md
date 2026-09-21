@@ -28,7 +28,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | Phase | Items | Done |
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
-| 2 · Security | 8 | 6 |
+| 2 · Security | 8 | 7 |
 | 3 · DDNS correctness | 6 | 0 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
@@ -93,7 +93,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   email is unconfigured (`EmailService.cs:52`, `:108`). *Verified: live log.* Fix: remove;
   1.4 removes the reason they were logged. Done when: no code value appears in any log line.
 
-- [ ] **2.3 Cloudflare DNS token stored in plaintext.** `DnsProvider.ApiToken` is written
+- [x] **2.3 Cloudflare DNS token stored in plaintext.** `DnsProvider.ApiToken` is written
   raw to SQLite, while the tunnel token goes through `TunnelTokenProtector`. *Verified:
   old DB copy shows a 40-char raw token, not Data Protection ciphertext.* Fix: protect it
   the same way, with a startup migration that encrypts existing rows.

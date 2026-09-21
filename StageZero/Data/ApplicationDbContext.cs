@@ -41,7 +41,8 @@ public class ApplicationDbContext : BasicAuthDbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
             entity.Property(e => e.ProviderType).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ApiToken).IsRequired();
+            entity.Property(e => e.ProtectedApiToken).IsRequired();
+            entity.Ignore(e => e.ApiToken);
             entity.Property(e => e.ZoneId).HasMaxLength(100);
         });
 

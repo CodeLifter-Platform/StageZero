@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StageZero.Models;
 
@@ -18,7 +19,15 @@ public class DnsProvider
     [MaxLength(50)]
     public string ProviderType { get; set; } = string.Empty; // "Cloudflare", etc.
 
+    /// <summary>The Cloudflare API token as stored: encrypted (ICloudflareTokenProtector).</summary>
     [Required]
+    public string ProtectedApiToken { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The token in the clear, in memory only: filled by the readers, encrypted into
+    /// <see cref="ProtectedApiToken"/> by the writer. Never persisted.
+    /// </summary>
+    [NotMapped]
     public string ApiToken { get; set; } = string.Empty;
 
     [MaxLength(100)]

@@ -81,7 +81,7 @@ public class TunnelSyncService : ITunnelSyncService
     private readonly ITunnelRouteReader _routeReader;
     private readonly ITunnelRouteWriter _routeWriter;
     private readonly ICloudflareTunnelService _tunnelService;
-    private readonly ITunnelTokenProtector _tokenProtector;
+    private readonly ICloudflareTokenProtector _tokenProtector;
     private readonly IAccessProvisioningService _accessProvisioning;
 
     public TunnelSyncService(
@@ -90,7 +90,7 @@ public class TunnelSyncService : ITunnelSyncService
         ITunnelRouteReader routeReader,
         ITunnelRouteWriter routeWriter,
         ICloudflareTunnelService tunnelService,
-        ITunnelTokenProtector tokenProtector,
+        ICloudflareTokenProtector tokenProtector,
         IAccessProvisioningService accessProvisioning)
     {
         _logger = logger;

@@ -35,7 +35,7 @@ public sealed class DatabaseInitializerTests : IDisposable
         var record = await db.DnsRecords.Include(r => r.DnsProvider).SingleAsync();
         Assert.Equal("home.example.com", record.RecordName);
         Assert.Equal("203.0.113.7", record.LastIpAddress);
-        Assert.Equal("test-token", record.DnsProvider.ApiToken);
+        Assert.Equal("test-token", record.DnsProvider.ProtectedApiToken); // encrypted later, at app startup
         Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
         Assert.Equal("300", (await db.AppSettings.SingleAsync()).Value);
         Assert.Equal(1, await db.IpChecks.CountAsync());

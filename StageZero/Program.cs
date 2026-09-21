@@ -179,7 +179,7 @@ try
     // ═══════════════════════════════════════════════════════════════
     // CLOUDFLARE TUNNEL SERVICES
     // ═══════════════════════════════════════════════════════════════
-    builder.Services.AddScoped<ITunnelTokenProtector, TunnelTokenProtector>();
+    builder.Services.AddScoped<ICloudflareTokenProtector, CloudflareTokenProtector>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
 
@@ -217,6 +217,9 @@ try
     // Bring the database to the latest migration. A database from before migrations is
     // adopted once, with the original kept beside it as a .bak (DatabaseInitializer).
     await DatabaseInitializer.InitializeAsync(databasePath, app.Logger);
+
+    // Tokens saved before they were encrypted are encrypted now (idempotent).
+    await CloudflareTokenStore.ProtectLegacyTokensAsync(app.Services, app.Logger);
 
     using (var scope = app.Services.CreateScope())
     {
