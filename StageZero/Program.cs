@@ -171,9 +171,9 @@ try
     builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
+    builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
-    builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
     builder.Services.AddScoped<IDnsVerificationService, DnsVerificationService>();
 
     // ═══════════════════════════════════════════════════════════════
@@ -197,7 +197,6 @@ try
     // BACKGROUND SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddHostedService<IpMonitorBackgroundService>();
-    builder.Services.AddHostedService<IpChangeHandlerService>();
 
     // ═══════════════════════════════════════════════════════════════
     // VIEWMODELS REGISTRATION

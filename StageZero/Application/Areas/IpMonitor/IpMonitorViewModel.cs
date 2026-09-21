@@ -35,11 +35,12 @@ public class IpMonitorViewModelException : Exception
 // IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════
 
-public class IpMonitorViewModel : IIpMonitorViewModel
+public class IpMonitorViewModel : IIpMonitorViewModel, IDisposable
 {
     private readonly ILogger<IpMonitorViewModel> _logger;
     private readonly IIpMonitorService _ipMonitorService;
     private readonly IIpCheckReader _ipCheckReader;
+    private readonly IIpChangeNotifier _notifier;
     private string? _currentIp;
     private DateTime? _lastChecked;
     private bool _isLoading;
@@ -49,15 +50,19 @@ public class IpMonitorViewModel : IIpMonitorViewModel
     public IpMonitorViewModel(
         ILogger<IpMonitorViewModel> logger,
         IIpMonitorService ipMonitorService,
-        IIpCheckReader ipCheckReader)
+        IIpCheckReader ipCheckReader,
+        IIpChangeNotifier notifier)
     {
         _logger = logger;
         _ipMonitorService = ipMonitorService;
         _ipCheckReader = ipCheckReader;
+        _notifier = notifier;
 
-        // Subscribe to IP changes
-        _ipMonitorService.IpChanged += OnIpChanged;
+        // Changes found by any check, including the background monitor's
+        _notifier.IpChanged += OnIpChanged;
     }
+
+    public void Dispose() => _notifier.IpChanged -= OnIpChanged;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 0 |
+| 3 · DDNS correctness | 6 | 1 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -132,7 +132,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   `ttl` and preserve them (or `PATCH` only `content`).
   Done when: a proxied record stays proxied after an IP change.
 
-- [ ] **3.2 Dead IP-change handler.** `IpChangeHandlerService` subscribes to an
+- [x] **3.2 Dead IP-change handler.** `IpChangeHandlerService` subscribes to an
   `IpMonitorService` instance in a scope it disposes immediately; the background loop
   raises the event on a different instance every tick. *Verified: real logs show 26
   IP-change events and 0 handler runs.* DDNS works only because `DnsVerificationService`

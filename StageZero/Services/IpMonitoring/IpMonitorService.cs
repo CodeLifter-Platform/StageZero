@@ -12,7 +12,6 @@ public interface IIpMonitorService
 {
     Task<IpCheck> CheckIpAsync();
     Task<IpCheck?> GetCurrentIpAsync();
-    event EventHandler<IpChangedEventArgs>? IpChanged;
 }
 
 public class IpChangedEventArgs : EventArgs
@@ -43,21 +42,22 @@ public class IpMonitorService : IIpMonitorService
     private readonly IIpCheckReader _ipCheckReader;
     private readonly IIpCheckWriter _ipCheckWriter;
     private readonly IDnsVerificationService _dnsVerificationService;
-
-    public event EventHandler<IpChangedEventArgs>? IpChanged;
+    private readonly IIpChangeNotifier _notifier;
 
     public IpMonitorService(
         ILogger<IpMonitorService> logger,
         IHttpClientFactory httpClientFactory,
         IIpCheckReader ipCheckReader,
         IIpCheckWriter ipCheckWriter,
-        IDnsVerificationService dnsVerificationService)
+        IDnsVerificationService dnsVerificationService,
+        IIpChangeNotifier notifier)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _ipCheckReader = ipCheckReader;
         _ipCheckWriter = ipCheckWriter;
         _dnsVerificationService = dnsVerificationService;
+        _notifier = notifier;
     }
 
     public async Task<IpCheck> CheckIpAsync()
@@ -94,8 +94,7 @@ public class IpMonitorService : IIpMonitorService
                 _logger.LogInformation("IP address changed from {OldIp} to {NewIp}",
                     lastCheck?.IpAddress ?? "none", currentIp);
 
-                // Raise event
-                IpChanged?.Invoke(this, new IpChangedEventArgs
+                _notifier.Publish(new IpChangedEventArgs
                 {
                     NewIp = currentIp,
                     OldIp = lastCheck?.IpAddress,
@@ -107,8 +106,8 @@ public class IpMonitorService : IIpMonitorService
                 _logger.LogDebug("IP address unchanged: {IpAddress}", currentIp);
             }
 
-            // Verify DNS records match current IP (runs on every check)
-            // Updates Cloudflare if there's any mismatch (regardless of whether local IP changed)
+            // Verify DNS records match current IP (runs on every check). This is what updates
+            // Cloudflare after a change, and what repairs a record edited behind our back.
             await _dnsVerificationService.VerifyAndSyncAllRecordsAsync(currentIp, isChanged);
 
             return ipCheck;

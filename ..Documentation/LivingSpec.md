@@ -23,11 +23,12 @@ versioning migration.
 
 **Working today**
 
-- **Dynamic DNS.** `IpMonitorBackgroundService` polls the public IP (every 180 s);
-  `IpChangeHandlerService` reacts to a change and `DnsUpdateService` rewrites every
-  auto-update record through the Cloudflare DNS API. Each provider can be switched off
-  without stopping monitoring. `DnsVerificationService` re-checks records against the
-  current IP on each poll. UI: **IP Monitor** (history) and **DNS Configuration**.
+- **Dynamic DNS.** `IpMonitorBackgroundService` polls the public IP (every 180 s), and
+  every check runs `DnsVerificationService`, which rewrites any auto-update record in
+  Cloudflare that doesn't match — after a change, or after someone edits the record by
+  hand. Each provider can be switched off without stopping monitoring. A change is
+  published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
+  page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
   tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for

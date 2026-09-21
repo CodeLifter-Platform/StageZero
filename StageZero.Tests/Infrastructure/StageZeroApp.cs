@@ -21,6 +21,9 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
     public string DataDirectory { get; } =
         Directory.CreateTempSubdirectory("stagezero-tests-").FullName;
 
+    /// <summary>What every outbound HTTP request gets instead of the internet.</summary>
+    public FakeHttp Http { get; } = new();
+
     public StageZeroApp()
     {
         Environment.SetEnvironmentVariable(DataPathService.HomeVariable, DataDirectory);
@@ -41,6 +44,10 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
             {
                 services.Remove(descriptor);
             }
+
+            // No real network: every HttpClient the app makes talks to FakeHttp.
+            services.ConfigureHttpClientDefaults(client =>
+                client.ConfigurePrimaryHttpMessageHandler(() => Http.CreateHandler()));
         });
     }
 

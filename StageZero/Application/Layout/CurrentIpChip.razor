@@ -3,6 +3,7 @@
    and because the component doesn't exist for them, the IP isn't even read on their behalf. *@
 @implements IDisposable
 @inject IIpMonitorService IpMonitorService
+@inject IIpChangeNotifier IpChangeNotifier
 @using StageZero.Services.IpMonitoring
 
 <MudChip T="string"
@@ -15,16 +16,13 @@
 
 @code {
     private string? _currentIp;
-    private System.Threading.Timer? _ipRefreshTimer;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCurrentIpAsync();
 
-        IpMonitorService.IpChanged += OnIpChanged;
-
-        // Refresh the display every 30 seconds
-        _ipRefreshTimer = new System.Threading.Timer(async _ => await LoadCurrentIpAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        // Pushed by whichever check sees the change — no polling.
+        IpChangeNotifier.IpChanged += OnIpChanged;
     }
 
     private async Task LoadCurrentIpAsync()
@@ -47,9 +45,5 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
-    {
-        IpMonitorService.IpChanged -= OnIpChanged;
-        _ipRefreshTimer?.Dispose();
-    }
+    public void Dispose() => IpChangeNotifier.IpChanged -= OnIpChanged;
 }
