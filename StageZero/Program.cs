@@ -108,6 +108,7 @@ try
 
     // HttpClient for external API calls
     builder.Services.AddHttpClient();
+    builder.Services.AddHttpClient(PublicIpResolver.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
 
     // ═══════════════════════════════════════════════════════════════
     // DATA PROTECTION
@@ -172,6 +173,7 @@ try
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
     builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
+    builder.Services.AddSingleton<IPublicIpResolver, PublicIpResolver>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
     builder.Services.AddScoped<IDnsVerificationService, DnsVerificationService>();

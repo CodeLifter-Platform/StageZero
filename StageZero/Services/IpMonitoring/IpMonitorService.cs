@@ -38,7 +38,7 @@ public class IpMonitorServiceException : Exception
 public class IpMonitorService : IIpMonitorService
 {
     private readonly ILogger<IpMonitorService> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IPublicIpResolver _resolver;
     private readonly IIpCheckReader _ipCheckReader;
     private readonly IIpCheckWriter _ipCheckWriter;
     private readonly IDnsVerificationService _dnsVerificationService;
@@ -46,14 +46,14 @@ public class IpMonitorService : IIpMonitorService
 
     public IpMonitorService(
         ILogger<IpMonitorService> logger,
-        IHttpClientFactory httpClientFactory,
+        IPublicIpResolver resolver,
         IIpCheckReader ipCheckReader,
         IIpCheckWriter ipCheckWriter,
         IDnsVerificationService dnsVerificationService,
         IIpChangeNotifier notifier)
     {
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
+        _resolver = resolver;
         _ipCheckReader = ipCheckReader;
         _ipCheckWriter = ipCheckWriter;
         _dnsVerificationService = dnsVerificationService;
@@ -64,17 +64,11 @@ public class IpMonitorService : IIpMonitorService
     {
         try
         {
-            _logger.LogDebug("Checking current IP address from ipify.org");
-
-            // Get current IP from ipify.org
-            var httpClient = _httpClientFactory.CreateClient();
-            var response = await httpClient.GetStringAsync("https://api.ipify.org");
-            var currentIp = response.Trim();
+            var lastCheck = await _ipCheckReader.GetLatestAsync();
+            var currentIp = await _resolver.ResolveAsync(lastCheck?.IpAddress);
 
             _logger.LogDebug("Current IP: {IpAddress}", currentIp);
 
-            // Get the last check
-            var lastCheck = await _ipCheckReader.GetLatestAsync();
             var isChanged = lastCheck == null || lastCheck.IpAddress != currentIp;
 
             // Create new check record
@@ -112,10 +106,11 @@ public class IpMonitorService : IIpMonitorService
 
             return ipCheck;
         }
-        catch (HttpRequestException ex)
+        catch (PublicIpUnresolvedException ex)
         {
-            _logger.LogError(ex, "Failed to check IP address from ipify.org");
-            throw new IpMonitorServiceException("Could not retrieve IP address", ex);
+            // Nothing recorded and nothing changed: better a missed check than a wrong answer.
+            _logger.LogWarning("Public IP not resolved: {Reason}", ex.Message);
+            throw new IpMonitorServiceException("Could not determine the public IP address", ex);
         }
         catch (Exception ex)
         {

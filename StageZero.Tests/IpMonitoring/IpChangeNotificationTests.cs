@@ -21,9 +21,9 @@ public class IpChangeNotificationTests
         {
             listenerScope.ServiceProvider.GetRequiredService<IIpChangeNotifier>().IpChanged += (_, e) => heard.Add(e);
 
-            app.Http.OnGet("https://api.ipify.org", "203.0.113.1");
+            app.Http.PublicIp("203.0.113.1");
             await CheckInNewScopeAsync(app);
-            app.Http.OnGet("https://api.ipify.org", "203.0.113.2");
+            app.Http.PublicIp("203.0.113.2");
             await CheckInNewScopeAsync(app);
             await CheckInNewScopeAsync(app); // unchanged: no news
         }
@@ -41,7 +41,7 @@ public class IpChangeNotificationTests
         var heard = 0;
         notifier.IpChanged += (_, _) => throw new InvalidOperationException("listener bug");
         notifier.IpChanged += (_, _) => heard++;
-        app.Http.OnGet("https://api.ipify.org", "203.0.113.1");
+        app.Http.PublicIp("203.0.113.1");
 
         var check = await CheckInNewScopeAsync(app);
 
@@ -53,5 +53,26 @@ public class IpChangeNotificationTests
     {
         using var scope = app.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<IIpMonitorService>().CheckIpAsync();
+    }
+}
+
+[Collection(AppCollection.Name)]
+public class InconclusiveIpCheckTests
+{
+    [Fact]
+    public async Task An_inconclusive_check_records_nothing_and_touches_no_dns()
+    {
+        await using var app = new StageZeroApp();
+        app.Http.OnGet("https://1.1.1.1/cdn-cgi/trace", "ip=203.0.113.9");
+        app.Http.OnGet("https://api.ipify.org", "<html>captive portal</html>");
+        app.Http.OnGet("https://checkip.amazonaws.com", "gateway timeout", System.Net.HttpStatusCode.GatewayTimeout);
+
+        using var scope = app.Services.CreateScope();
+        await Assert.ThrowsAsync<IpMonitorServiceException>(
+            () => scope.ServiceProvider.GetRequiredService<IIpMonitorService>().CheckIpAsync());
+
+        await using var db = await app.CreateDbContextAsync();
+        Assert.Empty(db.IpChecks);
+        Assert.DoesNotContain(app.Http.Requests, r => r.Url.Host == "api.cloudflare.com");
     }
 }

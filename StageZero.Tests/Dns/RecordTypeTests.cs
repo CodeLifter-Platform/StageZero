@@ -27,7 +27,7 @@ public class RecordTypeTests
         await CloudflareFakes.AddProviderAsync(app,
             new DnsRecord { RecordName = "home.example.com", RecordType = "A", RecordId = "rec-a", AutoUpdate = true },
             new DnsRecord { RecordName = "home.example.com", RecordType = "AAAA", RecordId = "rec-aaaa", AutoUpdate = true });
-        app.Http.OnGet("https://api.ipify.org", "203.0.113.2");
+        app.Http.PublicIp("203.0.113.2");
         app.Http.OnGet(CloudflareFakes.ZoneUrl, CloudflareFakes.List(
             CloudflareFakes.Record("rec-a", "home.example.com", "A", "203.0.113.1"),
             CloudflareFakes.Record("rec-aaaa", "home.example.com", "AAAA", "2001:db8::1")));

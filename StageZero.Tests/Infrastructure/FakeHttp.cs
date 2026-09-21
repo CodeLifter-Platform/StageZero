@@ -31,6 +31,17 @@ public sealed class FakeHttp
     public FakeHttp OnGet(string urlPrefix, string body, HttpStatusCode status = HttpStatusCode.OK) =>
         On(HttpMethod.Get, urlPrefix, _ => Text(body, status));
 
+    /// <summary>Every public-IP source answers with <paramref name="ip"/>.</summary>
+    public FakeHttp PublicIp(string ip)
+    {
+        foreach (var (_, url) in StageZero.Services.IpMonitoring.PublicIpResolver.Sources)
+        {
+            OnGet(url, url.Contains("cdn-cgi/trace", StringComparison.Ordinal) ? $"fl=1\nh=1.1.1.1\nip={ip}\nts=1\n" : ip + "\n");
+        }
+
+        return this;
+    }
+
     public static HttpResponseMessage Text(string body, HttpStatusCode status = HttpStatusCode.OK) =>
         new(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 

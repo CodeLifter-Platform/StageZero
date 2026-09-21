@@ -13,6 +13,15 @@ Last reviewed: 2026-09-27.
   (`StageZero/Models/DnsProvider.cs`, DNS config UI).
 - **Managed at:** End-user Cloudflare accounts; API tokens supplied at runtime.
 
+## Public IP lookup (Cloudflare trace, ipify, AWS checkip)
+
+- **Usage:** Every IP check asks all three for this network's public IPv4 address and
+  acts only when two agree (`StageZero/Services/IpMonitoring/PublicIpResolver.cs`):
+  `https://1.1.1.1/cdn-cgi/trace`, `https://api.ipify.org`,
+  `https://checkip.amazonaws.com`.
+- **Managed at:** Nothing to manage — public, unauthenticated, no account or key. Any one
+  can be down or wrong without effect; if fewer than two answer, the check is skipped.
+
 ## Cloudflare Tunnel (public ingress)
 
 - **Usage:** The edge layer StageZero publishes services through. The app manages

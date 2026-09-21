@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 3 |
+| 3 · DDNS correctness | 6 | 4 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -146,7 +146,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   either hide AAAA auto-update now, or do it properly under 6.4.
   Done when: the UI can't create a record that is guaranteed to fail.
 
-- [ ] **3.4 Single IP source, no validation.** One provider, no fallback, and the response
+- [x] **3.4 Single IP source, no validation.** One provider, no fallback, and the response
   isn't checked with `IPAddress.TryParse` — a captive-portal HTML page would be recorded as
   an "IP change". *Verified: 11 ipify failures in real logs.* Fix: two or three sources,
   parse-validate, require agreement before acting.

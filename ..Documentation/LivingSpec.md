@@ -34,6 +34,12 @@ versioning migration.
   stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
   page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
+- **Public IP by consensus.** `PublicIpResolver` asks three independent services in
+  parallel — Cloudflare's `1.1.1.1/cdn-cgi/trace`, ipify, and AWS `checkip` — with a 5-second
+  timeout each. Only a public IPv4 address counts as an answer (an HTML captive-portal
+  page, a private or reserved address, anything malformed is discarded). Two sources must
+  agree for the IP to change; a lone answer can only confirm the last known IP. Otherwise
+  the check is inconclusive: nothing is recorded and DNS is left alone.
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
   tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for

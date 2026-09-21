@@ -18,7 +18,7 @@ public class DnsUpdateTests
         {
             RecordName = "home.example.com", RecordType = "A", RecordId = "rec-1", AutoUpdate = true
         });
-        app.Http.OnGet("https://api.ipify.org", "203.0.113.2");
+        app.Http.PublicIp("203.0.113.2");
         app.Http.OnGet(CloudflareFakes.ZoneUrl, CloudflareFakes.List(
             CloudflareFakes.Record("rec-1", "home.example.com", "A", "203.0.113.1", proxied: true, ttl: 300)));
         CloudflareFakes.AcceptUpdates(app);
