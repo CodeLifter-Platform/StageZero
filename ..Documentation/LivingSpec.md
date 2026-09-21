@@ -27,7 +27,10 @@ versioning migration.
   every check runs `DnsVerificationService`, which rewrites any auto-update record in
   Cloudflare that doesn't match — after a change, or after someone edits the record by
   hand. The update is a PATCH of the address alone, so the record's proxy (orange cloud),
-  TTL, comment and tags are left as they are. Each provider can be switched off without
+  TTL, comment and tags are left as they are. Only **A** records are auto-updated
+  (`DnsRecord.SupportsAutoUpdate`): the IP lookup finds the IPv4 address, and the add/edit
+  dialogs, the Cloudflare import and the verifier all apply that rule. AAAA and CNAME
+  records are tracked but never auto-updated. Each provider can be switched off without
   stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
   page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.

@@ -66,21 +66,24 @@ public class DnsVerificationService : IDnsVerificationService
         }
     }
 
+    private static bool MatchesAddressFamily(string recordType, string address) =>
+        System.Net.IPAddress.TryParse(address, out var ip) && recordType switch
+        {
+            "A" => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork,
+            "AAAA" => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6,
+            _ => false
+        };
+
     private async Task VerifyAndSyncRecordAsync(DnsRecord record, string currentIp, bool ipChanged)
     {
         try
         {
-            // Skip CNAME records - they point to domain names, not IP addresses
-            if (record.RecordType == "CNAME")
+            // Only a record whose type matches the address: an IPv4 address written into an
+            // AAAA record (or any address into a CNAME) is refused by Cloudflare every time.
+            if (!DnsRecord.SupportsAutoUpdate(record.RecordType) || !MatchesAddressFamily(record.RecordType, currentIp))
             {
-                _logger.LogDebug("Skipping {RecordName} - CNAME records are not IP-based", record.RecordName);
-                return;
-            }
-
-            // Only check A and AAAA records
-            if (record.RecordType != "A" && record.RecordType != "AAAA")
-            {
-                _logger.LogDebug("Skipping {RecordName} - Only A and AAAA records are verified", record.RecordName);
+                _logger.LogDebug("Skipping {RecordName} ({RecordType}): not updatable to {CurrentIp}",
+                    record.RecordName, record.RecordType, currentIp);
                 return;
             }
 

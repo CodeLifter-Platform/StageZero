@@ -29,7 +29,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 |---|---|---|
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
-| 3 · DDNS correctness | 6 | 2 |
+| 3 · DDNS correctness | 6 | 3 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
@@ -140,7 +140,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   Fix: delete the handler and the event, or move the event to a singleton notifier —
   notifications (6.1) will want the singleton. Done when: no dead subscription remains.
 
-- [ ] **3.3 AAAA auto-update cannot work.** The add dialog offers AAAA with auto-update
+- [x] **3.3 AAAA auto-update cannot work.** The add dialog offers AAAA with auto-update
   (`AddDnsRecordDialog.razor:65`), but the only IP source is IPv4 (`api.ipify.org`), so an
   IPv4 address would be PUT into an AAAA record and rejected every tick. *(code)* Fix:
   either hide AAAA auto-update now, or do it properly under 6.4.

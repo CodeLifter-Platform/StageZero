@@ -81,14 +81,12 @@
             <MudCheckBox @bind-Value="_autoUpdate"
                          Label="Auto-update when IP changes"
                          Color="Color.Primary"
-                         Disabled="@(_recordType == "CNAME")"
+                         Disabled="@(!DnsRecord.SupportsAutoUpdate(_recordType))"
                          Class="mb-4" />
 
-            @if (_recordType == "CNAME")
+            @if (DnsRecord.AutoUpdateUnavailableReason(_recordType) is { } reason)
             {
-                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">
-                    Note: CNAME records cannot be auto-updated with IP changes
-                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4">@reason</MudText>
             }
 
             @if (!string.IsNullOrEmpty(_errorMessage))
@@ -135,11 +133,7 @@
             _recordType = _selectedCloudflareRecord.Type;
             _content = _selectedCloudflareRecord.Content;
 
-            // CNAME records should not auto-update
-            if (_recordType == "CNAME")
-            {
-                _autoUpdate = false;
-            }
+            _autoUpdate = DnsRecord.SupportsAutoUpdate(_recordType);
         }
     }
 
@@ -187,7 +181,7 @@
         {
             RecordName = _recordName,
             RecordType = _recordType,
-            AutoUpdate = _recordType != "CNAME" && _autoUpdate, // Force false for CNAME
+            AutoUpdate = _autoUpdate && DnsRecord.SupportsAutoUpdate(_recordType),
             RecordId = _selectedCloudflareRecord?.Id,
             Content = _recordType == "CNAME" ? _content : null
         };

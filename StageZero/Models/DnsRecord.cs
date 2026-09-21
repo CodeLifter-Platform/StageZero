@@ -37,5 +37,21 @@ public class DnsRecord
 
     // Navigation property
     public DnsProvider DnsProvider { get; set; } = null!;
+
+    /// <summary>
+    /// Whether StageZero can keep a record of this type pointed at the public IP. Only A
+    /// records: the IP lookup finds the IPv4 address, and writing that into an AAAA record
+    /// fails at Cloudflare on every check. (A CNAME points at a name, not an address.)
+    /// </summary>
+    public static bool SupportsAutoUpdate(string recordType) => recordType == "A";
+
+    /// <summary>Why <see cref="SupportsAutoUpdate"/> says no, for the UI.</summary>
+    public static string? AutoUpdateUnavailableReason(string recordType) => recordType switch
+    {
+        "A" => null,
+        "AAAA" => "StageZero detects your IPv4 address only, so AAAA records aren't auto-updated.",
+        "CNAME" => "A CNAME points at a name, not an IP address, so it isn't auto-updated.",
+        _ => "Only A records are auto-updated."
+    };
 }
 
