@@ -27,8 +27,8 @@ break for a new user, and security is too weak for an app exposed to the interne
 
 | Phase | Items | Done |
 |---|---|---|
-| 1 · Install and log in | 6 | 2 |
-| 2 · Security | 8 | 1 |
+| 1 · Install and log in | 6 | 4 |
+| 2 · Security | 8 | 6 |
 | 3 · DDNS correctness | 6 | 0 |
 | 4 · Hygiene and docs | 9 | 2 |
 | 5 · Design system rebuild | 5 | 0 |
@@ -50,7 +50,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   `MapRazorComponents` never calls `.AddAdditionalAssemblies(typeof(Login).Assembly)`.
   Done when: all four URLs return 200 on a cold request.
 
-- [ ] **1.3 Login survives a refresh.** The signed-in user is a private field on the
+- [x] **1.3 Login survives a refresh.** The signed-in user is a private field on the
   scoped `AuthService` (`Lifted.BlazorAuth.Basic/Services/AuthService.cs:48`), so it dies
   with the Blazor circuit; nothing persists it. *Verified: code; the setup wizard visibly
   lost its progress on reload.* Fix: real cookie authentication (`AddAuthentication().AddCookie()`,
@@ -59,7 +59,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   package's surface, so it is a minor-version bump for `Lifted.BlazorAuth.Basic`.
   Done when: F5 on any page keeps you signed in, and logout clears the cookie.
 
-- [ ] **1.4 First-run setup completes without SMTP.** With no mail settings the UI says
+- [x] **1.4 First-run setup completes without SMTP.** With no mail settings the UI says
   "Verification code sent" but the code only goes to the server log
   (`Services/Email/EmailService.cs:52`). *Verified: live.* Fix: when email is unconfigured,
   skip verification during `/setup` (the person at first-run is the owner) and say so;
@@ -82,14 +82,14 @@ break for a new user, and security is too weak for an app exposed to the interne
 
 ## Phase 2 · Security
 
-- [ ] **2.1 Brute-forceable password reset and login.** Reset and verification codes are
+- [x] **2.1 Brute-forceable password reset and login.** Reset and verification codes are
   six digits from `new Random()` (`AuthService.cs:172`, `:284`), valid 15 minutes, with no
   attempt limit; login has no lockout or rate limit. *Verified: code.* Fix:
   `RandomNumberGenerator`, longer codes or single-use tokens, max ~5 attempts per code,
   per-account and per-IP throttling on login and reset.
   Done when: a test proves the 6th wrong code invalidates the reset.
 
-- [ ] **2.2 Secrets in logs.** Verification and reset codes are logged in plaintext when
+- [x] **2.2 Secrets in logs.** Verification and reset codes are logged in plaintext when
   email is unconfigured (`EmailService.cs:52`, `:108`). *Verified: live log.* Fix: remove;
   1.4 removes the reason they were logged. Done when: no code value appears in any log line.
 
@@ -99,13 +99,13 @@ break for a new user, and security is too weak for an app exposed to the interne
   the same way, with a startup migration that encrypts existing rows.
   Done when: no raw token is readable in `stagezero.db`, and existing installs keep working.
 
-- [ ] **2.4 Public IP shown to anonymous visitors.** `MainLayout.razor:24` renders the
+- [x] **2.4 Public IP shown to anonymous visitors.** `MainLayout.razor:24` renders the
   current-IP chip and the full nav before login — leaking the origin address a Cloudflare
   Tunnel exists to hide. *Verified: live screenshot.* Fix: render the chip and nav only
   when authenticated; auth pages get a bare layout.
   Done when: an anonymous request's HTML contains no IP address.
 
-- [ ] **2.5 Two-factor login.** The admin account guards Cloudflare tokens with a password
+- [x] **2.5 Two-factor login.** The admin account guards Cloudflare tokens with a password
   alone. Fix: TOTP (and optionally passkeys) in `Lifted.BlazorAuth.Basic`, after 1.3.
   Done when: TOTP can be enrolled, required at login, and recovered with backup codes.
 
@@ -118,7 +118,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   `USER $APP_UID`, with `/app-data` owned by that user; document the volume-permission
   step for existing installs. Done when: `docker exec … id` is non-root and the DB writes.
 
-- [ ] **2.8 Data Protection configured twice.** `Program.cs:104` (`keys/`) and `:126`
+- [x] **2.8 Data Protection configured twice.** `Program.cs:104` (`keys/`) and `:126`
   (`dp-keys/`) both call `AddDataProtection()`; only the second takes effect. Fix: keep one.
   **Check before deleting:** an install whose tunnel token was encrypted under `keys/` would
   lose it — confirm which directory real installs have keys in, and keep that one.

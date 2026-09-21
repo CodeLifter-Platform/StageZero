@@ -99,18 +99,6 @@ try
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseSqlite(connectionString));
 
-    // Persist the Data Protection keys alongside the database. Without this ASP.NET keeps
-    // them under the user profile, which in a container is ephemeral — every restart
-    // invalidates auth cookies and antiforgery tokens, logging everyone out and breaking
-    // form posts until they reload. The keys directory follows DataPathService, so it
-    // lands on the mounted volume in a container and in the normal app data directory
-    // everywhere else.
-    var keysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "keys");
-    Directory.CreateDirectory(keysPath);
-    builder.Services.AddDataProtection()
-        .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
-        .SetApplicationName("StageZero");
-
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
     {
@@ -124,16 +112,15 @@ try
     // ═══════════════════════════════════════════════════════════════
     // DATA PROTECTION
     // ═══════════════════════════════════════════════════════════════
-    // Keys must live on the mounted data volume, not the container filesystem.
-    // Otherwise the encrypted Cloudflare API token in TunnelConfig becomes
-    // undecryptable after the next down/up cycle.
-    var dataProtectionKeysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "dp-keys");
-    Directory.CreateDirectory(dataProtectionKeysPath);
+    // One key ring, on the data volume rather than the user profile (ephemeral in a
+    // container). Without it every restart would sign everyone out and make the stored
+    // Cloudflare tokens and TOTP secrets undecryptable. See DataProtectionKeys.
+    var keyRing = DataProtectionKeys.Prepare(DataPathService.GetAppDataDirectory());
     builder.Services.AddDataProtection()
-        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+        .PersistKeysToFileSystem(keyRing)
         .SetApplicationName("StageZero");
 
-    Log.Information("Data protection keys: {KeysPath}", dataProtectionKeysPath);
+    Log.Information("Data protection keys: {KeysPath}", keyRing.FullName);
 
     // ═══════════════════════════════════════════════════════════════
     // FORWARDED HEADERS (Cloudflare Tunnel)
