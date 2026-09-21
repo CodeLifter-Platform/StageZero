@@ -76,4 +76,10 @@ ENTRYPOINT ["dotnet", "watch", "run", "--launch-profile", "Docker"]
 # ── release: what beta.docker-compose.yml targets, and the default ──
 FROM base AS release
 COPY --from=publish /app/publish .
+
+# The app probes its own /healthz (the image has no curl). Degraded — the public IP not
+# confirmed lately — still counts as healthy: restarting wouldn't fix an upstream outage.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["dotnet", "StageZero.dll", "healthcheck"]
+
 ENTRYPOINT ["dotnet", "StageZero.dll"]

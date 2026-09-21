@@ -43,6 +43,7 @@ public class IpMonitorService : IIpMonitorService
     private readonly IIpCheckWriter _ipCheckWriter;
     private readonly IDnsVerificationService _dnsVerificationService;
     private readonly IIpChangeNotifier _notifier;
+    private readonly IIpMonitorStatus _status;
 
     public IpMonitorService(
         ILogger<IpMonitorService> logger,
@@ -50,7 +51,8 @@ public class IpMonitorService : IIpMonitorService
         IIpCheckReader ipCheckReader,
         IIpCheckWriter ipCheckWriter,
         IDnsVerificationService dnsVerificationService,
-        IIpChangeNotifier notifier)
+        IIpChangeNotifier notifier,
+        IIpMonitorStatus status)
     {
         _logger = logger;
         _resolver = resolver;
@@ -58,6 +60,7 @@ public class IpMonitorService : IIpMonitorService
         _ipCheckWriter = ipCheckWriter;
         _dnsVerificationService = dnsVerificationService;
         _notifier = notifier;
+        _status = status;
     }
 
     public async Task<IpCheck> CheckIpAsync()
@@ -117,17 +120,20 @@ public class IpMonitorService : IIpMonitorService
             // Cloudflare after a change, and what repairs a record edited behind our back.
             await _dnsVerificationService.VerifyAndSyncAllRecordsAsync(currentIp, isChanged);
 
+            _status.RecordSuccess();
             return ipCheck;
         }
         catch (PublicIpUnresolvedException ex)
         {
             // Nothing recorded and nothing changed: better a missed check than a wrong answer.
             _logger.LogWarning("Public IP not resolved: {Reason}", ex.Message);
+            _status.RecordFailure(ex.Message);
             throw new IpMonitorServiceException("Could not determine the public IP address", ex);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error checking IP address");
+            _status.RecordFailure(ex.Message);
             throw new IpMonitorServiceException("Could not check IP address", ex);
         }
     }

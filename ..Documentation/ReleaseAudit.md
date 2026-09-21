@@ -30,7 +30,7 @@ break for a new user, and security is too weak for an app exposed to the interne
 | 1 · Install and log in | 6 | 4 |
 | 2 · Security | 8 | 7 |
 | 3 · DDNS correctness | 6 | 6 |
-| 4 · Hygiene and docs | 9 | 4 |
+| 4 · Hygiene and docs | 9 | 9 |
 | 5 · Design system rebuild | 5 | 0 |
 | 6 · Killer-app features | 10 | 0 |
 | 7 · Marketing screenshots | 7 | 0 |
@@ -168,7 +168,7 @@ break for a new user, and security is too weak for an app exposed to the interne
   page that doesn't exist (`/Error` → 404). Done when: a thrown exception in Production
   renders a themed error page.
 
-- [ ] **4.2 Health endpoint.** None exists. Fix: `MapHealthChecks("/healthz")` (DB
+- [x] **4.2 Health endpoint.** None exists. Fix: `MapHealthChecks("/healthz")` (DB
   reachable, last IP check recent) and a `HEALTHCHECK` in the Dockerfile.
   Done when: `docker ps` shows `healthy`.
 

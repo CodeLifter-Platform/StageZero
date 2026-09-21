@@ -13,16 +13,28 @@ using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Access;
+using StageZero.Services.Cli;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
+using StageZero.Services.Health;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
 using Microsoft.AspNetCore.HttpOverrides;
 using Lifted.BlazorAuth.Basic.Services;
 using Lifted.BlazorAuth.Basic.DataAdapters;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using dotenv.net;
+
+// The container's HEALTHCHECK: first, and before anything slow.
+if (args is [HealthCheckCommand.Name])
+{
+    Environment.ExitCode = await HealthCheckCommand.RunAsync(
+        Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+            .ToDictionary(e => (string)e.Key, e => (string?)e.Value));
+    return;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // LOAD ENVIRONMENT VARIABLES FROM .env FILE
@@ -172,6 +184,14 @@ try
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
     builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
+    builder.Services.TryAddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<IIpMonitorStatus, IpMonitorStatus>();
+
+    // /healthz: Unhealthy without the database; Degraded (still 200) when the public IP
+    // hasn't been confirmed lately. Status only — no detail for an anonymous caller.
+    builder.Services.AddHealthChecks()
+        .AddCheck<DatabaseHealthCheck>("database")
+        .AddCheck<IpMonitorHealthCheck>("ip-monitor");
     builder.Services.AddSingleton<IPublicIpResolver, PublicIpResolver>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
@@ -259,6 +279,8 @@ try
 
     app.UseStaticFiles();
     app.UseAntiforgery();
+
+    app.MapHealthChecks(HealthCheckCommand.Path);
 
     // The auth library's pages (/login, /setup, /forgot-password, /reset-password) live in
     // another assembly. Routes.razor already lists it for in-app navigation; without this

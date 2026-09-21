@@ -84,6 +84,11 @@ versioning migration.
   themed page with a reference (the request's trace ID) to find it in the logs, and never
   the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
   picks the render mode per page) so it needs no circuit and the reference stays.
+- **Health.** `/healthz` (anonymous, status only): Unhealthy if the database can't be
+  reached; Degraded — still HTTP 200 — when the public IP hasn't been confirmed for 15
+  minutes (an upstream outage a restart wouldn't fix). The image's `HEALTHCHECK` runs
+  `dotnet StageZero.dll healthcheck`, which probes the app's own port (from
+  `ASPNETCORE_URLS` / `ASPNETCORE_HTTP_PORTS`, default 8080) — the runtime image has no curl.
 - **No outside assets.** Every stylesheet, script and font is served by the app; pages make
   no request to a CDN, font service or script kit (checked by a test).
 - **Serilog** structured logging to console and daily rolling files (31 kept). Debug in
