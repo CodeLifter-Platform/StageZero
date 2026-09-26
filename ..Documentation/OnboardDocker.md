@@ -32,6 +32,16 @@ your admin account`. The IP monitor and change-handler services start. `/` answe
 
 Go to `/setup` first — with no users, that is the only useful page.
 
+For the real deployment — release image on `127.0.0.1:5100`, optional `cloudflared`
+sidecar — use `prod.docker-compose.yml` via `./docker-run.sh up prod` (or
+`.\docker-run.ps1 up prod`), then follow [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
+More compose and debugging detail: [DOCKER_SETUP.md](DOCKER_SETUP.md).
+
+## Test
+
+The test suite is not run inside the image; run it on the host with the .NET SDK
+([OnboardWeb.md](OnboardWeb.md#test)).
+
 ## The two stages
 
 - **`release`** — the published app. What `beta.docker-compose.yml` targets.

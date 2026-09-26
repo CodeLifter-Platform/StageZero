@@ -36,8 +36,16 @@ dotnet test StageZero.Tests/StageZero.Tests.csproj
 - **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
   while DNS is zone-scoped, so the API token needs `Access: Apps Edit` and
   `Access: Service Tokens Edit` on top of the tunnel and DNS permissions
-  (`CLOUDFLARE_ACCESS_SETUP.md`). A minted service token's client secret is returned by
-  Cloudflare exactly once — never log it, store it, or write it to disk.
+  (`..Documentation/CLOUDFLARE_ACCESS_SETUP.md`). A minted service token's client secret
+  is returned by Cloudflare exactly once — never log it, store it, or write it to disk.
+- **Theme = `StageZero/Application/Theme/StageZeroTheme.cs`.** It is this app's port of
+  `Platform-Standards/design/tokens.md` (light = warm paper) with the locked StageZero teal
+  accent (`#14b8a6` / light `#0f766e`). Views use MudBlazor `Color.*` and
+  `--mud-palette-*` only, never a hex; mono text uses the `sz-mono` class. Change
+  `tokens.md` first, then this file.
+- **Docs live in `..Documentation/`** (`LivingSpec.md`, `OnboardWeb.md`,
+  `OnboardDocker.md`, runbooks). A change to what the app does updates `LivingSpec.md` in
+  the same commit.
 - **NuGet publish is keyed to the computed version, not a manual tag.** The package
   version comes from the `version` job (`BASE_VERSION` + run number), same as the app
   release. Do not reintroduce a `tags:` trigger.
