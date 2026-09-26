@@ -1,21 +1,73 @@
 /* ═══════════════════════════════════════════════════════════════
-   Quip - Application Styles
+   StageZero - Application Styles
+   Colors come from the MudBlazor palette (--mud-palette-*), which is fed
+   by the token dictionary in Application/Theme/StageZeroTheme.cs.
+   No raw color values in this file.
    ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════
+   FONTS - bundled, never loaded from a CDN (Inter + JetBrains Mono, OFL)
+   ═══════════════════════════════════════════════════════════════ */
+
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+    font-family: 'Inter';
+    font-style: italic;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/inter-latin-wght-italic.woff2') format('woff2-variations');
+}
+
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 100 800;
+    font-display: swap;
+    src: url('../fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+:root {
+    --sz-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    BASE STYLES
    ═══════════════════════════════════════════════════════════════ */
 
 html, body {
-    font-family: 'Roboto', sans-serif;
+    font-family: var(--mud-typography-default-family);
+}
+
+code, pre, kbd {
+    font-family: var(--sz-font-mono);
 }
 
 /* ═══════════════════════════════════════════════════════════════
    UTILITY CLASSES
    ═══════════════════════════════════════════════════════════════ */
 
-.white-text {
-    color: white !important;
+/* Code, IDs, IPs, hostnames: the mono token. Also reaches into MudBlazor
+   inputs, which set their own font-family. */
+.sz-mono,
+.sz-mono input,
+.sz-mono textarea {
+    font-family: var(--sz-font-mono) !important;
+}
+
+.sz-strong {
+    font-weight: 600;
+}
+
+/* Text sitting on an accent fill (e.g. the Home hero). */
+.sz-on-accent {
+    color: var(--mud-palette-primary-text) !important;
 }
 
 .text-center {
@@ -32,7 +84,7 @@ html, body {
 
 .hover-card:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+    box-shadow: var(--mud-elevation-8) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════

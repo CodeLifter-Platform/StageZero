@@ -151,11 +151,11 @@ else
                                         <MudTd DataLabel="Content / Last IP" Style="width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                             @if (context.RecordType == "CNAME" && !string.IsNullOrEmpty(context.Content))
                                             {
-                                                <span style="font-family: monospace;" title="@context.Content">@context.Content</span>
+                                                <span class="sz-mono" title="@context.Content">@context.Content</span>
                                             }
                                             else if (!string.IsNullOrEmpty(context.LastIpAddress))
                                             {
-                                                <span style="font-family: monospace;" title="@context.LastIpAddress">@context.LastIpAddress</span>
+                                                <span class="sz-mono" title="@context.LastIpAddress">@context.LastIpAddress</span>
                                             }
                                             else
                                             {

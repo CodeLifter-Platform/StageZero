@@ -51,7 +51,7 @@ else
                             </tr>
                             <tr>
                                 <td><MudText Typo="Typo.body2" Color="Color.Secondary">Tunnel ID</MudText></td>
-                                <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@VM.SavedConfig.TunnelId</MudText></td>
+                                <td><MudText Typo="Typo.body2" Class="sz-mono">@VM.SavedConfig.TunnelId</MudText></td>
                             </tr>
                             <tr>
                                 <td><MudText Typo="Typo.body2" Color="Color.Secondary">Zone</MudText></td>
@@ -59,7 +59,7 @@ else
                             </tr>
                             <tr>
                                 <td><MudText Typo="Typo.body2" Color="Color.Secondary">Account ID</MudText></td>
-                                <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@VM.SavedConfig.CloudflareAccountId</MudText></td>
+                                <td><MudText Typo="Typo.body2" Class="sz-mono">@VM.SavedConfig.CloudflareAccountId</MudText></td>
                             </tr>
                         </tbody>
                     </MudSimpleTable>
@@ -183,7 +183,7 @@ else
                             <RowTemplate>
                                 <MudTd DataLabel="Name">
                                     <MudText Typo="Typo.body2">@context.Name</MudText>
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family: monospace;">@context.Id</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="sz-mono">@context.Id</MudText>
                                 </MudTd>
                                 <MudTd DataLabel="Config">
                                     @if (context.IsRemotelyManaged)
@@ -255,8 +255,8 @@ else
                                   Margin="Margin.Dense"
                                   ReadOnly="true"
                                   Lines="3"
-                                  Class="mb-4"
-                                  Style="font-family: monospace; word-break: break-all;" />
+                                  Class="mb-4 sz-mono"
+                                  Style="word-break: break-all;" />
 
                     <MudText Typo="Typo.body2" Class="mb-2">
                         Run these on the machine that should serve the traffic:
@@ -264,7 +264,7 @@ else
 
                     <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" @bind-ActivePanelIndex="_osTabIndex">
                         <MudTabPanel Text="macOS" Icon="@Icons.Material.Filled.Laptop">
-                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">brew install cloudflared
+                            <MudText Typo="Typo.body2" Class="pa-4 sz-mono" Style="white-space: pre-wrap;">brew install cloudflared
 sudo cloudflared service install @VM.ConnectorToken</MudText>
                             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
                                 Installs a launchd service. Verify with
@@ -273,7 +273,7 @@ sudo cloudflared service install @VM.ConnectorToken</MudText>
                         </MudTabPanel>
 
                         <MudTabPanel Text="Windows" Icon="@Icons.Material.Filled.DesktopWindows">
-                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">winget install --id Cloudflare.cloudflared
+                            <MudText Typo="Typo.body2" Class="pa-4 sz-mono" Style="white-space: pre-wrap;">winget install --id Cloudflare.cloudflared
 cloudflared service install @VM.ConnectorToken</MudText>
                             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">
                                 Run in an Administrator terminal. Verify with
@@ -282,7 +282,7 @@ cloudflared service install @VM.ConnectorToken</MudText>
                         </MudTabPanel>
 
                         <MudTabPanel Text="Linux" Icon="@Icons.Material.Filled.Terminal">
-                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+                            <MudText Typo="Typo.body2" Class="pa-4 sz-mono" Style="white-space: pre-wrap;">curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
   | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
 echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
   | sudo tee /etc/apt/sources.list.d/cloudflared.list
@@ -295,7 +295,7 @@ sudo cloudflared service install @VM.ConnectorToken</MudText>
                         </MudTabPanel>
 
                         <MudTabPanel Text="Docker" Icon="@Icons.Material.Filled.Inventory2">
-                            <MudText Typo="Typo.body2" Class="pa-4" Style="font-family: monospace; white-space: pre-wrap;">TUNNEL_TOKEN=@VM.ConnectorToken
+                            <MudText Typo="Typo.body2" Class="pa-4 sz-mono" Style="white-space: pre-wrap;">TUNNEL_TOKEN=@VM.ConnectorToken
 
 docker compose -f prod.docker-compose.yml --profile tunnel up -d</MudText>
                             <MudText Typo="Typo.caption" Color="Color.Secondary" Class="px-4 pb-4">

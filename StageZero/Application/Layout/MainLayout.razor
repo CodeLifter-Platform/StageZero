@@ -6,8 +6,9 @@
 @using StageZero.Services.IpMonitoring
 @using Lifted.BlazorAuth.Basic.Services
 @inject IAuthService AuthService
+@using StageZero.Application.Theme
 
-<MudThemeProvider @bind-IsDarkMode="@VM.IsDarkMode" />
+<MudThemeProvider Theme="@StageZeroTheme.Theme" @bind-IsDarkMode="@VM.IsDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -23,25 +24,17 @@
         @* Current IP Display - Center *@
         <MudChip T="string"
                  Icon="@Icons.Material.Filled.Public"
-                 Color="@(VM.IsDarkMode ? Color.Primary : Color.Default)"
+                 Color="Color.Primary"
                  Size="Size.Medium"
-                 Variant="Variant.Outlined"
-                 Style="@(VM.IsDarkMode ? "" : "background-color: white; color: black;")">
-            @if (!string.IsNullOrEmpty(_currentIp))
-            {
-                <MudText Typo="Typo.body1" Style="@GetIpTextStyle()">@_currentIp</MudText>
-            }
-            else
-            {
-                <MudText Typo="Typo.body1" Style="@GetIpTextStyle()">Loading...</MudText>
-            }
+                 Variant="Variant.Outlined">
+            <MudText Typo="Typo.body1" Class="sz-mono sz-strong">@(string.IsNullOrEmpty(_currentIp) ? "Loading..." : _currentIp)</MudText>
         </MudChip>
 
         <MudSpacer />
         <MudTooltip Text="@(VM.IsDarkMode ? "Light Mode" : "Dark Mode")">
             <MudIconButton Icon="@(VM.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit"
-                           OnClick="@VM.ToggleDarkMode" />
+                           OnClick="@VM.ToggleDarkModeAsync" />
         </MudTooltip>
         @if (VM.IsAuthenticated)
         {
@@ -69,7 +62,7 @@
     @* ═══════════════════════════════════════════════════════════════ *@
     <MudDrawer @bind-Open="_drawerOpen"
                Elevation="1"
-               ClipMode="DrawerClipMode.Never"
+               ClipMode="DrawerClipMode.Always"
                Variant="@DrawerVariant.Mini"
                Breakpoint="Breakpoint.None"
                Anchor="Anchor.Start"
@@ -130,6 +123,12 @@
         Navigation.LocationChanged += OnLocationChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await VM.LoadThemePreferenceAsync();
+    }
+
     private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         // Refresh current user when navigating (in case user logged in/out)
@@ -160,13 +159,6 @@
     {
         _currentIp = e.NewIp;
         InvokeAsync(StateHasChanged);
-    }
-
-    private string GetIpTextStyle()
-    {
-        var baseStyle = "font-family: monospace; font-weight: 600;";
-        var colorStyle = VM.IsDarkMode ? "color: var(--mud-palette-primary) !important;" : "color: black !important;";
-        return $"{baseStyle} {colorStyle}";
     }
 
     private async Task HandleLogout()

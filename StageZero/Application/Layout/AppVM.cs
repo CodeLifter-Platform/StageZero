@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Lifted.BlazorAuth.Basic.Models;
 using Lifted.BlazorAuth.Basic.Services;
+using Microsoft.JSInterop;
 
 namespace StageZero.Application.Layout;
 
@@ -16,7 +17,8 @@ public interface IAppVM : INotifyPropertyChanged
     bool IsDarkMode { get; set; }
     Task OnInitializedAsync();
     Task RefreshCurrentUserAsync();
-    void ToggleDarkMode();
+    Task LoadThemePreferenceAsync();
+    Task ToggleDarkModeAsync();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -37,13 +39,15 @@ public class AppVM : IAppVM
 {
     private readonly ILogger<AppVM> _logger;
     private readonly IAuthService _authService;
+    private readonly IJSRuntime _js;
     private User? _currentUser;
-    private bool _isDarkMode = false;
+    private bool _isDarkMode = true; // dark is the canonical CodeLifter theme
 
-    public AppVM(ILogger<AppVM> logger, IAuthService authService)
+    public AppVM(ILogger<AppVM> logger, IAuthService authService, IJSRuntime js)
     {
         _logger = logger;
         _authService = authService;
+        _js = js;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -98,10 +102,34 @@ public class AppVM : IAppVM
         }
     }
 
-    public void ToggleDarkMode()
+    // Browser storage is only reachable once the circuit is interactive, so
+    // the layout calls this from OnAfterRenderAsync(firstRender).
+    public async Task LoadThemePreferenceAsync()
+    {
+        try
+        {
+            var stored = await _js.InvokeAsync<string?>("stageZeroTheme.get");
+            if (stored is "light" or "dark")
+                IsDarkMode = stored == "dark";
+        }
+        catch (JSException ex)
+        {
+            _logger.LogWarning(ex, "Could not read the stored theme preference");
+        }
+    }
+
+    public async Task ToggleDarkModeAsync()
     {
         IsDarkMode = !IsDarkMode;
         _logger.LogDebug("Dark mode toggled to {IsDarkMode}", IsDarkMode);
+        try
+        {
+            await _js.InvokeVoidAsync("stageZeroTheme.set", IsDarkMode ? "dark" : "light");
+        }
+        catch (JSException ex)
+        {
+            _logger.LogWarning(ex, "Could not persist the theme preference");
+        }
     }
 
     // --- Property Change Support ---

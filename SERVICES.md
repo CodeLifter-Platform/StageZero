@@ -5,7 +5,7 @@ file in the same change that adds, removes, or reconfigures a service. Platform-
 map: `Platform-Standards/services/registry.md` (sibling repo,
 github.com/CodeLifter-Platform/Platform-Standards).
 
-Last reviewed: 2026-08-26.
+Last reviewed: 2026-09-26.
 
 ## Cloudflare (DNS provider)
 
@@ -23,13 +23,37 @@ Last reviewed: 2026-08-26.
 - **Managed at:** End-user Cloudflare accounts. The API token is supplied through
   the Tunnel Setup UI and stored encrypted; the connector token is installed on
   the host as a `cloudflared` service.
-- **Detail:** [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
+- **Detail:** [..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md).
 
-## NuGet.org (package publishing)
+## Cloudflare Access (Zero Trust)
 
-- **Usage:** Publishes the client library package from CI.
-- **Managed at:** nuget.org; `NUGET_API_KEY` GitHub secret.
-- **Detail:** [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md).
+- **Usage:** Every hostname StageZero publishes gets an Access application and policy;
+  `service_token` routes also get a minted service token
+  (`StageZero/Services/Access/CloudflareAccessService.cs`).
+- **Managed at:** End-user Cloudflare accounts, same API token as DNS and Tunnel, plus the
+  account-scoped Access permissions. Service-token client secrets are shown once and never
+  stored.
+- **Detail:** [..Documentation/CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md).
+
+## ipify (public IP lookup)
+
+- **Usage:** `IpMonitorService` reads the host's public IP from `https://api.ipify.org`
+  on every poll. No account, no key.
+- **Managed at:** Nothing to manage; if it is unreachable, IP checks fail and DNS is left
+  as it is.
+
+## SMTP (optional, verification and reset codes)
+
+- **Usage:** `StageZero/Services/Email/EmailService.cs` sends `/setup` verification and
+  password-reset codes. Unconfigured, the code is written to the log instead.
+- **Managed at:** Whatever SMTP account the operator configures via `Email__*` in `.env`.
+
+## NuGet.org and GitHub Packages (package publishing)
+
+- **Usage:** CI publishes the `Lifted.BlazorAuth.Basic` package to both on pushes to `main`.
+- **Managed at:** nuget.org (`NUGET_API_KEY` GitHub secret, not yet set); GitHub Packages
+  uses the workflow's `GITHUB_TOKEN`.
+- **Detail:** [..Documentation/NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md).
 
 ## Release notes API (codelifter.net)
 
