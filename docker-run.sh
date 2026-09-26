@@ -11,7 +11,7 @@
 #
 # debug (default) — hot-reload container on https://localhost:5000
 # prod            — release build on http://127.0.0.1:5100, meant to sit behind
-#                   a Cloudflare Tunnel. See CLOUDFLARE_TUNNEL_SETUP.md.
+#                   a Cloudflare Tunnel. See ..Documentation/CLOUDFLARE_TUNNEL_SETUP.md.
 #
 # The application data (database, logs, data-protection keys) will be stored in:
 #   macOS: ~/Library/Application Support/StageZero/

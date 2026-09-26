@@ -86,7 +86,7 @@ else
                         </HeaderContent>
                         <RowTemplate>
                             <MudTd DataLabel="IP Address">
-                                <MudText Typo="Typo.body2" Style="font-family: monospace; font-weight: 600;">@context.IpAddress</MudText>
+                                <MudText Typo="Typo.body2" Class="sz-mono" Style="font-weight: 600;">@context.IpAddress</MudText>
                             </MudTd>
                             <MudTd DataLabel="Last Checked">
                                 <MudText Typo="Typo.body2">@context.LastCheckedAt.ToLocalTime().ToString("g")</MudText>

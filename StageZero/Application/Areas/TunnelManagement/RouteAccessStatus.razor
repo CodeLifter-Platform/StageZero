@@ -65,7 +65,7 @@ else
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Domain</MudText></td>
-                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace;">@_status.Application.Domain</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Class="sz-mono">@_status.Application.Domain</MudText></td>
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Session duration</MudText></td>
@@ -73,7 +73,7 @@ else
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Audience (aud)</MudText></td>
-                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">@(_status.Application.Aud ?? "—")</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Class="sz-mono" Style="word-break: break-all;">@(_status.Application.Aud ?? "—")</MudText></td>
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Identity providers</MudText></td>
@@ -120,7 +120,7 @@ else
                                 </div>
                                 @foreach (var rule in policy.IncludeSummary)
                                 {
-                                    <MudText Typo="Typo.body2" Style="font-family: monospace;">@rule</MudText>
+                                    <MudText Typo="Typo.body2" Class="sz-mono">@rule</MudText>
                                 }
                             </MudPaper>
                         }
@@ -151,7 +151,7 @@ else
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Client ID</MudText></td>
-                                    <td><MudText Typo="Typo.body2" Style="font-family: monospace; word-break: break-all;">@(_status.ServiceToken.ClientId ?? "—")</MudText></td>
+                                    <td><MudText Typo="Typo.body2" Class="sz-mono" Style="word-break: break-all;">@(_status.ServiceToken.ClientId ?? "—")</MudText></td>
                                 </tr>
                                 <tr>
                                     <td><MudText Typo="Typo.body2" Color="Color.Secondary">Expires</MudText></td>

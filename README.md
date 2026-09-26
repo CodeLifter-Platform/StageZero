@@ -11,10 +11,10 @@ Three features, one Cloudflare API token:
 - **Dynamic DNS** — monitors your public IP and updates Cloudflare DNS records when it changes.
 - **Tunnel Routes** — maps public hostnames to services on your network by pushing
   ingress rules and proxied CNAMEs to Cloudflare. See
-  [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
+  [..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md).
 - **Access (Zero Trust)** — puts an authentication policy in front of every hostname it
   publishes, so a tunnel does not mean an open door. See
-  [CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
+  [..Documentation/CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md).
 
 ## Tech Stack
 
@@ -68,7 +68,7 @@ Three features, one Cloudflare API token:
 ```
 
 Runs the release image on plain HTTP at `127.0.0.1:5100`; Cloudflare terminates
-TLS at the edge. Follow [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md)
+TLS at the edge. Follow [..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md)
 to install the connector and publish it.
 
 ## Project Structure
@@ -203,7 +203,7 @@ route it into a vault.
 
 Full details — modes, permissions, idempotency, teardown rules and the rollback
 behaviour when Access setup fails — are in
-[CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
+[..Documentation/CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md).
 
 ### VS Code Debugging
 
@@ -215,13 +215,31 @@ The project includes VS Code launch configuration with `.env` file support. To d
 
 The `.env` file will be automatically loaded when debugging.
 
-### Layout
-- Dense header (no drawers)
-- 80% body width, centered
-- Scrollable content
+### Layout and theme
+- Dense header with the current public IP and the light/dark toggle
+- Mini navigation drawer
+- 80% body width, centered, scrollable content
+- CodeLifter design system: dark and light themes, StageZero teal accent, Inter + JetBrains
+  Mono bundled with the app. Colors come only from `Application/Theme/StageZeroTheme.cs`.
 
 ### Database
-SQLite is used for data storage. The database file is created automatically at `StageZero.db`.
+SQLite, created automatically as `stagezero.db` in the app data directory (`/app-data` in
+a container, the per-user config directory otherwise).
+
+## Documentation
+
+Everything beyond this README lives in [`..Documentation/`](..Documentation/) (a hidden
+folder — `ls -a`):
+
+| Doc | For |
+|---|---|
+| [LivingSpec.md](..Documentation/LivingSpec.md) | What StageZero does today, how it is built, and its known gaps |
+| [OnboardWeb.md](..Documentation/OnboardWeb.md) | Build, run, and test on a machine with the .NET SDK |
+| [OnboardDocker.md](..Documentation/OnboardDocker.md) | Run it in Docker |
+| [CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md) | Publishing hostnames through a Cloudflare Tunnel |
+| [CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md) | Access modes, permissions, service tokens |
+| [DOCKER_SETUP.md](..Documentation/DOCKER_SETUP.md) | Compose files, VS Code debugging, data persistence |
+| [NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md) | How `Lifted.BlazorAuth.Basic` is versioned and published |
 
 ## Tests
 
@@ -244,7 +262,7 @@ Cloudflare is faked at the service interfaces, so the tests make no network call
 | **NuGet** | `Lifted.BlazorAuth.Basic` | [nuget.org](https://www.nuget.org/packages/Lifted.BlazorAuth.Basic) |
 
 > StageZero is a server application — there is nothing to install on a desktop. The repo also
-> publishes the `Lifted.BlazorAuth.Basic` package; see `..Documentation/OnboardDocker.md`.
+> publishes the `Lifted.BlazorAuth.Basic` package; see `..Documentation/NUGET_PUBLISHING.md`.
 
 ## Release history
 
