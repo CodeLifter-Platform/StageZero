@@ -23,8 +23,11 @@ EXPOSE 8080
 EXPOSE 443
 
 # The volume mount point. Created here so a plain `docker run` without a volume still has
-# somewhere writable to put the database instead of failing at startup.
-RUN mkdir -p /app-data
+# somewhere writable to put the database instead of failing at startup. Owned by the
+# unprivileged user the release stage runs as ($APP_UID, 1654 in the .NET images): a named
+# volume created against this image inherits that ownership; a bind mount or a volume from
+# an older (root) install needs `chown -R 1654 <dir>` once (see OnboardDocker.md).
+RUN mkdir -p /app-data && chown $APP_UID /app-data
 VOLUME /app-data
 
 # ── Build ───────────────────────────────────────────────────────────
@@ -76,6 +79,10 @@ ENTRYPOINT ["dotnet", "watch", "run", "--launch-profile", "Docker"]
 # ── release: what beta.docker-compose.yml targets, and the default ──
 FROM base AS release
 COPY --from=publish /app/publish .
+
+# Not root. Kestrel's 8080 needs no privilege; the compose files that bind 443 also set
+# ASPNETCORE_URLS, and ports below 1024 are fine for a non-root process in these images.
+USER $APP_UID
 
 # The app probes its own /healthz (the image has no curl). Degraded — the public IP not
 # confirmed lately — still counts as healthy: restarting wouldn't fix an upstream outage.
