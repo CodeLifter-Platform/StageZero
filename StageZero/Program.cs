@@ -64,6 +64,14 @@ for (int i = 0; loadDotEnv && i <= 5; i++)
     envFilePath = Path.Combine("..", envFilePath);
 }
 
+// Account recovery from the server: `StageZero reset-password <email>`. After .env, so a
+// STAGEZERO_HOME set there finds the same database the app uses.
+if (args is [ResetPasswordCommand.Name, ..])
+{
+    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DataPathService.GetDatabasePath(), args, Console.Out);
+    return;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SERILOG CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
@@ -172,6 +180,13 @@ try
     // SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
+
+    // Brute-force limits (AuthThrottle): per-address, so the address of whoever is on the
+    // circuit is captured when it opens. Behind a proxy, UseForwardedHeaders makes it real.
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton<IAuthThrottle, AuthThrottle>();
+    builder.Services.AddScoped<ClientAddress>();
+    builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, ClientAddressCircuitHandler>();
 
     // StageZero does not send email. The auth library's one-time codes (password reset,
     // re-verifying a changed address) go to the server log as an unmissable banner:

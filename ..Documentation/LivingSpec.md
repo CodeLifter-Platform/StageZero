@@ -65,9 +65,18 @@ versioning migration.
   their 6-digit code to the server log as an unmissable banner
   (`Services/Auth/ServerLogCodeService.cs`, heading `STAGEZERO PASSWORD RESET CODE`), the
   pages say so, and the startup log says where a code will land. Whoever can read the log
-  controls the server, which is who may reset the admin; the documented last resort is
-  deleting the `Users` row to bring `/setup` back. The auth pages are reachable by direct
-  URL and reload.
+  controls the server, which is who may reset the admin. When the logged code is out of
+  reach, `dotnet StageZero.dll reset-password <email>` on the server prints a one-time
+  password (the next sign-in must replace it) and lifts any lockout; deleting the `Users`
+  row to bring `/setup` back is the last resort. The auth pages are reachable by direct URL
+  and reload.
+- **Brute-force limits** (`Lifted.BlazorAuth.Basic/Services/AuthThrottle.cs`, `AuthService`):
+  codes come from `RandomNumberGenerator`, compare in constant time, and are void after
+  5 wrong guesses; 5 wrong passwords in a row lock the account for 15 minutes (a success
+  clears the count, and an unknown email pays the same BCrypt cost as a wrong password);
+  and a per-address sliding window (10 per 15 minutes) throttles failed sign-ins and every
+  reset request or wrong reset code. The address is captured when the circuit opens
+  (`ClientAddressCircuitHandler`), after forwarded headers.
 - **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
   StageZero update news) post once to codelifter.net's subscriptions API
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a

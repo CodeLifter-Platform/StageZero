@@ -216,6 +216,24 @@ The library creates a `Users` table with these fields:
 - `CreatedAt` (DateTime)
 - `UpdatedAt` (DateTime)
 
+## 🛡️ Brute-force protection
+
+Built in, no configuration: six-digit codes from a cryptographic source, compared in
+constant time and void after 5 wrong guesses; a 15-minute account lockout after 5 wrong
+passwords in a row; and a per-address throttle (10 failures per 15 minutes) on sign-in and
+on password reset. Register the pieces alongside `AuthService`:
+
+```csharp
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IAuthThrottle, AuthThrottle>();
+builder.Services.AddScoped<ClientAddress>();
+builder.Services.AddScoped<CircuitHandler, ClientAddressCircuitHandler>();
+```
+
+The address comes from the circuit's connection, so put `UseForwardedHeaders()` first when
+the app sits behind a proxy.
+
 ## 🔧 Advanced Configuration
 
 ### Custom User Properties

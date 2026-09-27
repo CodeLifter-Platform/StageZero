@@ -61,7 +61,9 @@ The test suite is not run inside the image; run it on the host with the .NET SDK
 
 `/forgot-password` writes the code to the container log; read it with
 `docker logs <container> 2>&1 | grep -A6 "PASSWORD RESET CODE"` and enter it on
-`/reset-password`. If the log is gone, stop the container and delete the admin row from the
+`/reset-password`. If the log is gone, reset from inside the container:
+`docker exec -it <container> dotnet StageZero.dll reset-password you@example.com` prints a
+one-time password. As a last resort, stop the container and delete the admin row from the
 database on the mounted volume (`sqlite3 <STAGEZERO_DATA_DIR>/stagezero.db "DELETE FROM
 Users;"`); `/setup` returns on the next visit and every DNS and tunnel setting survives.
 Full steps: [README.md](../README.md#configuration).

@@ -36,6 +36,18 @@ public class User
     public bool IsActive { get; set; } = true;
 
     public bool RequiresPasswordChange { get; set; } = false;
+
+    /// <summary>Wrong passwords in a row. Reaching the limit locks the account for a while.</summary>
+    public int FailedLoginCount { get; set; }
+
+    /// <summary>Until when sign-in is refused after too many wrong passwords.</summary>
+    public DateTime? LockoutEndsAt { get; set; }
+
+    /// <summary>Wrong guesses at the current reset code; at the limit the code is void.</summary>
+    public int PasswordResetAttempts { get; set; }
+
+    /// <summary>Wrong guesses at the current verification code; at the limit the code is void.</summary>
+    public int EmailVerificationAttempts { get; set; }
 }
 
 /// <summary>
