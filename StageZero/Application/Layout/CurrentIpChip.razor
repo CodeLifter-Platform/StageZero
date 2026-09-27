@@ -1,0 +1,49 @@
+@* The public IP in the app bar. MainLayout renders this only for a signed-in user: a
+   Cloudflare Tunnel exists to hide this address, so an anonymous visitor must never see it,
+   and because the component doesn't exist for them, the IP isn't even read on their behalf. *@
+@implements IDisposable
+@inject IIpMonitorService IpMonitorService
+@inject IIpChangeNotifier IpChangeNotifier
+@using StageZero.Services.IpMonitoring
+
+<MudChip T="string"
+         Icon="@Icons.Material.Filled.Public"
+         Color="Color.Primary"
+         Size="Size.Medium"
+         Variant="Variant.Outlined">
+    <MudText Typo="Typo.body1" Class="sz-mono sz-strong">@(string.IsNullOrEmpty(_currentIp) ? "Loading..." : _currentIp)</MudText>
+</MudChip>
+
+@code {
+    private string? _currentIp;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentIpAsync();
+
+        // Pushed by whichever check sees the change — no polling.
+        IpChangeNotifier.IpChanged += OnIpChanged;
+    }
+
+    private async Task LoadCurrentIpAsync()
+    {
+        try
+        {
+            var ipCheck = await IpMonitorService.GetCurrentIpAsync();
+            _currentIp = ipCheck?.IpAddress;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception)
+        {
+            _currentIp = "Unknown";
+        }
+    }
+
+    private void OnIpChanged(object? sender, IpChangedEventArgs e)
+    {
+        _currentIp = e.NewIp;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => IpChangeNotifier.IpChanged -= OnIpChanged;
+}

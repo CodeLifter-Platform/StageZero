@@ -1,9 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject IAppVM VM
-@inject IIpMonitorService IpMonitorService
 @inject NavigationManager Navigation
-@using StageZero.Services.IpMonitoring
 @using Lifted.BlazorAuth.Basic.Services
 @inject IAuthService AuthService
 @using StageZero.Application.Theme
@@ -21,14 +19,11 @@
         <MudText Typo="Typo.h6" Class="ml-3">StageZero</MudText>
         <MudSpacer />
 
-        @* Current IP Display - Center *@
-        <MudChip T="string"
-                 Icon="@Icons.Material.Filled.Public"
-                 Color="Color.Primary"
-                 Size="Size.Medium"
-                 Variant="Variant.Outlined">
-            <MudText Typo="Typo.body1" Class="sz-mono sz-strong">@(string.IsNullOrEmpty(_currentIp) ? "Loading..." : _currentIp)</MudText>
-        </MudChip>
+        @* Current IP - signed-in users only (see CurrentIpChip) *@
+        @if (VM.IsAuthenticated)
+        {
+            <CurrentIpChip />
+        }
 
         <MudSpacer />
         <MudTooltip Text="@(VM.IsDarkMode ? "Light Mode" : "Dark Mode")">
@@ -57,35 +52,39 @@
         }
     </MudAppBar>
 
-    @* ═══════════════════════════════════════════════════════════════ *@
-    @* NAVIGATION DRAWER - Persistent, Mini, Non-Responsive *@
-    @* ═══════════════════════════════════════════════════════════════ *@
-    <MudDrawer @bind-Open="_drawerOpen"
-               Elevation="1"
-               ClipMode="DrawerClipMode.Always"
-               Variant="@DrawerVariant.Mini"
-               Breakpoint="Breakpoint.None"
-               Anchor="Anchor.Start"
-               Fixed="true"
-               OpenMiniOnHover="false">
-        <MudNavMenu>
-            <MudTooltip Text="Home" Placement="Placement.Right">
-                <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home"></MudNavLink>
-            </MudTooltip>
-            <MudTooltip Text="IP Monitor" Placement="Placement.Right">
-                <MudNavLink Href="/ip-monitor" Icon="@Icons.Material.Filled.NetworkCheck"></MudNavLink>
-            </MudTooltip>
-            <MudTooltip Text="DNS Configuration" Placement="Placement.Right">
-                <MudNavLink Href="/dns-config" Icon="@Icons.Material.Filled.Dns"></MudNavLink>
-            </MudTooltip>
-            <MudTooltip Text="Tunnel Routes" Placement="Placement.Right">
-                <MudNavLink Href="/tunnel-routes" Icon="@Icons.Material.Filled.Hub"></MudNavLink>
-            </MudTooltip>
-            <MudTooltip Text="Tunnel Setup" Placement="Placement.Right">
-                <MudNavLink Href="/tunnel-settings" Icon="@Icons.Material.Filled.Settings"></MudNavLink>
-            </MudTooltip>
-        </MudNavMenu>
-    </MudDrawer>
+    @* The navigation is for signed-in users only; the sign-in pages get a bare app bar. *@
+    @if (VM.IsAuthenticated)
+    {
+        @* ═══════════════════════════════════════════════════════════════ *@
+        @* NAVIGATION DRAWER - Persistent, Mini, Non-Responsive *@
+        @* ═══════════════════════════════════════════════════════════════ *@
+        <MudDrawer @bind-Open="_drawerOpen"
+                   Elevation="1"
+                   ClipMode="DrawerClipMode.Always"
+                   Variant="@DrawerVariant.Mini"
+                   Breakpoint="Breakpoint.None"
+                   Anchor="Anchor.Start"
+                   Fixed="true"
+                   OpenMiniOnHover="false">
+            <MudNavMenu>
+                <MudTooltip Text="Home" Placement="Placement.Right">
+                    <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home"></MudNavLink>
+                </MudTooltip>
+                <MudTooltip Text="IP Monitor" Placement="Placement.Right">
+                    <MudNavLink Href="/ip-monitor" Icon="@Icons.Material.Filled.NetworkCheck"></MudNavLink>
+                </MudTooltip>
+                <MudTooltip Text="DNS Configuration" Placement="Placement.Right">
+                    <MudNavLink Href="/dns-config" Icon="@Icons.Material.Filled.Dns"></MudNavLink>
+                </MudTooltip>
+                <MudTooltip Text="Tunnel Routes" Placement="Placement.Right">
+                    <MudNavLink Href="/tunnel-routes" Icon="@Icons.Material.Filled.Hub"></MudNavLink>
+                </MudTooltip>
+                <MudTooltip Text="Tunnel Setup" Placement="Placement.Right">
+                    <MudNavLink Href="/tunnel-settings" Icon="@Icons.Material.Filled.Settings"></MudNavLink>
+                </MudTooltip>
+            </MudNavMenu>
+        </MudDrawer>
+    }
 
     @* ═══════════════════════════════════════════════════════════════ *@
     @* MAIN CONTENT - 80% width, scrollable *@
@@ -96,8 +95,6 @@
 </MudLayout>
 
 @code {
-    private string? _currentIp;
-    private System.Threading.Timer? _ipRefreshTimer;
     private bool _drawerOpen = false; // false = mini mode, true = expanded mode
 
     protected override async Task OnInitializedAsync()
@@ -109,15 +106,6 @@
         {
             notifier.PropertyChanged += (_, _) => InvokeAsync(StateHasChanged);
         }
-
-        // Load current IP
-        await LoadCurrentIpAsync();
-
-        // Subscribe to IP changes
-        IpMonitorService.IpChanged += OnIpChanged;
-
-        // Refresh IP display every 30 seconds
-        _ipRefreshTimer = new System.Threading.Timer(async _ => await RefreshIpAsync(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
         // Subscribe to navigation changes to refresh user state
         Navigation.LocationChanged += OnLocationChanged;
@@ -136,31 +124,6 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task LoadCurrentIpAsync()
-    {
-        try
-        {
-            var ipCheck = await IpMonitorService.GetCurrentIpAsync();
-            _currentIp = ipCheck?.IpAddress;
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception)
-        {
-            _currentIp = "Unknown";
-        }
-    }
-
-    private async Task RefreshIpAsync()
-    {
-        await LoadCurrentIpAsync();
-    }
-
-    private void OnIpChanged(object? sender, IpChangedEventArgs e)
-    {
-        _currentIp = e.NewIp;
-        InvokeAsync(StateHasChanged);
-    }
-
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
@@ -169,9 +132,6 @@
 
     public void Dispose()
     {
-        IpMonitorService.IpChanged -= OnIpChanged;
         Navigation.LocationChanged -= OnLocationChanged;
-        _ipRefreshTimer?.Dispose();
     }
 }
-

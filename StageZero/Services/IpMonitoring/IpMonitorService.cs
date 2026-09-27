@@ -12,7 +12,6 @@ public interface IIpMonitorService
 {
     Task<IpCheck> CheckIpAsync();
     Task<IpCheck?> GetCurrentIpAsync();
-    event EventHandler<IpChangedEventArgs>? IpChanged;
 }
 
 public class IpChangedEventArgs : EventArgs
@@ -39,63 +38,73 @@ public class IpMonitorServiceException : Exception
 public class IpMonitorService : IIpMonitorService
 {
     private readonly ILogger<IpMonitorService> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IPublicIpResolver _resolver;
     private readonly IIpCheckReader _ipCheckReader;
     private readonly IIpCheckWriter _ipCheckWriter;
     private readonly IDnsVerificationService _dnsVerificationService;
-
-    public event EventHandler<IpChangedEventArgs>? IpChanged;
+    private readonly IIpChangeNotifier _notifier;
+    private readonly IIpMonitorStatus _status;
 
     public IpMonitorService(
         ILogger<IpMonitorService> logger,
-        IHttpClientFactory httpClientFactory,
+        IPublicIpResolver resolver,
         IIpCheckReader ipCheckReader,
         IIpCheckWriter ipCheckWriter,
-        IDnsVerificationService dnsVerificationService)
+        IDnsVerificationService dnsVerificationService,
+        IIpChangeNotifier notifier,
+        IIpMonitorStatus status)
     {
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
+        _resolver = resolver;
         _ipCheckReader = ipCheckReader;
         _ipCheckWriter = ipCheckWriter;
         _dnsVerificationService = dnsVerificationService;
+        _notifier = notifier;
+        _status = status;
     }
 
     public async Task<IpCheck> CheckIpAsync()
     {
         try
         {
-            _logger.LogDebug("Checking current IP address from ipify.org");
-
-            // Get current IP from ipify.org
-            var httpClient = _httpClientFactory.CreateClient();
-            var response = await httpClient.GetStringAsync("https://api.ipify.org");
-            var currentIp = response.Trim();
+            var lastCheck = await _ipCheckReader.GetLatestAsync();
+            var currentIp = await _resolver.ResolveAsync(lastCheck?.IpAddress);
 
             _logger.LogDebug("Current IP: {IpAddress}", currentIp);
 
-            // Get the last check
-            var lastCheck = await _ipCheckReader.GetLatestAsync();
             var isChanged = lastCheck == null || lastCheck.IpAddress != currentIp;
+            var now = DateTime.UtcNow;
 
-            // Create new check record
-            var ipCheck = new IpCheck
+            IpCheck ipCheck;
+            if (isChanged)
             {
-                IpAddress = currentIp,
-                CheckedAt = DateTime.UtcNow,
-                IsChanged = isChanged,
-                PreviousIpAddress = isChanged ? lastCheck?.IpAddress : null
-            };
-
-            // Save to database
-            await _ipCheckWriter.InsertAsync(ipCheck);
+                // A new run starts.
+                ipCheck = new IpCheck
+                {
+                    IpAddress = currentIp,
+                    CheckedAt = now,
+                    LastConfirmedAt = now,
+                    Confirmations = 1,
+                    IsChanged = true,
+                    PreviousIpAddress = lastCheck?.IpAddress
+                };
+                await _ipCheckWriter.InsertAsync(ipCheck);
+            }
+            else
+            {
+                // Same address: extend the current run rather than add a row.
+                ipCheck = lastCheck!;
+                ipCheck.LastConfirmedAt = now;
+                ipCheck.Confirmations++;
+                await _ipCheckWriter.UpdateAsync(ipCheck);
+            }
 
             if (isChanged)
             {
                 _logger.LogInformation("IP address changed from {OldIp} to {NewIp}",
                     lastCheck?.IpAddress ?? "none", currentIp);
 
-                // Raise event
-                IpChanged?.Invoke(this, new IpChangedEventArgs
+                _notifier.Publish(new IpChangedEventArgs
                 {
                     NewIp = currentIp,
                     OldIp = lastCheck?.IpAddress,
@@ -107,20 +116,24 @@ public class IpMonitorService : IIpMonitorService
                 _logger.LogDebug("IP address unchanged: {IpAddress}", currentIp);
             }
 
-            // Verify DNS records match current IP (runs on every check)
-            // Updates Cloudflare if there's any mismatch (regardless of whether local IP changed)
+            // Verify DNS records match current IP (runs on every check). This is what updates
+            // Cloudflare after a change, and what repairs a record edited behind our back.
             await _dnsVerificationService.VerifyAndSyncAllRecordsAsync(currentIp, isChanged);
 
+            _status.RecordSuccess();
             return ipCheck;
         }
-        catch (HttpRequestException ex)
+        catch (PublicIpUnresolvedException ex)
         {
-            _logger.LogError(ex, "Failed to check IP address from ipify.org");
-            throw new IpMonitorServiceException("Could not retrieve IP address", ex);
+            // Nothing recorded and nothing changed: better a missed check than a wrong answer.
+            _logger.LogWarning("Public IP not resolved: {Reason}", ex.Message);
+            _status.RecordFailure(ex.Message);
+            throw new IpMonitorServiceException("Could not determine the public IP address", ex);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error checking IP address");
+            _status.RecordFailure(ex.Message);
             throw new IpMonitorServiceException("Could not check IP address", ex);
         }
     }

@@ -19,7 +19,7 @@ public interface IDnsConfigViewModel : INotifyPropertyChanged
     Task AddProviderAsync(string name, string apiToken, string zoneId);
     Task ToggleProviderAsync(int providerId);
     Task DeleteProviderAsync(int providerId);
-    Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null, string? content = null);
+    Task AddRecordAsync(int providerId, string recordName, string recordType, bool autoUpdate, string? recordId = null, string? content = null);
     Task UpdateRecordAsync(int recordId, string recordName, string recordType, string? recordIdValue, bool autoUpdate, string? content);
     Task DeleteRecordAsync(int recordId);
     Task<List<CloudflareZone>> GetCloudflareZonesAsync(string apiToken);
@@ -176,7 +176,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
         }
     }
 
-    public async Task AddRecordAsync(int providerId, string recordName, string recordType, string? recordId = null, string? content = null)
+    public async Task AddRecordAsync(int providerId, string recordName, string recordType, bool autoUpdate, string? recordId = null, string? content = null)
     {
         try
         {
@@ -189,7 +189,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                 RecordType = recordType,
                 RecordId = recordId,
                 Content = content,
-                AutoUpdate = recordType != "CNAME" // CNAME records should not auto-update
+                AutoUpdate = autoUpdate && DnsRecord.SupportsAutoUpdate(recordType)
             };
 
             await _recordWriter.InsertAsync(record);
@@ -216,7 +216,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                 record.RecordName = recordName;
                 record.RecordType = recordType;
                 record.RecordId = recordIdValue;
-                record.AutoUpdate = autoUpdate;
+                record.AutoUpdate = autoUpdate && DnsRecord.SupportsAutoUpdate(recordType);
                 record.Content = content;
 
                 await _recordWriter.UpdateAsync(record);
@@ -323,7 +323,7 @@ public class DnsConfigViewModel : IDnsConfigViewModel
                     RecordId = cfRecord.Id,
                     LastIpAddress = cfRecord.Type == "CNAME" ? null : cfRecord.Content,
                     Content = cfRecord.Type == "CNAME" ? cfRecord.Content : null,
-                    AutoUpdate = cfRecord.Type != "CNAME" // Don't auto-update CNAME records
+                    AutoUpdate = DnsRecord.SupportsAutoUpdate(cfRecord.Type)
                 };
 
                 await _recordWriter.InsertAsync(record);

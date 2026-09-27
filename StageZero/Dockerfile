@@ -23,8 +23,11 @@ EXPOSE 8080
 EXPOSE 443
 
 # The volume mount point. Created here so a plain `docker run` without a volume still has
-# somewhere writable to put the database instead of failing at startup.
-RUN mkdir -p /app-data
+# somewhere writable to put the database instead of failing at startup. Owned by the
+# unprivileged user the release stage runs as ($APP_UID, 1654 in the .NET images): a named
+# volume created against this image inherits that ownership; a bind mount or a volume from
+# an older (root) install needs `chown -R 1654 <dir>` once (see OnboardDocker.md).
+RUN mkdir -p /app-data && chown $APP_UID /app-data
 VOLUME /app-data
 
 # ── Build ───────────────────────────────────────────────────────────
@@ -33,9 +36,9 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
 # Restore against the project files alone first, so the layer cache survives source edits.
-# No Directory.Build.props / Directory.Packages.props / global.json in this repo yet —
-# it is one of the repos the conformance checker flags for missing .NET pins. Add them
-# to this COPY when they land, or the restore layer will silently stop matching the build.
+# The solution-wide props carry the package versions and build settings, so they belong in
+# this layer too — without Directory.Packages.props the restore has no versions to resolve.
+COPY ["global.json", "Directory.Build.props", "Directory.Packages.props", "./"]
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
@@ -55,6 +58,7 @@ RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /ap
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
 WORKDIR /src
 
+COPY ["global.json", "Directory.Build.props", "Directory.Packages.props", "./"]
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
@@ -75,4 +79,14 @@ ENTRYPOINT ["dotnet", "watch", "run", "--launch-profile", "Docker"]
 # ── release: what beta.docker-compose.yml targets, and the default ──
 FROM base AS release
 COPY --from=publish /app/publish .
+
+# Not root. Kestrel's 8080 needs no privilege; the compose files that bind 443 also set
+# ASPNETCORE_URLS, and ports below 1024 are fine for a non-root process in these images.
+USER $APP_UID
+
+# The app probes its own /healthz (the image has no curl). Degraded — the public IP not
+# confirmed lately — still counts as healthy: restarting wouldn't fix an upstream outage.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["dotnet", "StageZero.dll", "healthcheck"]
+
 ENTRYPOINT ["dotnet", "StageZero.dll"]

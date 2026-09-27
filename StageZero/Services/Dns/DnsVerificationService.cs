@@ -49,13 +49,13 @@ public class DnsVerificationService : IDnsVerificationService
 
             _logger.LogDebug("Checking {Count} DNS records", records.Count);
 
-            var updateTasks = new List<Task>();
-            foreach (var record in records)
+            // One listing per zone per check, however many of its records are tracked.
+            foreach (var zone in records
+                .Where(r => DnsRecord.SupportsAutoUpdate(r.RecordType) && MatchesAddressFamily(r.RecordType, currentIp))
+                .GroupBy(r => r.DnsProviderId))
             {
-                updateTasks.Add(VerifyAndSyncRecordAsync(record, currentIp, ipChanged));
+                await VerifyZoneAsync(zone.First().DnsProvider, zone.ToList(), currentIp);
             }
-
-            await Task.WhenAll(updateTasks);
 
             _logger.LogDebug("Completed DNS verification");
         }
@@ -66,65 +66,67 @@ public class DnsVerificationService : IDnsVerificationService
         }
     }
 
-    private async Task VerifyAndSyncRecordAsync(DnsRecord record, string currentIp, bool ipChanged)
+    private static bool MatchesAddressFamily(string recordType, string address) =>
+        System.Net.IPAddress.TryParse(address, out var ip) && recordType switch
+        {
+            "A" => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork,
+            "AAAA" => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6,
+            _ => false
+        };
+
+    private async Task VerifyZoneAsync(DnsProvider provider, List<DnsRecord> records, string currentIp)
     {
+        if (provider.ProviderType != "Cloudflare")
+        {
+            _logger.LogWarning("Unknown DNS provider type: {ProviderType}", provider.ProviderType);
+            return;
+        }
+
+        List<CloudflareDnsRecord> zone;
         try
         {
-            // Skip CNAME records - they point to domain names, not IP addresses
-            if (record.RecordType == "CNAME")
-            {
-                _logger.LogDebug("Skipping {RecordName} - CNAME records are not IP-based", record.RecordName);
-                return;
-            }
+            zone = await _cloudflareService.GetDnsRecordsAsync(provider.ApiToken, provider.ZoneId ?? "");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not list DNS records for provider {Provider}", provider.Name);
+            return;
+        }
 
-            // Only check A and AAAA records
-            if (record.RecordType != "A" && record.RecordType != "AAAA")
+        foreach (var record in records)
+        {
+            try
             {
-                _logger.LogDebug("Skipping {RecordName} - Only A and AAAA records are verified", record.RecordName);
-                return;
-            }
-
-            // Get the current DNS record from Cloudflare
-            if (record.DnsProvider.ProviderType == "Cloudflare")
-            {
-                var cloudflareRecords = await _cloudflareService.GetDnsRecordsAsync(
-                    record.DnsProvider.ApiToken,
-                    record.DnsProvider.ZoneId ?? "");
-
-                var cloudflareRecord = cloudflareRecords.FirstOrDefault(r =>
-                    r.Name == record.RecordName && r.Type == record.RecordType);
+                var cloudflareRecord = zone.FirstOrDefault(r =>
+                    string.Equals(r.Name, record.RecordName, StringComparison.OrdinalIgnoreCase)
+                    && r.Type == record.RecordType);
 
                 if (cloudflareRecord == null)
                 {
                     _logger.LogWarning("DNS record {RecordName} not found in Cloudflare", record.RecordName);
-                    return;
+                    continue;
                 }
 
-                // Check if the IP matches
-                if (cloudflareRecord.Content != currentIp)
-                {
-                    _logger.LogInformation(
-                        "DNS record {RecordName} mismatch - Cloudflare: {CloudflareIp}, Current: {CurrentIp}. Updating to sync with current IP...",
-                        record.RecordName, cloudflareRecord.Content, currentIp);
-
-                    // Always update when there's a mismatch and auto-update is enabled
-                    await _cloudflareService.UpdateDnsRecordAsync(record.DnsProvider, record, currentIp);
-                }
-                else
+                if (cloudflareRecord.Content == currentIp)
                 {
                     _logger.LogDebug("DNS record {RecordName} matches current IP", record.RecordName);
+                    continue;
                 }
+
+                _logger.LogInformation(
+                    "DNS record {RecordName} mismatch - Cloudflare: {CloudflareIp}, Current: {CurrentIp}. Updating to sync with current IP...",
+                    record.RecordName, cloudflareRecord.Content, currentIp);
+
+                // The listing has the record's current ID, which may differ from ours if it
+                // was deleted and recreated in Cloudflare.
+                record.RecordId = cloudflareRecord.Id;
+                await _cloudflareService.UpdateDnsRecordAsync(provider, record, currentIp);
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogWarning("Unknown DNS provider type: {ProviderType}", record.DnsProvider.ProviderType);
+                _logger.LogError(ex, "Failed to verify DNS record {RecordName}", record.RecordName);
+                // Don't throw - we want to continue verifying other records
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to verify DNS record {RecordName}", record.RecordName);
-            // Don't throw - we want to continue verifying other records
         }
     }
 }
-

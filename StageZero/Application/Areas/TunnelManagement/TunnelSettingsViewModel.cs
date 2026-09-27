@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using StageZero.DataAdapters.TunnelConfigs;
 using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
+using StageZero.Services;
 using StageZero.Services.Dns;
 using StageZero.Services.Tunnel;
 
@@ -64,7 +65,7 @@ public class TunnelSettingsViewModel : ITunnelSettingsViewModel
     private readonly ITunnelRouteReader _routeReader;
     private readonly ICloudflareService _cloudflareService;
     private readonly ICloudflareTunnelService _tunnelService;
-    private readonly ITunnelTokenProtector _tokenProtector;
+    private readonly ICloudflareTokenProtector _tokenProtector;
     private readonly ITunnelSyncService _syncService;
 
     private bool _isLoading;
@@ -81,7 +82,7 @@ public class TunnelSettingsViewModel : ITunnelSettingsViewModel
         ITunnelRouteReader routeReader,
         ICloudflareService cloudflareService,
         ICloudflareTunnelService tunnelService,
-        ITunnelTokenProtector tokenProtector,
+        ICloudflareTokenProtector tokenProtector,
         ITunnelSyncService syncService)
     {
         _logger = logger;

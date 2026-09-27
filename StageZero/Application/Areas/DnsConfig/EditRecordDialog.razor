@@ -45,9 +45,10 @@
             <MudSwitch @bind-Value="AutoUpdate"
                        Label="Auto Update"
                        Color="Color.Primary"
+                       Disabled="@(!DnsRecord.SupportsAutoUpdate(RecordType))"
                        Class="mb-2" />
             <MudText Typo="Typo.caption" Color="Color.Secondary">
-                Automatically update this record when IP changes
+                @(DnsRecord.AutoUpdateUnavailableReason(RecordType) ?? "Automatically update this record when IP changes")
             </MudText>
         </MudForm>
     </DialogContent>
@@ -93,7 +94,7 @@
                 RecordName = RecordName,
                 RecordType = RecordType,
                 RecordId = RecordId,
-                AutoUpdate = AutoUpdate,
+                AutoUpdate = AutoUpdate && DnsRecord.SupportsAutoUpdate(RecordType),
                 Content = Content
             };
             MudDialog.Close(DialogResult.Ok(result));

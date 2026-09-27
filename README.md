@@ -142,8 +142,20 @@ Jenkins or Vaultwarden do it. Three steps:
 3. Enter it on `/reset-password` with the new password. Codes expire after 15 minutes;
    request another if it lapsed.
 
-**Last resort** (the log is gone, or the address itself is forgotten): remove the admin row
-and `/setup` comes back on the next visit. DNS records, tunnel routes and Access settings are
+**From the server** (the log is gone): `reset-password` prints a one-time password, lifts
+any lockout, and makes the next sign-in choose a new password:
+
+```bash
+dotnet StageZero.dll reset-password you@example.com                                # published app
+docker exec -it stagezero-local dotnet StageZero.dll reset-password you@example.com   # Docker
+```
+
+**Sign-in limits:** 5 wrong passwords lock the account for 15 minutes, a reset code is void
+after 5 wrong guesses, and one address gets 10 failed sign-ins or reset requests per 15
+minutes. `reset-password` clears a lockout too.
+
+**Last resort** (the address itself is forgotten): remove the admin row and `/setup` comes
+back on the next visit. DNS records, tunnel routes and Access settings are
 in other tables and are untouched. With the app stopped and `sqlite3` on the host:
 
 ```bash
@@ -153,6 +165,10 @@ sqlite3 <data-dir>/stagezero.db "DELETE FROM Users;"
 where `<data-dir>` is the mounted `/app-data` volume in Docker, `~/.config/stagezero` on
 Linux, `~/Library/Application Support/StageZero` on macOS, or `%APPDATA%\StageZero` on
 Windows. Deleting `stagezero.db` itself also works but loses every DNS and tunnel setting.
+
+**Log level:** Information by default (Debug in Development). Set `STAGEZERO_LOG_LEVEL`
+(`Debug`, `Information`, `Warning`, `Error`) to change it. Logs go to the console and to
+`logs/` in the data directory, one file a day, 31 kept.
 
 ### DNS Provider Control
 

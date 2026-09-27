@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Lifted.BlazorAuth.Basic.DataAdapters;
 using Lifted.BlazorAuth.Basic.Models;
 using Microsoft.Extensions.Logging;
@@ -41,23 +43,55 @@ public class AuthServiceException : Exception
 
 public class AuthService : IAuthService
 {
+    /// <summary>Wrong passwords in a row before the account locks.</summary>
+    public const int MaxFailedLogins = 5;
+
+    /// <summary>Wrong guesses at one code before it is void.</summary>
+    public const int MaxCodeAttempts = 5;
+
+    public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(15);
+
+    // Compared against when the email is unknown, so a miss costs the same BCrypt time as a
+    // wrong password and response timing doesn't reveal which accounts exist.
+    private static readonly Lazy<string> UnknownUserHash = new(() => BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()));
+
     private readonly ILogger<AuthService> _logger;
     private readonly IUserReader _userReader;
     private readonly IUserWriter _userWriter;
     private readonly IEmailService _emailService;
+    private readonly IAuthThrottle _throttle;
+    private readonly ClientAddress _clientAddress;
+    private readonly TimeProvider _time;
     private User? _currentUser;
 
     public AuthService(
         ILogger<AuthService> logger,
         IUserReader userReader,
         IUserWriter userWriter,
-        IEmailService emailService)
+        IEmailService emailService,
+        IAuthThrottle throttle,
+        ClientAddress clientAddress,
+        TimeProvider time)
     {
         _logger = logger;
         _userReader = userReader;
         _userWriter = userWriter;
         _emailService = emailService;
+        _throttle = throttle;
+        _clientAddress = clientAddress;
+        _time = time;
     }
+
+    private DateTime UtcNow => _time.GetUtcNow().UtcDateTime;
+
+    /// <summary>A six-digit code from a cryptographic source.</summary>
+    public static string NewCode() =>
+        RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static bool CodesMatch(string? expected, string actual) =>
+        expected is not null
+        && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(expected), Encoding.UTF8.GetBytes(actual));
 
     public bool IsAuthenticated => _currentUser != null;
 
@@ -67,16 +101,25 @@ public class AuthService : IAuthService
 
     public async Task<AuthResult> LoginAsync(string email, string password)
     {
+        var address = _clientAddress.Value;
         try
         {
-            _logger.LogDebug("Login attempt for user {Email}", email);
+            _logger.LogDebug("Login attempt for user {Email} from {ClientAddress}", email, address);
+
+            if (_throttle.RetryAfter(AuthThrottleScope.Login, address) is { } wait)
+            {
+                _logger.LogWarning("Login refused: {ClientAddress} is throttled", address);
+                return AuthResult.Failed(new AuthThrottledException(wait).Message);
+            }
 
             // Find user by email
             var user = await _userReader.GetByEmailAsync(email);
 
             if (user == null)
             {
-                _logger.LogWarning("Login failed: user {Email} not found", email);
+                BCrypt.Net.BCrypt.Verify(password, UnknownUserHash.Value);
+                _throttle.RecordFailure(AuthThrottleScope.Login, address);
+                _logger.LogWarning("Login failed: user {Email} not found ({ClientAddress})", email, address);
                 return AuthResult.Failed("Invalid email or password");
             }
 
@@ -86,14 +129,33 @@ public class AuthService : IAuthService
                 return AuthResult.Failed("Account is inactive");
             }
 
+            if (user.LockoutEndsAt > UtcNow)
+            {
+                _logger.LogWarning("Login refused: user {Email} is locked out ({ClientAddress})", email, address);
+                var minutes = Math.Max(1, (int)Math.Ceiling((user.LockoutEndsAt.Value - UtcNow).TotalMinutes));
+                return AuthResult.Failed($"Too many failed sign-ins. This account is locked for {minutes} minute(s).");
+            }
+
             if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             {
-                _logger.LogWarning("Login failed: invalid password for user {Email}", email);
+                _throttle.RecordFailure(AuthThrottleScope.Login, address);
+                user.FailedLoginCount++;
+                if (user.FailedLoginCount >= MaxFailedLogins)
+                {
+                    user.LockoutEndsAt = UtcNow + LockoutDuration;
+                    user.FailedLoginCount = 0;
+                    _logger.LogWarning("User {Email} locked out after {Count} failed sign-ins", email, MaxFailedLogins);
+                }
+
+                await _userWriter.UpdateAsync(user);
+                _logger.LogWarning("Login failed: invalid password for user {Email} ({ClientAddress})", email, address);
                 return AuthResult.Failed("Invalid email or password");
             }
 
-            // Update last login time
-            user.LastLoginAt = DateTime.UtcNow;
+            // A success clears the failure count and any expired lockout
+            user.FailedLoginCount = 0;
+            user.LockoutEndsAt = null;
+            user.LastLoginAt = UtcNow;
             await _userWriter.UpdateAsync(user);
 
             _currentUser = user;
@@ -168,13 +230,12 @@ public class AuthService : IAuthService
                 return false;
             }
 
-            // Generate 6-digit code
-            var code = new Random().Next(100000, 999999).ToString();
-            var expiry = DateTime.UtcNow.AddMinutes(15);
+            var code = NewCode();
 
             // Update user with code and expiry
             _currentUser.EmailVerificationCode = code;
-            _currentUser.EmailVerificationCodeExpiry = expiry;
+            _currentUser.EmailVerificationCodeExpiry = UtcNow + CodeLifetime;
+            _currentUser.EmailVerificationAttempts = 0;
             await _userWriter.UpdateAsync(_currentUser);
 
             // Send email
@@ -207,14 +268,23 @@ public class AuthService : IAuthService
             }
 
             if (_currentUser.EmailVerificationCodeExpiry == null ||
-                _currentUser.EmailVerificationCodeExpiry < DateTime.UtcNow)
+                _currentUser.EmailVerificationCodeExpiry < UtcNow)
             {
                 _logger.LogWarning("Verification code expired for user {Email}", _currentUser.Email);
                 return false;
             }
 
-            if (_currentUser.EmailVerificationCode != code)
+            if (!CodesMatch(_currentUser.EmailVerificationCode, code))
             {
+                _currentUser.EmailVerificationAttempts++;
+                if (_currentUser.EmailVerificationAttempts >= MaxCodeAttempts)
+                {
+                    _currentUser.EmailVerificationCode = null; // void: a new code must be requested
+                    _currentUser.EmailVerificationCodeExpiry = null;
+                    _logger.LogWarning("Verification code for {Email} voided after {Count} wrong guesses", _currentUser.Email, MaxCodeAttempts);
+                }
+
+                await _userWriter.UpdateAsync(_currentUser);
                 _logger.LogWarning("Invalid verification code for user {Email}", _currentUser.Email);
                 return false;
             }
@@ -223,6 +293,7 @@ public class AuthService : IAuthService
             _currentUser.EmailVerified = true;
             _currentUser.EmailVerificationCode = null;
             _currentUser.EmailVerificationCodeExpiry = null;
+            _currentUser.EmailVerificationAttempts = 0;
             await _userWriter.UpdateAsync(_currentUser);
 
             _logger.LogInformation("Email verified successfully for user {Email}", _currentUser.Email);
@@ -265,6 +336,16 @@ public class AuthService : IAuthService
         {
             _logger.LogDebug("Password reset code requested for email {Email}", email);
 
+            // Every request counts, so an address can neither guess codes nor flood the log.
+            var address = _clientAddress.Value;
+            if (_throttle.RetryAfter(AuthThrottleScope.PasswordReset, address) is { } wait)
+            {
+                _logger.LogWarning("Password reset refused: {ClientAddress} is throttled", address);
+                throw new AuthThrottledException(wait);
+            }
+
+            _throttle.RecordFailure(AuthThrottleScope.PasswordReset, address);
+
             var user = await _userReader.GetByEmailAsync(email);
             if (user == null)
             {
@@ -280,13 +361,12 @@ public class AuthService : IAuthService
                 return true;
             }
 
-            // Generate 6-digit code
-            var code = new Random().Next(100000, 999999).ToString();
-            var expiry = DateTime.UtcNow.AddMinutes(15);
+            var code = NewCode();
 
             // Update user with reset code and expiry
             user.PasswordResetCode = code;
-            user.PasswordResetCodeExpiry = expiry;
+            user.PasswordResetCodeExpiry = UtcNow + CodeLifetime;
+            user.PasswordResetAttempts = 0;
             await _userWriter.UpdateAsync(user);
 
             // Send email
@@ -295,7 +375,7 @@ public class AuthService : IAuthService
             _logger.LogInformation("Password reset code sent to {Email}", email);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not AuthThrottledException)
         {
             _logger.LogError(ex, "Failed to send password reset code for email {Email}", email);
             throw new AuthServiceException("Could not send password reset code", ex);
@@ -307,35 +387,9 @@ public class AuthService : IAuthService
         try
         {
             var user = await _userReader.GetByEmailAsync(email);
-            if (user == null)
-            {
-                _logger.LogWarning("Password reset verification failed: email {Email} not found", email);
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(user.PasswordResetCode))
-            {
-                _logger.LogWarning("No password reset code found for email {Email}", email);
-                return false;
-            }
-
-            if (user.PasswordResetCodeExpiry == null ||
-                user.PasswordResetCodeExpiry < DateTime.UtcNow)
-            {
-                _logger.LogWarning("Password reset code expired for email {Email}", email);
-                return false;
-            }
-
-            if (user.PasswordResetCode != code)
-            {
-                _logger.LogWarning("Invalid password reset code for email {Email}", email);
-                return false;
-            }
-
-            _logger.LogInformation("Password reset code verified for email {Email}", email);
-            return true;
+            return user is not null && await CheckResetCodeAsync(user, code);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not AuthThrottledException)
         {
             _logger.LogError(ex, "Failed to verify password reset code for email {Email}", email);
             throw new AuthServiceException("Could not verify password reset code", ex);
@@ -347,14 +401,7 @@ public class AuthService : IAuthService
         try
         {
             var user = await _userReader.GetByEmailAsync(email);
-            if (user == null)
-            {
-                _logger.LogWarning("Password reset failed: email {Email} not found", email);
-                return false;
-            }
-
-            // Verify the code first
-            if (!await VerifyPasswordResetCodeAsync(email, code))
+            if (user == null || !await CheckResetCodeAsync(user, code))
             {
                 _logger.LogWarning("Password reset failed: invalid or expired code for email {Email}", email);
                 return false;
@@ -364,6 +411,9 @@ public class AuthService : IAuthService
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
             user.PasswordResetCode = null;
             user.PasswordResetCodeExpiry = null;
+            user.PasswordResetAttempts = 0;
+            user.FailedLoginCount = 0;
+            user.LockoutEndsAt = null;
             user.RequiresPasswordChange = false;
             user.EmailVerified = false; // Require email verification after password reset
             await _userWriter.UpdateAsync(user);
@@ -371,11 +421,55 @@ public class AuthService : IAuthService
             _logger.LogInformation("Password reset successfully for email {Email}. Email verification required.", email);
             return true;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not AuthThrottledException)
         {
             _logger.LogError(ex, "Failed to reset password for email {Email}", email);
             throw new AuthServiceException("Could not reset password", ex);
         }
+    }
+
+    /// <summary>
+    /// Checks a reset code. A wrong guess counts against the address and the code; at
+    /// <see cref="MaxCodeAttempts"/> the code is void, so it can't be brute-forced.
+    /// </summary>
+    private async Task<bool> CheckResetCodeAsync(User user, string code)
+    {
+        var address = _clientAddress.Value;
+        if (_throttle.RetryAfter(AuthThrottleScope.PasswordReset, address) is { } wait)
+        {
+            throw new AuthThrottledException(wait);
+        }
+
+        if (string.IsNullOrEmpty(user.PasswordResetCode))
+        {
+            _logger.LogWarning("No password reset code found for email {Email}", user.Email);
+            return false;
+        }
+
+        if (user.PasswordResetCodeExpiry == null || user.PasswordResetCodeExpiry < UtcNow)
+        {
+            _logger.LogWarning("Password reset code expired for email {Email}", user.Email);
+            return false;
+        }
+
+        if (!CodesMatch(user.PasswordResetCode, code))
+        {
+            _throttle.RecordFailure(AuthThrottleScope.PasswordReset, address);
+            user.PasswordResetAttempts++;
+            if (user.PasswordResetAttempts >= MaxCodeAttempts)
+            {
+                user.PasswordResetCode = null; // void: a new code must be requested
+                user.PasswordResetCodeExpiry = null;
+                _logger.LogWarning("Password reset code for {Email} voided after {Count} wrong guesses", user.Email, MaxCodeAttempts);
+            }
+
+            await _userWriter.UpdateAsync(user);
+            _logger.LogWarning("Invalid password reset code for email {Email} ({ClientAddress})", user.Email, address);
+            return false;
+        }
+
+        _logger.LogInformation("Password reset code verified for email {Email}", user.Email);
+        return true;
     }
 }
 

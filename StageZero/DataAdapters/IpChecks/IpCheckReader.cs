@@ -63,8 +63,8 @@ public class IpCheckReader : IIpCheckReader
             .Select(g => new IpCheckGroup
             {
                 IpAddress = g.Key,
-                LastCheckedAt = g.Max(c => c.CheckedAt),
-                CheckCount = g.Count(),
+                LastCheckedAt = g.Max(c => c.LastConfirmedAt),
+                CheckCount = g.Sum(c => c.Confirmations),
                 FirstSeenAt = g.Min(c => c.CheckedAt)
             })
             .OrderByDescending(g => g.LastCheckedAt)

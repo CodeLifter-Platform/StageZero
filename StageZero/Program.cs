@@ -13,29 +13,44 @@ using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Access;
+using StageZero.Services.Cli;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
+using StageZero.Services.Health;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Lifted.BlazorAuth.Basic.Services;
 using Lifted.BlazorAuth.Basic.DataAdapters;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Serilog;
 using dotenv.net;
+
+// The container's HEALTHCHECK: first, and before anything slow.
+if (args is [HealthCheckCommand.Name])
+{
+    Environment.ExitCode = await HealthCheckCommand.RunAsync(
+        Environment.GetEnvironmentVariables().Cast<System.Collections.DictionaryEntry>()
+            .ToDictionary(e => (string)e.Key, e => (string?)e.Value));
+    return;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // LOAD ENVIRONMENT VARIABLES FROM .env FILE
 // ═══════════════════════════════════════════════════════════════
 
 // Load .env file if it exists (for local development)
-// Search in current directory and up to 5 parent directories
+// Search in current directory and up to 5 parent directories.
+// STAGEZERO_DOTENV=false skips it — the test suite sets that, so a developer's real
+// settings in the repo-root .env never reach a test host.
 var currentDir = Directory.GetCurrentDirectory();
 var envFilePath = ".env";
+var loadDotEnv = !string.Equals(
+    Environment.GetEnvironmentVariable("STAGEZERO_DOTENV"), "false", StringComparison.OrdinalIgnoreCase);
 
 // Try to find .env file in current directory or parent directories
-for (int i = 0; i <= 5; i++)
+for (int i = 0; loadDotEnv && i <= 5; i++)
 {
     var testPath = Path.Combine(currentDir, envFilePath);
     if (File.Exists(testPath))
@@ -49,6 +64,14 @@ for (int i = 0; i <= 5; i++)
     envFilePath = Path.Combine("..", envFilePath);
 }
 
+// Account recovery from the server: `StageZero reset-password <email>`. After .env, so a
+// STAGEZERO_HOME set there finds the same database the app uses.
+if (args is [ResetPasswordCommand.Name, ..])
+{
+    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DataPathService.GetDatabasePath(), args, Console.Out);
+    return;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SERILOG CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
@@ -57,19 +80,18 @@ for (int i = 0; i <= 5; i++)
 var logsDirectory = DataPathService.GetLogsDirectory();
 var logFilePath = Path.Combine(logsDirectory, "log-.txt");
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Information)
-    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
-    .Enrich.FromLogContext()
-    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-    .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
-    .CreateLogger();
+// Debug in Development, Information otherwise; STAGEZERO_LOG_LEVEL overrides (LoggingSetup).
+var environmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+    ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+    ?? "Production";
+var minimumLevel = LoggingSetup.MinimumLevel(
+    environmentName, Environment.GetEnvironmentVariable(LoggingSetup.LevelVariable));
+
+Log.Logger = LoggingSetup.Configure(new LoggerConfiguration(), minimumLevel, logFilePath).CreateLogger();
 
 try
 {
-    Log.Information("Starting StageZero application");
+    Log.Information("Starting StageZero application (log level {Level})", minimumLevel);
     Log.Information(DataPathService.GetPlatformInfo());
 
     var builder = WebApplication.CreateBuilder(args);
@@ -96,18 +118,6 @@ try
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseSqlite(connectionString));
 
-    // Persist the Data Protection keys alongside the database. Without this ASP.NET keeps
-    // them under the user profile, which in a container is ephemeral — every restart
-    // invalidates auth cookies and antiforgery tokens, logging everyone out and breaking
-    // form posts until they reload. The keys directory follows DataPathService, so it
-    // lands on the mounted volume in a container and in the normal app data directory
-    // everywhere else.
-    var keysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "keys");
-    Directory.CreateDirectory(keysPath);
-    builder.Services.AddDataProtection()
-        .PersistKeysToFileSystem(new DirectoryInfo(keysPath))
-        .SetApplicationName("StageZero");
-
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
     {
@@ -117,20 +127,20 @@ try
 
     // HttpClient for external API calls
     builder.Services.AddHttpClient();
+    builder.Services.AddHttpClient(PublicIpResolver.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(5));
 
     // ═══════════════════════════════════════════════════════════════
     // DATA PROTECTION
     // ═══════════════════════════════════════════════════════════════
-    // Keys must live on the mounted data volume, not the container filesystem.
-    // Otherwise the encrypted Cloudflare API token in TunnelConfig becomes
-    // undecryptable after the next down/up cycle.
-    var dataProtectionKeysPath = Path.Combine(DataPathService.GetAppDataDirectory(), "dp-keys");
-    Directory.CreateDirectory(dataProtectionKeysPath);
+    // One key ring, on the data volume rather than the user profile (ephemeral in a
+    // container). Without it every restart would sign everyone out and make the stored
+    // Cloudflare tokens and TOTP secrets undecryptable. See DataProtectionKeys.
+    var keyRing = DataProtectionKeys.Prepare(DataPathService.GetAppDataDirectory());
     builder.Services.AddDataProtection()
-        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+        .PersistKeysToFileSystem(keyRing)
         .SetApplicationName("StageZero");
 
-    Log.Information("Data protection keys: {KeysPath}", dataProtectionKeysPath);
+    Log.Information("Data protection keys: {KeysPath}", keyRing.FullName);
 
     // ═══════════════════════════════════════════════════════════════
     // FORWARDED HEADERS (Cloudflare Tunnel)
@@ -171,6 +181,13 @@ try
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
 
+    // Brute-force limits (AuthThrottle): per-address, so the address of whoever is on the
+    // circuit is captured when it opens. Behind a proxy, UseForwardedHeaders makes it real.
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton<IAuthThrottle, AuthThrottle>();
+    builder.Services.AddScoped<ClientAddress>();
+    builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, ClientAddressCircuitHandler>();
+
     // StageZero does not send email. The auth library's one-time codes (password reset,
     // re-verifying a changed address) go to the server log as an unmissable banner:
     // whoever can read the log controls the server, and that is who may reset the admin.
@@ -181,15 +198,24 @@ try
     builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
+    builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
+    builder.Services.TryAddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<IIpMonitorStatus, IpMonitorStatus>();
+
+    // /healthz: Unhealthy without the database; Degraded (still 200) when the public IP
+    // hasn't been confirmed lately. Status only — no detail for an anonymous caller.
+    builder.Services.AddHealthChecks()
+        .AddCheck<DatabaseHealthCheck>("database")
+        .AddCheck<IpMonitorHealthCheck>("ip-monitor");
+    builder.Services.AddSingleton<IPublicIpResolver, PublicIpResolver>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
-    builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
     builder.Services.AddScoped<IDnsVerificationService, DnsVerificationService>();
 
     // ═══════════════════════════════════════════════════════════════
     // CLOUDFLARE TUNNEL SERVICES
     // ═══════════════════════════════════════════════════════════════
-    builder.Services.AddScoped<ITunnelTokenProtector, TunnelTokenProtector>();
+    builder.Services.AddScoped<ICloudflareTokenProtector, CloudflareTokenProtector>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
 
@@ -207,7 +233,6 @@ try
     // BACKGROUND SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddHostedService<IpMonitorBackgroundService>();
-    builder.Services.AddHostedService<IpChangeHandlerService>();
 
     // ═══════════════════════════════════════════════════════════════
     // VIEWMODELS REGISTRATION
@@ -224,305 +249,17 @@ try
     // ═══════════════════════════════════════════════════════════════
     var app = builder.Build();
 
-    // Ensure database is created and seed default user
+    // Bring the database to the latest migration. A database from before migrations is
+    // adopted once, with the original kept beside it as a .bak (DatabaseInitializer).
+    await DatabaseInitializer.InitializeAsync(databasePath, app.Logger);
+
+    // Tokens saved before they were encrypted are encrypted now (idempotent).
+    await CloudflareTokenStore.ProtectLegacyTokensAsync(app.Services, app.Logger);
+
     using (var scope = app.Services.CreateScope())
     {
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
         await using var db = await dbFactory.CreateDbContextAsync();
-        await db.Database.EnsureCreatedAsync();
-
-        // Add RequiresPasswordChange column if it doesn't exist (for existing databases)
-        try
-        {
-            var connection = db.Database.GetDbConnection();
-            await connection.OpenAsync();
-            using var command = connection.CreateCommand();
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='RequiresPasswordChange'";
-            var columnExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!columnExists)
-            {
-                Log.Information("Adding RequiresPasswordChange column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN RequiresPasswordChange INTEGER NOT NULL DEFAULT 0";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("RequiresPasswordChange column added successfully");
-
-                // Update existing admin user with default password to require password change
-                command.CommandText = @"
-                    UPDATE Users
-                    SET RequiresPasswordChange = 1
-                    WHERE Username = 'admin'";
-                var rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected > 0)
-                {
-                    Log.Information("Updated existing admin user to require password change");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not add RequiresPasswordChange column (may already exist)");
-        }
-
-        // Add email verification columns if they don't exist (for existing databases)
-        try
-        {
-            var connection = db.Database.GetDbConnection();
-            if (connection.State != System.Data.ConnectionState.Open)
-                await connection.OpenAsync();
-
-            using var command = connection.CreateCommand();
-
-            // Check and add EmailVerified column
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='EmailVerified'";
-            var emailVerifiedExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!emailVerifiedExists)
-            {
-                Log.Information("Adding EmailVerified column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN EmailVerified INTEGER NOT NULL DEFAULT 0";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("EmailVerified column added successfully");
-            }
-
-            // Check and add EmailVerificationCode column
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='EmailVerificationCode'";
-            var codeExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!codeExists)
-            {
-                Log.Information("Adding EmailVerificationCode column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN EmailVerificationCode TEXT";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("EmailVerificationCode column added successfully");
-            }
-
-            // Check and add EmailVerificationCodeExpiry column
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='EmailVerificationCodeExpiry'";
-            var expiryExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!expiryExists)
-            {
-                Log.Information("Adding EmailVerificationCodeExpiry column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN EmailVerificationCodeExpiry TEXT";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("EmailVerificationCodeExpiry column added successfully");
-            }
-
-            // Check and add PasswordResetCode column
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='PasswordResetCode'";
-            var passwordResetCodeExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!passwordResetCodeExists)
-            {
-                Log.Information("Adding PasswordResetCode column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN PasswordResetCode TEXT";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("PasswordResetCode column added successfully");
-            }
-
-            // Check and add PasswordResetCodeExpiry column
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM pragma_table_info('Users')
-                WHERE name='PasswordResetCodeExpiry'";
-            var passwordResetExpiryExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!passwordResetExpiryExists)
-            {
-                Log.Information("Adding PasswordResetCodeExpiry column to Users table");
-                command.CommandText = "ALTER TABLE Users ADD COLUMN PasswordResetCodeExpiry TEXT";
-                await command.ExecuteNonQueryAsync();
-                Log.Information("PasswordResetCodeExpiry column added successfully");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not add email verification and password reset columns (may already exist)");
-        }
-
-        // Migrate the retired reverse proxy schema to the Cloudflare Tunnel schema.
-        // ProxyHosts belonged to the YARP/Let's Encrypt layer that Cloudflare Tunnel
-        // replaces; the proxy never actually routed traffic, so no data is lost.
-        try
-        {
-            var connection = db.Database.GetDbConnection();
-            if (connection.State != System.Data.ConnectionState.Open)
-                await connection.OpenAsync();
-
-            using var command = connection.CreateCommand();
-
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM sqlite_master
-                WHERE type='table' AND name='ProxyHosts'";
-            var proxyHostsExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (proxyHostsExists)
-            {
-                Log.Information("Dropping retired ProxyHosts table (replaced by TunnelRoutes)");
-                command.CommandText = "DROP TABLE ProxyHosts";
-                await command.ExecuteNonQueryAsync();
-            }
-
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM sqlite_master
-                WHERE type='table' AND name='TunnelRoutes'";
-            var tunnelRoutesExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!tunnelRoutesExists)
-            {
-                Log.Information("Creating TunnelRoutes table");
-                command.CommandText = @"
-                    CREATE TABLE TunnelRoutes (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        DomainName TEXT NOT NULL,
-                        ForwardScheme TEXT NOT NULL,
-                        ForwardHost TEXT NOT NULL,
-                        ForwardPort INTEGER NOT NULL,
-                        IsEnabled INTEGER NOT NULL DEFAULT 1,
-                        Notes TEXT,
-                        CreatedAt TEXT NOT NULL,
-                        UpdatedAt TEXT NOT NULL
-                    )";
-                await command.ExecuteNonQueryAsync();
-
-                command.CommandText = "CREATE UNIQUE INDEX IX_TunnelRoutes_DomainName ON TunnelRoutes (DomainName)";
-                await command.ExecuteNonQueryAsync();
-
-                command.CommandText = "CREATE INDEX IX_TunnelRoutes_IsEnabled ON TunnelRoutes (IsEnabled)";
-                await command.ExecuteNonQueryAsync();
-
-                Log.Information("TunnelRoutes table created successfully");
-            }
-
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM sqlite_master
-                WHERE type='table' AND name='TunnelConfigs'";
-            var tunnelConfigsExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!tunnelConfigsExists)
-            {
-                Log.Information("Creating TunnelConfigs table");
-                command.CommandText = @"
-                    CREATE TABLE TunnelConfigs (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        CloudflareAccountId TEXT NOT NULL,
-                        CloudflareZoneId TEXT,
-                        CloudflareZoneName TEXT,
-                        ProtectedApiToken TEXT NOT NULL,
-                        TunnelId TEXT,
-                        TunnelName TEXT,
-                        UpdatedAt TEXT NOT NULL
-                    )";
-                await command.ExecuteNonQueryAsync();
-
-                Log.Information("TunnelConfigs table created successfully");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not migrate the tunnel schema");
-        }
-
-        // Add the Cloudflare Access columns and the service token table. Existing routes are
-        // backfilled to 'none' rather than the 'identity' default used for new hostnames:
-        // turning Access on for a hostname that is already serving traffic would lock out
-        // whoever is using it, so adopting Access is an explicit per-route choice.
-        try
-        {
-            var connection = db.Database.GetDbConnection();
-            if (connection.State != System.Data.ConnectionState.Open)
-                await connection.OpenAsync();
-
-            using var command = connection.CreateCommand();
-
-            var accessColumns = new (string Name, string Definition)[]
-            {
-                ("AccessMode", "TEXT NOT NULL DEFAULT 'none'"),
-                ("AccessAllowedEmails", "TEXT"),
-                ("AccessAllowedEmailDomains", "TEXT"),
-                ("AccessAllowedIdpIds", "TEXT"),
-                ("AccessSessionDuration", "TEXT"),
-                ("AccessCreateServiceToken", "INTEGER NOT NULL DEFAULT 0"),
-                ("AccessServiceTokenName", "TEXT"),
-                ("AccessServiceTokenId", "TEXT"),
-                ("AccessServiceTokenDuration", "TEXT"),
-                ("AccessApplicationId", "TEXT"),
-                ("AccessIdentityPolicyId", "TEXT"),
-                ("AccessServiceTokenPolicyId", "TEXT"),
-                ("AccessSyncedAt", "TEXT")
-            };
-
-            foreach (var (name, definition) in accessColumns)
-            {
-                command.CommandText = $@"
-                    SELECT COUNT(*)
-                    FROM pragma_table_info('TunnelRoutes')
-                    WHERE name='{name}'";
-                var columnExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-                if (!columnExists)
-                {
-                    Log.Information("Adding {ColumnName} column to TunnelRoutes table", name);
-                    command.CommandText = $"ALTER TABLE TunnelRoutes ADD COLUMN {name} {definition}";
-                    await command.ExecuteNonQueryAsync();
-                }
-            }
-
-            command.CommandText = @"
-                SELECT COUNT(*)
-                FROM sqlite_master
-                WHERE type='table' AND name='AccessServiceTokens'";
-            var accessTokensExists = (long)(await command.ExecuteScalarAsync() ?? 0L) > 0;
-
-            if (!accessTokensExists)
-            {
-                Log.Information("Creating AccessServiceTokens table");
-                command.CommandText = @"
-                    CREATE TABLE AccessServiceTokens (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        CloudflareTokenId TEXT NOT NULL,
-                        Name TEXT NOT NULL,
-                        ClientId TEXT,
-                        CreatedByStageZero INTEGER NOT NULL DEFAULT 0,
-                        Duration TEXT,
-                        CreatedAt TEXT NOT NULL,
-                        ExpiresAt TEXT
-                    )";
-                await command.ExecuteNonQueryAsync();
-
-                command.CommandText =
-                    "CREATE UNIQUE INDEX IX_AccessServiceTokens_CloudflareTokenId "
-                    + "ON AccessServiceTokens (CloudflareTokenId)";
-                await command.ExecuteNonQueryAsync();
-
-                Log.Information("AccessServiceTokens table created successfully");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Could not migrate the Cloudflare Access schema");
-        }
-
-        // Seed default admin user if no users exist
         if (!await db.Users.AnyAsync())
         {
             Log.Information("No users found. Please visit /setup to create your admin account");
@@ -542,7 +279,8 @@ try
 
     if (!app.Environment.IsDevelopment())
     {
-        app.UseExceptionHandler("/Error");
+        // Re-executes /Error (Application/Areas/Errors) in a fresh scope.
+        app.UseExceptionHandler("/Error", createScopeForErrors: true);
         app.UseHsts();
     }
 
@@ -556,6 +294,8 @@ try
 
     app.UseStaticFiles();
     app.UseAntiforgery();
+
+    app.MapHealthChecks(HealthCheckCommand.Path);
 
     // The auth library's pages (/login, /setup, /forgot-password, /reset-password) live in
     // another assembly. Routes.razor already lists it for in-app navigation; without this
@@ -574,6 +314,9 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+/// <summary>Public so the integration tests can host the app with WebApplicationFactory.</summary>
+public partial class Program;
 
 // ═══════════════════════════════════════════════════════════════
 // BASIC AUTH DB CONTEXT FACTORY WRAPPER

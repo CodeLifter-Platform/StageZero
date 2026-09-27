@@ -35,11 +35,12 @@ public class IpMonitorViewModelException : Exception
 // IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════
 
-public class IpMonitorViewModel : IIpMonitorViewModel
+public class IpMonitorViewModel : IIpMonitorViewModel, IDisposable
 {
     private readonly ILogger<IpMonitorViewModel> _logger;
     private readonly IIpMonitorService _ipMonitorService;
     private readonly IIpCheckReader _ipCheckReader;
+    private readonly IIpChangeNotifier _notifier;
     private string? _currentIp;
     private DateTime? _lastChecked;
     private bool _isLoading;
@@ -49,15 +50,19 @@ public class IpMonitorViewModel : IIpMonitorViewModel
     public IpMonitorViewModel(
         ILogger<IpMonitorViewModel> logger,
         IIpMonitorService ipMonitorService,
-        IIpCheckReader ipCheckReader)
+        IIpCheckReader ipCheckReader,
+        IIpChangeNotifier notifier)
     {
         _logger = logger;
         _ipMonitorService = ipMonitorService;
         _ipCheckReader = ipCheckReader;
+        _notifier = notifier;
 
-        // Subscribe to IP changes
-        _ipMonitorService.IpChanged += OnIpChanged;
+        // Changes found by any check, including the background monitor's
+        _notifier.IpChanged += OnIpChanged;
     }
+
+    public void Dispose() => _notifier.IpChanged -= OnIpChanged;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -122,7 +127,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel
 
             var check = await _ipMonitorService.CheckIpAsync();
             CurrentIp = check.IpAddress;
-            LastChecked = check.CheckedAt;
+            LastChecked = check.LastConfirmedAt;
 
             await LoadIpGroupsAsync();
 
@@ -143,7 +148,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel
     {
         var latestCheck = await _ipCheckReader.GetLatestAsync();
         CurrentIp = latestCheck?.IpAddress;
-        LastChecked = latestCheck?.CheckedAt;
+        LastChecked = latestCheck?.LastConfirmedAt;
 
         await LoadIpGroupsAsync();
     }
@@ -157,7 +162,7 @@ public class IpMonitorViewModel : IIpMonitorViewModel
     {
         _logger.LogInformation("IP changed event received: {NewIp}", e.NewIp);
         CurrentIp = e.NewIp;
-        LastChecked = e.IpCheck.CheckedAt;
+        LastChecked = e.IpCheck.LastConfirmedAt;
 
         // Reload IP groups
         Task.Run(async () => await LoadIpGroupsAsync());

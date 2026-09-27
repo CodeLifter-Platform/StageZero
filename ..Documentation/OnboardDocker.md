@@ -61,7 +61,9 @@ The test suite is not run inside the image; run it on the host with the .NET SDK
 
 `/forgot-password` writes the code to the container log; read it with
 `docker logs <container> 2>&1 | grep -A6 "PASSWORD RESET CODE"` and enter it on
-`/reset-password`. If the log is gone, stop the container and delete the admin row from the
+`/reset-password`. If the log is gone, reset from inside the container:
+`docker exec -it <container> dotnet StageZero.dll reset-password you@example.com` prints a
+one-time password. As a last resort, stop the container and delete the admin row from the
 database on the mounted volume (`sqlite3 <STAGEZERO_DATA_DIR>/stagezero.db "DELETE FROM
 Users;"`); `/setup` returns on the next visit and every DNS and tunnel setting survives.
 Full steps: [README.md](../README.md#configuration).
@@ -72,6 +74,11 @@ Full steps: [README.md](../README.md#configuration).
   the database, logs, *and* the Data Protection keys there. Without a volume you lose all
   three on restart — and losing the keys means every user is logged out and form posts break
   until a reload.
+- **The container runs as a non-root user** (`$APP_UID`, 1654) since the release audit. A
+  named volume created against this image is owned correctly; a bind mount, or a volume
+  from an install that ran as root, needs its ownership fixed once or the database can't
+  be written: `docker run --rm -v stagezero-data:/app-data alpine chown -R 1654 /app-data`
+  (for a bind mount, `sudo chown -R 1654 <dir>` on the host).
 - **The build context is the repo root.** Building from inside `StageZero/` fails on the
   first `COPY`, because the auth library lives one level up.
 - **The polling file watcher is required in `debug`.** inotify does not fire for edits made

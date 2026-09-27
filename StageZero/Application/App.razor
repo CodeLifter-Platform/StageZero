@@ -15,11 +15,11 @@
     <!-- Custom CSS -->
     <link href="css/app.css" rel="stylesheet" />
 
-    <HeadOutlet @rendermode="RenderMode.InteractiveServer" />
+    <HeadOutlet @rendermode="PageRenderMode" />
 </head>
 
 <body>
-    <Routes @rendermode="RenderMode.InteractiveServer" />
+    <Routes @rendermode="PageRenderMode" />
     
     <!-- MudBlazor JS -->
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
@@ -29,3 +29,12 @@
 
 </html>
 
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // Every page is interactive except those marked [ExcludeFromInteractiveRouting] (the
+    // error page), which stay server-rendered.
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.AcceptsInteractiveRouting() ? RenderMode.InteractiveServer : null;
+}

@@ -24,7 +24,7 @@ public class TunnelConfig
 
     /// <summary>
     /// API token encrypted with ASP.NET Data Protection. Never store the raw token —
-    /// go through ITunnelTokenProtector.
+    /// go through ICloudflareTokenProtector.
     /// </summary>
     [Required]
     public string ProtectedApiToken { get; set; } = string.Empty;

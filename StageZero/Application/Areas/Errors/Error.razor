@@ -1,0 +1,36 @@
+@page "/Error"
+@attribute [ExcludeFromInteractiveRouting]
+@using System.Diagnostics
+
+@* Where UseExceptionHandler sends an unhandled exception outside Development. It shows a
+   reference to find the failure in the logs — never the exception itself. Anonymous on
+   purpose: the failure may have been in signing in. Server-rendered only: it needs no
+   circuit to a server that is misbehaving, and the reference (from the request) stays. *@
+
+<PageTitle>Something went wrong - StageZero</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-16">
+    <MudPaper Elevation="2" Class="pa-8 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" Color="Color.Error" Class="mb-4" />
+        <MudText Typo="Typo.h4" Class="mb-2">Something went wrong</MudText>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            StageZero hit an unexpected error. Your DNS records and tunnel routes are unaffected;
+            try again, and if it keeps happening, the server log has the details.
+        </MudText>
+        @if (!string.IsNullOrEmpty(_requestId))
+        {
+            <MudText Typo="Typo.caption" Class="mb-4 d-block">Reference: <span class="sz-mono">@_requestId</span></MudText>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/">Go Home</MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? _requestId;
+
+    protected override void OnInitialized() =>
+        _requestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

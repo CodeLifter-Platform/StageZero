@@ -286,7 +286,7 @@ else
         {
             try
             {
-                await VM.AddRecordAsync(provider.Id, data.RecordName, data.RecordType, data.RecordId, data.Content);
+                await VM.AddRecordAsync(provider.Id, data.RecordName, data.RecordType, data.AutoUpdate, data.RecordId, data.Content);
                 Snackbar.Add($"DNS record '{data.RecordName}' added successfully", Severity.Success);
             }
             catch (Exception ex)

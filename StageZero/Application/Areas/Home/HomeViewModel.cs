@@ -72,7 +72,7 @@ public class HomeViewModel : IHomeViewModel
             await Task.Delay(100);
 
             WelcomeMessage = "Welcome to StageZero";
-            AppDescription = "A Dynamic DNS tool that updates changes to DNS services. Keep your domains pointed at the right IP addresses, automatically.";
+            AppDescription = "Your home network on Cloudflare: keep your DNS records pointed at your public IP, and publish local services through a Cloudflare Tunnel.";
 
             _logger.LogInformation("HomeViewModel initialized successfully");
         }

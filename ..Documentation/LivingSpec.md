@@ -23,11 +23,30 @@ versioning migration.
 
 **Working today**
 
-- **Dynamic DNS.** `IpMonitorBackgroundService` polls the public IP (every 180 s);
-  `IpChangeHandlerService` reacts to a change and `DnsUpdateService` rewrites every
-  auto-update record through the Cloudflare DNS API. Each provider can be switched off
-  without stopping monitoring. `DnsVerificationService` re-checks records against the
-  current IP on each poll. UI: **IP Monitor** (history) and **DNS Configuration**.
+- **Dynamic DNS.** `IpMonitorBackgroundService` polls the public IP (every 180 s), and
+  every check runs `DnsVerificationService`, which rewrites any auto-update record in
+  Cloudflare that doesn't match — after a change, or after someone edits the record by
+  hand. The update is a PATCH of the address alone, so the record's proxy (orange cloud),
+  TTL, comment and tags are left as they are. Only **A** records are auto-updated
+  (`DnsRecord.SupportsAutoUpdate`): the IP lookup finds the IPv4 address, and the add/edit
+  dialogs, the Cloudflare import and the verifier all apply that rule. AAAA and CNAME
+  records are tracked but never auto-updated. Each check lists every zone with tracked
+  records once (all pages — Cloudflare pages at 500 records) and matches the records in
+  memory, taking each record's current ID from the listing. Each provider can be switched
+  off without stopping monitoring. A change is
+  published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
+  page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
+- **Public IP by consensus.** `PublicIpResolver` asks three independent services in
+  parallel — Cloudflare's `1.1.1.1/cdn-cgi/trace`, ipify, and AWS `checkip` — with a 5-second
+  timeout each. Only a public IPv4 address counts as an answer (an HTML captive-portal
+  page, a private or reserved address, anything malformed is discarded). Two sources must
+  agree for the IP to change; a lone answer can only confirm the last known IP. Otherwise
+  the check is inconclusive: nothing is recorded and DNS is left alone.
+- **IP history grows with changes, not time.** Each `IpCheck` row is a run: the check that
+  first saw an address (`CheckedAt`), the last one to confirm it (`LastConfirmedAt`), and
+  how many did (`Confirmations`). An unchanged check extends the current row; a change
+  starts a new one. Upgrading folds the old one-row-per-check history into runs (a real
+  month of 2,715 rows became 11, every check still counted).
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
   tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for
@@ -46,25 +65,54 @@ versioning migration.
   their 6-digit code to the server log as an unmissable banner
   (`Services/Auth/ServerLogCodeService.cs`, heading `STAGEZERO PASSWORD RESET CODE`), the
   pages say so, and the startup log says where a code will land. Whoever can read the log
-  controls the server, which is who may reset the admin; the documented last resort is
-  deleting the `Users` row to bring `/setup` back. The auth pages are reachable by direct
-  URL and reload.
+  controls the server, which is who may reset the admin. When the logged code is out of
+  reach, `dotnet StageZero.dll reset-password <email>` on the server prints a one-time
+  password (the next sign-in must replace it) and lifts any lockout; deleting the `Users`
+  row to bring `/setup` back is the last resort. The auth pages are reachable by direct URL
+  and reload.
+- **Brute-force limits** (`Lifted.BlazorAuth.Basic/Services/AuthThrottle.cs`, `AuthService`):
+  codes come from `RandomNumberGenerator`, compare in constant time, and are void after
+  5 wrong guesses; 5 wrong passwords in a row lock the account for 15 minutes (a success
+  clears the count, and an unknown email pays the same BCrypt cost as a wrong password);
+  and a per-address sliding window (10 per 15 minutes) throttles failed sign-ins and every
+  reset request or wrong reset code. The address is captured when the circuit opens
+  (`ClientAddressCircuitHandler`), after forwarded headers.
 - **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
   StageZero update news) post once to codelifter.net's subscriptions API
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
   single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
   never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
+- **The chrome needs a sign-in.** The public-IP chip and the navigation drawer render only
+  for a signed-in user; the sign-in and setup pages get a bare app bar (title and theme
+  toggle). The chip is its own component (`Layout/CurrentIpChip.razor`) and loads the IP
+  only when it renders, so an anonymous request never reads it.
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
   StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
   toggle swaps the whole UI and the choice persists per browser (`localStorage`).
-- **Serilog** structured logging to console and rolling files.
+- **An error page.** Outside Development, an unhandled exception re-executes `/Error`: a
+  themed page with a reference (the request's trace ID) to find it in the logs, and never
+  the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
+  picks the render mode per page) so it needs no circuit and the reference stays.
+- **Health.** `/healthz` (anonymous, status only): Unhealthy if the database can't be
+  reached; Degraded — still HTTP 200 — when the public IP hasn't been confirmed for 15
+  minutes (an upstream outage a restart wouldn't fix). The image's `HEALTHCHECK` runs
+  `dotnet StageZero.dll healthcheck`, which probes the app's own port (from
+  `ASPNETCORE_URLS` / `ASPNETCORE_HTTP_PORTS`, default 8080) — the runtime image has no curl.
+- **No outside assets.** Every stylesheet, script and font is served by the app; pages make
+  no request to a CDN, font service or script kit (checked by a test).
+- **Serilog** structured logging to console and daily rolling files (31 kept). Debug in
+  Development, Information elsewhere; `STAGEZERO_LOG_LEVEL` overrides. ASP.NET Core,
+  EF Core, HttpClient and MudBlazor log at Warning and above whatever the level, so
+  per-request framework chatter never reaches the logs. Password-reset codes are logged at
+  Warning, so they show at every level.
 
 **Partial**
 
 - **Sign-in does not survive a page reload.** `AuthService` holds the current user in a
   scoped service, which in Blazor Server means per circuit; a reload starts a new circuit
   and lands on `/login`.
-- **Home page feature cards are static copy**, not live status.
+- **Home page feature cards are static copy**, not live status. They claim only what
+  StageZero does: Cloudflare is the only DNS provider and the only tunnel.
 
 **Removed**
 
@@ -79,11 +127,15 @@ One ASP.NET Core project (`StageZero/`): Blazor Server in InteractiveServer mode
 UI, EF Core over SQLite, MVVM (views bind to view models; business logic lives in
 `Services/`; data access in `DataAdapters/` as Reader/Writer pairs).
 `Lifted.BlazorAuth.Basic/` is a separate library, published to NuGet and referenced by the
-app. `StageZero.Tests/` is xUnit, with Cloudflare faked at the service interfaces.
+app. `StageZero.Tests/` is xUnit; most tests host the real app in memory
+(`WebApplicationFactory`) with every outbound `HttpClient` answered by a fake, so
+Cloudflare and the IP sources are scripted per test and nothing reaches the network.
 
 Files worth opening first:
 
-- `StageZero/Program.cs` — DI registrations, data directory, database creation.
+- `StageZero/Program.cs` — DI registrations, data directory, the `healthcheck` and
+  `reset-password` commands; `Data/DatabaseInitializer.cs` applies the EF Core migrations
+  (and adopts a pre-migration database once).
 - `StageZero/Application/Layout/MainLayout.razor` + `AppVM.cs` — shell, nav, theme toggle.
 - `StageZero/Application/Theme/StageZeroTheme.cs` — the token dictionary port (see below).
 - `StageZero/Services/Tunnel/TunnelSyncService.cs` and
@@ -104,11 +156,15 @@ the `@font-face` rules and the `sz-mono` / `sz-on-accent` classes and has no raw
 
 Under the resolved app data directory (`/app-data` in a container; `~/.config/stagezero`
 on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/StageZero` on
-macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring.
+macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
+an older install's `keys/` ring is copied in on first start, `Services/DataProtectionKeys.cs`).
 
-The Cloudflare API token and tunnel token are encrypted with ASP.NET Data Protection
-(`TunnelTokenProtector`) before they reach SQLite; losing the keyring makes them
-undecryptable. Access service-token client secrets are never persisted. The theme choice
+The schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
+before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
+and then migrated like any other. The Cloudflare DNS token and tunnel token are encrypted
+with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
+SQLite — a plaintext token from an older install is encrypted on first start — and losing
+the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
 lives in the browser's `localStorage` (`stagezero.theme`), not on the server.
 
 ## External services
@@ -121,8 +177,8 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 
 | Target | Ships | Format | Verified |
 |---|---|---|---|
-| Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages), three compose files | Assumed — not built in the 2026-09-26 docs pass (no Docker daemon) |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 89 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
+| Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages, non-root, `HEALTHCHECK`), three compose files | Assumed — not built in the 2026-09-27 audit pass (no Docker daemon); the non-root change is untested in a real container |
+| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build (0 warnings), 181 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and
@@ -135,10 +191,6 @@ GitHub-hosted runners.
   `BASE_VERSION` + run number from repo variables; the platform contract is tag-derived
   versioning with `release-minor.yml` / `release-major.yml` / `promote.yml`
   (`Platform-Standards/process/versioning-ci.md`). The conformance `version` check fails.
-- **No `Directory.Build.props` / `Directory.Packages.props`.** `global.json` pins the SDK
-  (10.0.100, `latestFeature`), but package versions are per-csproj and warnings are not
-  errors. The conformance `dotnet` check fails; tracked in
-  `Platform-Standards/FOLLOWUPS.md`.
 - **`NUGET_API_KEY` is not set.** The NuGet.org push is skipped with a warning; the package
   still reaches GitHub Packages. See [NUGET_PUBLISHING.md](NUGET_PUBLISHING.md).
 - **The brand marks are still the pre-accent green.** `Assets/svg/*` draw the mark in
@@ -146,6 +198,8 @@ GitHub-hosted runners.
   accent was locked. They need re-cutting in the icon design project.
 - **Platform-Design has no `--cl-app-stagezero`.** The design system's per-app accent block
   doesn't list StageZero; the accent is locked only in the harness table for now.
-- **`src/Quip/Quip.csproj` is a stray template project**, not in the solution and not
-  built. It can be deleted.
-- **Auth is per circuit** (see *Partial*).
+- **Auth is per circuit** (see *Partial*), and there is no second factor: the release
+  audit decided both against this release (a cookie ticket and TOTP would widen the NuGet
+  library's surface; local-only sign-in on a home network is the accepted model for now).
+- **Not published anywhere yet.** No CI job builds or releases the app, and no container
+  image is pushed (audit items 1.5 and 1.6); the install path is clone and build.
