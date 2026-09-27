@@ -45,7 +45,9 @@ Last reviewed: 2026-09-26.
 ## SMTP (optional, verification and reset codes)
 
 - **Usage:** `StageZero/Services/Email/EmailService.cs` sends `/setup` verification and
-  password-reset codes. Unconfigured, the code is written to the log instead.
+  password-reset codes over SMTP (STARTTLS by default, `Email__UseStartTls=false` for a
+  plaintext relay; authentication only when `Email__SmtpUsername` is set). Unconfigured,
+  the code is written to the log instead and the pages say so.
 - **Managed at:** Whatever SMTP account the operator configures via `Email__*` in `.env`.
 
 ## NuGet.org and GitHub Packages (package publishing)

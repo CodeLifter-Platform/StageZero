@@ -120,7 +120,9 @@ cp .env.example .env
 
 **Email Configuration (Optional):**
 
-To enable email verification for new user setup, configure SMTP settings in `.env`:
+The first-run setup, "forgot password", and the change-password dialog each send a
+6-digit code by email. To send them, configure SMTP in `.env` (the compose files pass
+`.env` into the container):
 
 ```bash
 # Uncomment and configure these to enable email sending:
@@ -130,14 +132,24 @@ Email__SmtpUsername=your-email@gmail.com
 Email__SmtpPassword=your-app-password
 Email__FromEmail=your-email@gmail.com
 Email__FromName=StageZero
+# Email__UseStartTls=true   # false only for a plaintext relay on a trusted network
 ```
+
+`Email__SmtpHost` and `Email__FromEmail` are the minimum. Leave the username and
+password unset for a relay that does not authenticate. STARTTLS is on by default; Gmail,
+Outlook and every public relay require it.
 
 **Gmail Setup:**
 1. Enable 2-factor authentication on your Google account
 2. Generate an App Password: https://myaccount.google.com/apppasswords
 3. Use the App Password (not your regular password) in `Email__SmtpPassword`
 
-**Note:** If SMTP is not configured, verification codes will be logged to the console during development.
+**Without SMTP:** the app still works. The codes are written to the application log
+instead (`docker logs <container>` in Docker, or the `logs/` directory under the data
+directory), and the pages that ask for a code say so. The startup log states which it is:
+`Email: sending through smtp.gmail.com:587 (...)` or `Email: Email__SmtpHost and
+Email__FromEmail not set, so verification and password-reset codes will be written to this
+log`. A failed send shows the SMTP server's reason on the setup page and in the log.
 
 ### DNS Provider Control
 

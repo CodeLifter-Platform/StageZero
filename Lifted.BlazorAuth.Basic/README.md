@@ -71,7 +71,9 @@ public class EmailService : IEmailService
     
     public async Task<bool> IsConfiguredAsync()
     {
-        // Return true if email is configured, false otherwise
+        // Return true if email can actually be sent. When this is false the Setup,
+        // Forgot Password and Change Password pages tell the user the code was written
+        // to the server log instead of emailed, so log it in that case.
         return true;
     }
 }

@@ -40,7 +40,12 @@ versioning migration.
   [CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
 - **Username/password authentication** via the in-repo `Lifted.BlazorAuth.Basic` library.
   `/setup` creates the first admin (email → verification code → password) when no users
-  exist. With SMTP unconfigured, the verification code is written to the log.
+  exist; `/forgot-password` and the change-password dialog use the same codes. Codes go
+  out over SMTP (`Email__*` settings; `EmailOptions`, `EmailService`), STARTTLS by default
+  with a switch for plaintext relays and optional authentication. With SMTP unconfigured
+  the code is written to the log, the pages say so, and the startup log states which mode
+  is active. A failed send reports the server's reason. The auth pages are reachable by
+  direct URL and reload, not only by in-app navigation.
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
   StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
   toggle swaps the whole UI and the choice persists per browser (`localStorage`).
@@ -109,7 +114,7 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 | Target | Ships | Format | Verified |
 |---|---|---|---|
 | Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages), three compose files | Assumed — not built in the 2026-09-26 docs pass (no Docker daemon) |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-26: build, 72 tests, run, setup, both themes |
+| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 96 tests, run, setup → login over an SMTP relay and with the log fallback, both themes |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and

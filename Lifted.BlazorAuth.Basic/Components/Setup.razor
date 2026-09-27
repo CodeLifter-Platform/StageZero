@@ -38,12 +38,23 @@
             @if (_currentStep == 1)
             {
                 @* Step 1: Email Entry *@
+                @if (!_emailConfigured)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-4">
+                        Email sending is not configured on this server, so the verification code
+                        will be written to the server log instead of emailed. Look for
+                        <strong>verification code</strong> in the log (<code>docker logs</code> when
+                        running in Docker) and enter it on the next step. To send email, set the
+                        <code>Email__*</code> settings in <code>.env</code> and restart.
+                    </MudAlert>
+                }
+
                 <MudTextField @bind-Value="_email"
                               Label="Admin Email"
                               Variant="Variant.Outlined"
                               InputType="InputType.Email"
                               Required="true"
-                              HelperText="We'll send you a verification code"
+                              HelperText="@(_emailConfigured ? "We'll send you a verification code" : "This becomes the admin login; the code goes to the server log")"
                               Class="mb-4"
                               Disabled="@_isLoading" />
 
@@ -74,16 +85,27 @@
             else if (_currentStep == 2)
             {
                 @* Step 2: Code Verification *@
-                <MudAlert Severity="Severity.Info" Class="mb-4">
-                    A verification code has been sent to <strong>@_email</strong>
-                </MudAlert>
+                @if (_emailConfigured)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mb-4">
+                        A verification code has been sent to <strong>@_email</strong>
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mb-4">
+                        Email is not configured, so the verification code for
+                        <strong>@_email</strong> was written to the server log. Look for
+                        <strong>verification code</strong> there.
+                    </MudAlert>
+                }
 
                 <MudTextField @bind-Value="_verificationCode"
                               Label="Verification Code"
                               Variant="Variant.Outlined"
                               Required="true"
                               MaxLength="6"
-                              HelperText="Enter the 6-digit code from your email"
+                              HelperText="@(_emailConfigured ? "Enter the 6-digit code from your email" : "Enter the 6-digit code from the server log")"
                               Class="mb-4"
                               Disabled="@_isLoading" />
 
@@ -174,6 +196,7 @@
     private bool _setupNotNeeded;
     private string? _errorMessage;
     private int _currentStep = 1;
+    private bool _emailConfigured = true;
 
     // Step 1: Email
     private string _email = string.Empty;
@@ -196,7 +219,10 @@
             _setupNotNeeded = true;
             await Task.Delay(1500);
             Navigation.NavigateTo("/login");
+            return;
         }
+
+        _emailConfigured = await EmailService.IsConfiguredAsync();
     }
 
     private async Task SendVerificationCode()
@@ -217,10 +243,17 @@
             _storedVerificationCode = new Random().Next(100000, 999999).ToString();
             _codeExpiry = DateTime.UtcNow.AddMinutes(15);
 
-            // Send email
+            // Send email (or, with no SMTP configured, write the code to the server log)
             await EmailService.SendVerificationCodeAsync(_email, _storedVerificationCode);
 
-            Snackbar.Add($"Verification code sent to {_email}", Severity.Success);
+            if (_emailConfigured)
+            {
+                Snackbar.Add($"Verification code sent to {_email}", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Verification code written to the server log", Severity.Warning);
+            }
 
             // Move to next step
             _currentStep = 2;

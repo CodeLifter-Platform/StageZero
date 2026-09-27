@@ -169,6 +169,11 @@ try
     // SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
+
+    // SMTP settings are read once: they come from .env / the container environment and
+    // do not change while the app runs. Both the app's and the auth library's email
+    // interfaces resolve to the same implementation.
+    builder.Services.AddSingleton(EmailOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddScoped<StageZero.Services.Email.IEmailService, StageZero.Services.Email.EmailService>();
     builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, StageZero.Services.Email.EmailService>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
@@ -519,6 +524,21 @@ try
         }
     }
 
+    // Say up front whether verification and reset codes will be emailed or logged, so an
+    // operator reading `docker logs` does not have to guess why no mail arrived.
+    var emailOptions = app.Services.GetRequiredService<EmailOptions>();
+    if (emailOptions.IsConfigured)
+    {
+        Log.Information("Email: sending through {Smtp}", emailOptions.Describe());
+    }
+    else
+    {
+        Log.Warning(
+            "Email: {Missing} not set, so verification and password-reset codes will be written to this log instead of emailed. "
+            + "Set the Email__* variables in .env (see README.md, Email Configuration) to send them",
+            string.Join(" and ", emailOptions.MissingSettings));
+    }
+
     // Must run before anything that inspects the scheme or client IP, so the app
     // sees the original https:// request rather than the connector's plain HTTP hop.
     app.UseForwardedHeaders();
@@ -540,8 +560,12 @@ try
     app.UseStaticFiles();
     app.UseAntiforgery();
 
+    // The auth library's pages (/login, /setup, /forgot-password, /reset-password) live in
+    // another assembly. Routes.razor already lists it for in-app navigation; without this
+    // the server does not know those routes, and typing the URL or reloading returns 404.
     app.MapRazorComponents<StageZero.Application.App>()
-        .AddInteractiveServerRenderMode();
+        .AddInteractiveServerRenderMode()
+        .AddAdditionalAssemblies(typeof(Lifted.BlazorAuth.Basic.Components.Login).Assembly);
 
     app.Run();
 }

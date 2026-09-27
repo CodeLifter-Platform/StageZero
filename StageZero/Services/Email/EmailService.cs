@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Mail;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace StageZero.Services.Email;
@@ -20,138 +19,138 @@ public interface IEmailService
 // IMPLEMENTATION
 // ═══════════════════════════════════════════════════════════════
 
+/// <summary>
+/// Sends the one-time codes the auth flows need over SMTP. When SMTP is not configured
+/// the code is written to the log instead, and the auth pages tell the user to look there.
+/// </summary>
 public class EmailService : IEmailService, Lifted.BlazorAuth.Basic.Services.IEmailService
 {
-    private readonly IConfiguration _configuration;
+    // Locked StageZero accent, light variant (Application/Theme/StageZeroTheme.cs).
+    // Email clients render on their own background, so the light-theme value is used.
+    private const string AccentColor = "#0f766e";
+
+    private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(20);
+
+    private readonly EmailOptions _options;
     private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+    public EmailService(EmailOptions options, ILogger<EmailService> logger)
     {
-        _configuration = configuration;
+        _options = options;
         _logger = logger;
     }
 
-    public async Task<bool> IsConfiguredAsync()
-    {
-        var smtpHost = _configuration["Email:SmtpHost"];
-        var smtpPort = _configuration["Email:SmtpPort"];
-        var fromEmail = _configuration["Email:FromEmail"];
+    public Task<bool> IsConfiguredAsync() => Task.FromResult(_options.IsConfigured);
 
-        return !string.IsNullOrEmpty(smtpHost) &&
-               !string.IsNullOrEmpty(smtpPort) &&
-               !string.IsNullOrEmpty(fromEmail);
-    }
+    public Task SendVerificationCodeAsync(string toEmail, string code) =>
+        SendCodeAsync(
+            toEmail,
+            code,
+            kind: "verification",
+            subject: "StageZero - Email Verification Code",
+            heading: "Email Verification",
+            intro: "Your verification code is:",
+            outro: "If you didn't request this code, please ignore this email.");
 
-    public async Task SendVerificationCodeAsync(string toEmail, string code)
+    public Task SendPasswordResetCodeAsync(string toEmail, string code) =>
+        SendCodeAsync(
+            toEmail,
+            code,
+            kind: "password reset",
+            subject: "StageZero - Password Reset Code",
+            heading: "Password Reset Request",
+            intro: "You have requested to reset your password. Your password reset code is:",
+            outro: "If you didn't request this password reset, please ignore this email and your password will remain unchanged.");
+
+    private async Task SendCodeAsync(
+        string toEmail, string code, string kind, string subject, string heading, string intro, string outro)
     {
+        if (!_options.IsConfigured)
+        {
+            // Deliberate: the code has to reach the operator somehow, and the log is the
+            // only channel left. The auth pages say this is where to look.
+            _logger.LogWarning(
+                "SMTP is not configured ({Missing} not set), so the {Kind} code for {Email} was written here instead of emailed. {Label} code: {Code}",
+                string.Join(", ", _options.MissingSettings), kind, toEmail, char.ToUpperInvariant(kind[0]) + kind[1..], code);
+            return;
+        }
+
         try
         {
-            var isConfigured = await IsConfiguredAsync();
-            if (!isConfigured)
-            {
-                _logger.LogWarning("Email service is not configured. Verification code: {Code}", code);
-                // In development, just log the code instead of sending email
-                return;
-            }
+            using var client = CreateClient();
+            using var message = BuildMessage(toEmail, subject, BuildBody(heading, intro, code, outro));
 
-            var smtpHost = _configuration["Email:SmtpHost"];
-            var smtpPort = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
-            var smtpUsername = _configuration["Email:SmtpUsername"];
-            var smtpPassword = _configuration["Email:SmtpPassword"];
-            var fromEmail = _configuration["Email:FromEmail"];
-            var fromName = _configuration["Email:FromName"] ?? "StageZero";
+            // SmtpClient.Timeout only covers the synchronous API; the token bounds the
+            // async send so a silent relay cannot leave the setup page spinning forever.
+            using var timeout = new CancellationTokenSource(SendTimeout);
+            await client.SendMailAsync(message, timeout.Token);
 
-            using var smtpClient = new SmtpClient(smtpHost, smtpPort)
-            {
-                EnableSsl = true,
-                Credentials = new NetworkCredential(smtpUsername, smtpPassword)
-            };
-
-            var mailMessage = new MailMessage
-            {
-                From = new MailAddress(fromEmail, fromName),
-                Subject = "StageZero - Email Verification Code",
-                Body = $@"
-<html>
-<body style='font-family: Arial, sans-serif;'>
-    <h2>Email Verification</h2>
-    <p>Your verification code is:</p>
-    <h1 style='color: #594AE2; letter-spacing: 5px;'>{code}</h1>
-    <p>This code will expire in 15 minutes.</p>
-    <p>If you didn't request this code, please ignore this email.</p>
-    <hr>
-    <p style='color: #666; font-size: 12px;'>StageZero</p>
-</body>
-</html>",
-                IsBodyHtml = true
-            };
-
-            mailMessage.To.Add(toEmail);
-
-            await smtpClient.SendMailAsync(mailMessage);
-            _logger.LogInformation("Verification code sent to {Email}", toEmail);
+            _logger.LogInformation(
+                "{Kind} code sent to {Email} via {SmtpHost}:{SmtpPort}",
+                kind, toEmail, _options.SmtpHost, _options.SmtpPort);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send verification email to {Email}", toEmail);
-            throw new EmailServiceException("Could not send verification email", ex);
+            _logger.LogError(
+                ex,
+                "Failed to send the {Kind} code to {Email} via {SmtpHost}:{SmtpPort} ({Transport})",
+                kind, toEmail, _options.SmtpHost, _options.SmtpPort, _options.Describe());
+
+            // The server's reason is what the operator needs to fix the configuration, so
+            // it travels with the exception instead of staying buried in the log.
+            throw new EmailServiceException(
+                $"Could not send the {kind} email via {_options.SmtpHost}:{_options.SmtpPort}: {ex.Message}", ex);
         }
     }
 
-    public async Task SendPasswordResetCodeAsync(string toEmail, string code)
+    private SmtpClient CreateClient()
     {
-        try
+        var client = new SmtpClient(_options.SmtpHost, _options.SmtpPort)
         {
-            var isConfigured = await IsConfiguredAsync();
-            if (!isConfigured)
-            {
-                _logger.LogWarning("Email service is not configured. Password reset code: {Code}", code);
-                // In development, just log the code instead of sending email
-                return;
-            }
+            DeliveryMethod = SmtpDeliveryMethod.Network,
+            EnableSsl = _options.UseStartTls,
+            Timeout = (int)SendTimeout.TotalMilliseconds,
+        };
 
-            var smtpHost = _configuration["Email:SmtpHost"];
-            var smtpPort = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
-            var smtpUsername = _configuration["Email:SmtpUsername"];
-            var smtpPassword = _configuration["Email:SmtpPassword"];
-            var fromEmail = _configuration["Email:FromEmail"];
-            var fromName = _configuration["Email:FromName"] ?? "StageZero";
+        // Only authenticate when a login is configured. Handing an empty credential to a
+        // relay that advertises AUTH makes it attempt a login and fail.
+        if (_options.UsesAuthentication)
+        {
+            client.Credentials = new NetworkCredential(_options.SmtpUsername, _options.SmtpPassword ?? string.Empty);
+        }
 
-            using var smtpClient = new SmtpClient(smtpHost, smtpPort)
-            {
-                EnableSsl = true,
-                Credentials = new NetworkCredential(smtpUsername, smtpPassword)
-            };
+        return client;
+    }
 
-            var mailMessage = new MailMessage
-            {
-                From = new MailAddress(fromEmail, fromName),
-                Subject = "StageZero - Password Reset Code",
-                Body = $@"
+    private MailMessage BuildMessage(string toEmail, string subject, string htmlBody)
+    {
+        var message = new MailMessage
+        {
+            From = new MailAddress(_options.FromEmail!, _options.FromName),
+            Subject = subject,
+            Body = htmlBody,
+            IsBodyHtml = true,
+        };
+        message.To.Add(toEmail);
+        return message;
+    }
+
+    private static string BuildBody(string heading, string intro, string code, string outro)
+    {
+        var safeCode = WebUtility.HtmlEncode(code);
+
+        return $@"
 <html>
 <body style='font-family: Arial, sans-serif;'>
-    <h2>Password Reset Request</h2>
-    <p>You have requested to reset your password. Your password reset code is:</p>
-    <h1 style='color: #594AE2; letter-spacing: 5px;'>{code}</h1>
+    <h2>{heading}</h2>
+    <p>{intro}</p>
+    <h1 style='color: {AccentColor}; letter-spacing: 5px;'>{safeCode}</h1>
     <p>This code will expire in 15 minutes.</p>
-    <p>If you didn't request this password reset, please ignore this email and your password will remain unchanged.</p>
+    <p>{outro}</p>
     <hr>
     <p style='color: #666; font-size: 12px;'>StageZero</p>
 </body>
-</html>",
-                IsBodyHtml = true
-            };
-
-            mailMessage.To.Add(toEmail);
-
-            await smtpClient.SendMailAsync(mailMessage);
-            _logger.LogInformation("Password reset code sent to {Email}", toEmail);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send password reset email to {Email}", toEmail);
-            throw new EmailServiceException("Could not send password reset email", ex);
-        }
+</html>";
     }
 }
 
@@ -164,4 +163,3 @@ public class EmailServiceException : Exception
     public EmailServiceException(string message) : base(message) { }
     public EmailServiceException(string message, Exception innerException) : base(message, innerException) { }
 }
-

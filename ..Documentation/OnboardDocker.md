@@ -23,14 +23,23 @@ Or build the image directly — note the build context is the **repo root**, not
 
 ```bash
 docker build -f StageZero/Dockerfile --target release -t stagezero:local .
-docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 -v stagezero-data:/app-data stagezero:local
+docker run -p 8080:8080 -e ASPNETCORE_URLS=http://+:8080 --env-file .env -v stagezero-data:/app-data stagezero:local
 ```
 
 **What you should see:** the log reports `Platform: Linux, Data Directory: /app-data`, then
 `Database path: /app-data/stagezero.db`, then `No users found. Please visit /setup to create
-your admin account`. The IP monitor and change-handler services start. `/` answers 200.
+your admin account`, then one `Email:` line saying whether codes will be emailed or logged.
+The IP monitor and change-handler services start. `/` answers 200.
 
-Go to `/setup` first — with no users, that is the only useful page.
+Go to `/setup` first — with no users, that is the only useful page. It asks for the admin
+email, then for a 6-digit verification code:
+
+- **With SMTP configured** (`Email__*` in `.env`; see [README.md](../README.md#configuration)),
+  the code is emailed.
+- **Without SMTP**, the page says the code went to the server log. Read it with
+  `docker logs <container>` — the line is
+  `SMTP is not configured (...), so the verification code for you@example.com was written
+  here instead of emailed. Verification code: 123456`. The same applies to "forgot password".
 
 For the real deployment — release image on `127.0.0.1:5100`, optional `cloudflared`
 sidecar — use `prod.docker-compose.yml` via `./docker-run.sh up prod` (or
@@ -62,3 +71,8 @@ The test suite is not run inside the image; run it on the host with the .NET SDK
   hot reload silently does nothing.
 - **HTTPS via the compose files** mounts a dev certificate from `~/.aspnet/https` and needs
   `CERT_PASSWORD` in `.env`. Plain HTTP on 8080 is simpler for local work.
+- **Email needs `.env` to reach the container.** The compose files pass it with `env_file`;
+  a plain `docker run` needs `--env-file .env`. `.env` itself is excluded from the image by
+  `.dockerignore`, on purpose. A relay without TLS (a mail sidecar, MailHog) needs
+  `Email__UseStartTls=false`; the default STARTTLS handshake fails against it with
+  `Server does not support secure connections`.

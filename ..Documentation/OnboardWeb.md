@@ -23,8 +23,11 @@ dotnet run --project StageZero
 **What you should see:** Serilog logs `Platform: Linux, Data Directory: …`, the database
 path, and then `No users found. Please visit /setup to create your admin account`. The
 default profile listens on `https://localhost:5001` and `http://localhost:5000`; visit
-`/setup` to create the first admin. Without SMTP configured, the verification code it asks
-for is in the log (`Email service is not configured. Verification code: 123456`).
+`/setup` to create the first admin. Without SMTP configured, the page says so and the
+verification code it asks for is in the log (`... written here instead of emailed.
+Verification code: 123456`). The startup log has one `Email:` line stating whether codes
+are emailed or logged; SMTP settings are the `Email__*` variables in `.env`
+([README.md](../README.md#configuration)).
 
 The UI opens in the dark theme; the sun/moon button in the header switches to light, and
 the choice is remembered by the browser.
@@ -35,7 +38,8 @@ the choice is remembered by the browser.
 dotnet test StageZero.Tests/StageZero.Tests.csproj
 ```
 
-72 tests, no network: Cloudflare is faked at the service interfaces.
+96 tests, no network: Cloudflare is faked at the service interfaces and SMTP is a
+loopback listener the tests start themselves.
 
 Outside a container, `DataPathService` resolves a platform-appropriate directory
 (`~/.config/stagezero` on Linux) rather than `/app-data`.
