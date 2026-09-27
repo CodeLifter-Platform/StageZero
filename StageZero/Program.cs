@@ -15,7 +15,7 @@ using StageZero.Services;
 using StageZero.Services.Access;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
-using StageZero.Services.Email;
+using StageZero.Services.Auth;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
 using Microsoft.AspNetCore.DataProtection;
@@ -171,12 +171,10 @@ try
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
 
-    // SMTP settings are read once: they come from .env / the container environment and
-    // do not change while the app runs. Both the app's and the auth library's email
-    // interfaces resolve to the same implementation.
-    builder.Services.AddSingleton(EmailOptions.FromConfiguration(builder.Configuration));
-    builder.Services.AddScoped<StageZero.Services.Email.IEmailService, StageZero.Services.Email.EmailService>();
-    builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, StageZero.Services.Email.EmailService>();
+    // StageZero does not send email. The auth library's one-time codes (password reset,
+    // re-verifying a changed address) go to the server log as an unmissable banner:
+    // whoever can read the log controls the server, and that is who may reset the admin.
+    builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, ServerLogCodeService>();
 
     // The optional newsletter / StageZero-updates boxes on the first-run setup form.
     // They post to codelifter.net; a blank CodeLifter__SubscriptionsUrl hides them.
@@ -531,20 +529,12 @@ try
         }
     }
 
-    // Say up front whether verification and reset codes will be emailed or logged, so an
-    // operator reading `docker logs` does not have to guess why no mail arrived.
-    var emailOptions = app.Services.GetRequiredService<EmailOptions>();
-    if (emailOptions.IsConfigured)
-    {
-        Log.Information("Email: sending through {Smtp}", emailOptions.Describe());
-    }
-    else
-    {
-        Log.Warning(
-            "Email: {Missing} not set, so verification and password-reset codes will be written to this log instead of emailed. "
-            + "Set the Email__* variables in .env (see README.md, Email Configuration) to send them",
-            string.Join(" and ", emailOptions.MissingSettings));
-    }
+    // Said once at startup so an operator reading `docker logs` knows where a reset code
+    // will land before they ever need one.
+    Log.Information(
+        "Password reset: StageZero does not send email. A reset code requested on /forgot-password "
+        + "is written to this log as a banner headed \"{Heading}\"; grep for it, then enter it on /reset-password",
+        ServerLogCodeService.PasswordResetHeading);
 
     // Must run before anything that inspects the scheme or client IP, so the app
     // sees the original https:// request rather than the connector's plain HTTP hop.

@@ -42,14 +42,6 @@ Last reviewed: 2026-09-27.
 - **Managed at:** Nothing to manage; if it is unreachable, IP checks fail and DNS is left
   as it is.
 
-## SMTP (optional, verification and reset codes)
-
-- **Usage:** `StageZero/Services/Email/EmailService.cs` sends `/setup` verification and
-  password-reset codes over SMTP (STARTTLS by default, `Email__UseStartTls=false` for a
-  plaintext relay; authentication only when `Email__SmtpUsername` is set). Unconfigured,
-  the code is written to the log instead and the pages say so.
-- **Managed at:** Whatever SMTP account the operator configures via `Email__*` in `.env`.
-
 ## NuGet.org and GitHub Packages (package publishing)
 
 - **Usage:** CI publishes the `Lifted.BlazorAuth.Basic` package to both on pushes to `main`.

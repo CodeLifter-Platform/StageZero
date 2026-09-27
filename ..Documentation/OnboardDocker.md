@@ -32,18 +32,13 @@ your admin account`, then one `Email:` line saying whether codes will be emailed
 The IP monitor and change-handler services start. `/` answers 200.
 
 Go to `/setup` first — with no users, that is the only useful page. It asks for the admin
-email and a password, and that is the account. No verification code, no SMTP. The two
-optional boxes (CodeLifter newsletter, StageZero update news) post to codelifter.net,
-which sends one confirmation email; unticked, nothing is sent.
+email and a password, and that is the account. No verification code; StageZero never sends
+email. The two optional boxes (CodeLifter newsletter, StageZero update news) post to
+codelifter.net, which sends one confirmation email; unticked, nothing is sent.
 
-"Forgot password" still sends a 6-digit code:
-
-- **With SMTP configured** (`Email__*` in `.env`; see [README.md](../README.md#configuration)),
-  the code is emailed.
-- **Without SMTP**, the page says the code went to the server log. Read it with
-  `docker logs <container>` — the line is
-  `SMTP is not configured (...), so the password reset code for you@example.com was written
-  here instead of emailed. Password reset code: 123456`.
+"Forgot password" writes a 6-digit code to the container log as a banner headed
+`STAGEZERO PASSWORD RESET CODE`, with the account and the code on their own lines. See
+**Forgotten password** below.
 
 For the real deployment — release image on `127.0.0.1:5100`, optional `cloudflared`
 sidecar — use `prod.docker-compose.yml` via `./docker-run.sh up prod` (or
@@ -64,8 +59,8 @@ The test suite is not run inside the image; run it on the host with the .NET SDK
 
 ## Forgotten password
 
-No SMTP needed. `/forgot-password` writes the code to the container log; read it with
-`docker logs <container> 2>&1 | grep -i "password reset code"` and enter it on
+`/forgot-password` writes the code to the container log; read it with
+`docker logs <container> 2>&1 | grep -A6 "PASSWORD RESET CODE"` and enter it on
 `/reset-password`. If the log is gone, stop the container and delete the admin row from the
 database on the mounted volume (`sqlite3 <STAGEZERO_DATA_DIR>/stagezero.db "DELETE FROM
 Users;"`); `/setup` returns on the next visit and every DNS and tunnel setting survives.
@@ -84,8 +79,8 @@ Full steps: [README.md](../README.md#configuration).
   hot reload silently does nothing.
 - **HTTPS via the compose files** mounts a dev certificate from `~/.aspnet/https` and needs
   `CERT_PASSWORD` in `.env`. Plain HTTP on 8080 is simpler for local work.
-- **Email needs `.env` to reach the container.** The compose files pass it with `env_file`;
-  a plain `docker run` needs `--env-file .env`. `.env` itself is excluded from the image by
-  `.dockerignore`, on purpose. A relay without TLS (a mail sidecar, MailHog) needs
-  `Email__UseStartTls=false`; the default STARTTLS handshake fails against it with
-  `Server does not support secure connections`.
+- **`.env` only reaches the container if you pass it.** The compose files do so with
+  `env_file`; a plain `docker run` needs `--env-file .env`. `.env` itself is excluded from
+  the image by `.dockerignore`, on purpose. Nothing in it is required: the one thing it can
+  change for the login flow is hiding the optional signup boxes
+  (`CodeLifter__SubscriptionsUrl=`).

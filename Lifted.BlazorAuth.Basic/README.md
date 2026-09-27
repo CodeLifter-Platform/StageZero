@@ -72,9 +72,11 @@ public class EmailService : IEmailService
     
     public async Task<bool> IsConfiguredAsync()
     {
-        // Return true if email can actually be sent. When this is false the Setup,
-        // Forgot Password and Change Password pages tell the user the code was written
-        // to the server log instead of emailed, so log it in that case.
+        // Return true if email can actually be sent. When this is false, the Forgot
+        // Password and Change Password pages tell the user the code was written to the
+        // server log and quote LoggedPasswordResetCodeHeading / LoggedVerificationCodeHeading
+        // (defaults: "PASSWORD RESET CODE" / "VERIFICATION CODE"; override them to match
+        // your log output), so log it under that heading in that case.
         return true;
     }
 }

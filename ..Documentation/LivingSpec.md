@@ -41,12 +41,14 @@ versioning migration.
 - **Username/password authentication** via the in-repo `Lifted.BlazorAuth.Basic` library.
   `/setup` creates the first admin from one form (email, password) when no users exist;
   there is no email verification step, because the first person to reach a fresh install
-  is the operator and the address is a login, not a proof. `/forgot-password` and the
-  change-password dialog send 6-digit codes over SMTP (`Email__*` settings;
-  `EmailOptions`, `EmailService`), STARTTLS by default with a switch for plaintext relays
-  and optional authentication. With SMTP unconfigured the code is written to the log, the
-  pages say so, and the startup log states which mode is active. A failed send reports
-  the server's reason. The auth pages are reachable by direct URL and reload.
+  is the operator and the address is a login, not a proof. **StageZero never sends
+  email.** `/forgot-password` (and the change-password dialog's re-verification) write
+  their 6-digit code to the server log as an unmissable banner
+  (`Services/Auth/ServerLogCodeService.cs`, heading `STAGEZERO PASSWORD RESET CODE`), the
+  pages say so, and the startup log says where a code will land. Whoever can read the log
+  controls the server, which is who may reset the admin; the documented last resort is
+  deleting the `Users` row to bring `/setup` back. The auth pages are reachable by direct
+  URL and reload.
 - **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
   StageZero update news) post once to codelifter.net's subscriptions API
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
@@ -111,8 +113,8 @@ lives in the browser's `localStorage` (`stagezero.theme`), not on the server.
 
 ## External services
 
-Cloudflare (DNS, Tunnel, Access), a public-IP lookup, SMTP (optional, for verification
-codes), NuGet.org and GitHub Packages for the library, and codelifter.net for release
+Cloudflare (DNS, Tunnel, Access), a public-IP lookup, codelifter.net (optional signups on
+first run), NuGet.org and GitHub Packages for the library, and codelifter.net for release
 notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 
 ## Platform matrix
@@ -120,7 +122,7 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 | Target | Ships | Format | Verified |
 |---|---|---|---|
 | Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages), three compose files | Assumed — not built in the 2026-09-26 docs pass (no Docker daemon) |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 109 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password over an SMTP relay and with the log fallback, both themes |
+| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 89 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and

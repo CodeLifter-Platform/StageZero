@@ -199,14 +199,8 @@ target: release
 Create a `.env` file in the project root for sensitive configuration:
 
 ```env
-# Email Configuration (optional; without it the login codes go to `docker logs`)
-Email__SmtpHost=smtp.gmail.com
-Email__SmtpPort=587
-Email__FromEmail=your-email@gmail.com
-Email__FromName=StageZero
-Email__SmtpUsername=your-email@gmail.com
-Email__SmtpPassword=your-app-password
-# Email__UseStartTls=false   # only for a plaintext relay, e.g. a mail sidecar
+# No email settings: StageZero does not send email. Password-reset codes are
+# written to `docker logs` under the heading STAGEZERO PASSWORD RESET CODE.
 
 # Cloudflare (if using)
 Cloudflare__ApiToken=your-cloudflare-token

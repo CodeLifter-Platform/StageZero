@@ -23,12 +23,12 @@ dotnet run --project StageZero
 **What you should see:** Serilog logs `Platform: Linux, Data Directory: …`, the database
 path, and then `No users found. Please visit /setup to create your admin account`. The
 default profile listens on `https://localhost:5001` and `http://localhost:5000`; visit
-`/setup` to create the first admin: email, password, done. No verification code and no
-SMTP needed. Two optional boxes on that form (the CodeLifter newsletter, StageZero update
-news) post to codelifter.net, which sends one confirmation email; leave them unticked and
-nothing is sent. The startup log has one `Email:` line stating whether the "forgot
-password" codes will be emailed or logged; SMTP settings are the `Email__*` variables in
-`.env` ([README.md](../README.md#configuration)).
+`/setup` to create the first admin: email, password, done. No verification code; StageZero
+never sends email. Two optional boxes on that form (the CodeLifter newsletter, StageZero
+update news) post to codelifter.net, which sends one confirmation email; leave them
+unticked and nothing is sent. A "forgot password" code is written to this log as a banner
+headed `STAGEZERO PASSWORD RESET CODE`; the startup log says so
+([README.md](../README.md#configuration)).
 
 The UI opens in the dark theme; the sun/moon button in the header switches to light, and
 the choice is remembered by the browser.
@@ -39,8 +39,8 @@ the choice is remembered by the browser.
 dotnet test StageZero.Tests/StageZero.Tests.csproj
 ```
 
-109 tests, no network: Cloudflare is faked at the service interfaces, SMTP is a
-loopback listener the tests start themselves, and codelifter.net is a fake HTTP handler.
+89 tests, no network: Cloudflare is faked at the service interfaces and codelifter.net
+is a fake HTTP handler.
 
 Outside a container, `DataPathService` resolves a platform-appropriate directory
 (`~/.config/stagezero` on Linux) rather than `/app-data`.
