@@ -127,11 +127,15 @@ One ASP.NET Core project (`StageZero/`): Blazor Server in InteractiveServer mode
 UI, EF Core over SQLite, MVVM (views bind to view models; business logic lives in
 `Services/`; data access in `DataAdapters/` as Reader/Writer pairs).
 `Lifted.BlazorAuth.Basic/` is a separate library, published to NuGet and referenced by the
-app. `StageZero.Tests/` is xUnit, with Cloudflare faked at the service interfaces.
+app. `StageZero.Tests/` is xUnit; most tests host the real app in memory
+(`WebApplicationFactory`) with every outbound `HttpClient` answered by a fake, so
+Cloudflare and the IP sources are scripted per test and nothing reaches the network.
 
 Files worth opening first:
 
-- `StageZero/Program.cs` — DI registrations, data directory, database creation.
+- `StageZero/Program.cs` — DI registrations, data directory, the `healthcheck` and
+  `reset-password` commands; `Data/DatabaseInitializer.cs` applies the EF Core migrations
+  (and adopts a pre-migration database once).
 - `StageZero/Application/Layout/MainLayout.razor` + `AppVM.cs` — shell, nav, theme toggle.
 - `StageZero/Application/Theme/StageZeroTheme.cs` — the token dictionary port (see below).
 - `StageZero/Services/Tunnel/TunnelSyncService.cs` and
@@ -152,11 +156,15 @@ the `@font-face` rules and the `sz-mono` / `sz-on-accent` classes and has no raw
 
 Under the resolved app data directory (`/app-data` in a container; `~/.config/stagezero`
 on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/StageZero` on
-macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring.
+macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
+an older install's `keys/` ring is copied in on first start, `Services/DataProtectionKeys.cs`).
 
-The Cloudflare API token and tunnel token are encrypted with ASP.NET Data Protection
-(`TunnelTokenProtector`) before they reach SQLite; losing the keyring makes them
-undecryptable. Access service-token client secrets are never persisted. The theme choice
+The schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
+before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
+and then migrated like any other. The Cloudflare DNS token and tunnel token are encrypted
+with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
+SQLite — a plaintext token from an older install is encrypted on first start — and losing
+the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
 lives in the browser's `localStorage` (`stagezero.theme`), not on the server.
 
 ## External services
@@ -169,8 +177,8 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 
 | Target | Ships | Format | Verified |
 |---|---|---|---|
-| Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages), three compose files | Assumed — not built in the 2026-09-26 docs pass (no Docker daemon) |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 89 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
+| Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages, non-root, `HEALTHCHECK`), three compose files | Assumed — not built in the 2026-09-27 audit pass (no Docker daemon); the non-root change is untested in a real container |
+| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build (0 warnings), 181 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and
@@ -183,10 +191,6 @@ GitHub-hosted runners.
   `BASE_VERSION` + run number from repo variables; the platform contract is tag-derived
   versioning with `release-minor.yml` / `release-major.yml` / `promote.yml`
   (`Platform-Standards/process/versioning-ci.md`). The conformance `version` check fails.
-- **No `Directory.Build.props` / `Directory.Packages.props`.** `global.json` pins the SDK
-  (10.0.100, `latestFeature`), but package versions are per-csproj and warnings are not
-  errors. The conformance `dotnet` check fails; tracked in
-  `Platform-Standards/FOLLOWUPS.md`.
 - **`NUGET_API_KEY` is not set.** The NuGet.org push is skipped with a warning; the package
   still reaches GitHub Packages. See [NUGET_PUBLISHING.md](NUGET_PUBLISHING.md).
 - **The brand marks are still the pre-accent green.** `Assets/svg/*` draw the mark in
@@ -194,4 +198,8 @@ GitHub-hosted runners.
   accent was locked. They need re-cutting in the icon design project.
 - **Platform-Design has no `--cl-app-stagezero`.** The design system's per-app accent block
   doesn't list StageZero; the accent is locked only in the harness table for now.
-- **Auth is per circuit** (see *Partial*).
+- **Auth is per circuit** (see *Partial*), and there is no second factor: the release
+  audit decided both against this release (a cookie ticket and TOTP would widen the NuGet
+  library's surface; local-only sign-in on a home network is the accepted model for now).
+- **Not published anywhere yet.** No CI job builds or releases the app, and no container
+  image is pushed (audit items 1.5 and 1.6); the install path is clone and build.

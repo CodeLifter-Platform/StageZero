@@ -39,8 +39,10 @@ the choice is remembered by the browser.
 dotnet test StageZero.Tests/StageZero.Tests.csproj
 ```
 
-89 tests, no network: Cloudflare is faked at the service interfaces and codelifter.net
-is a fake HTTP handler.
+181 tests, no network. Most host the real app in memory (`WebApplicationFactory`,
+`StageZero.Tests/Infrastructure/StageZeroApp.cs`) against a throwaway data directory,
+with every outbound `HttpClient` routed to `FakeHttp`, so Cloudflare, the IP sources and
+codelifter.net are answered by the test and an unmatched request fails it.
 
 Outside a container, `DataPathService` resolves a platform-appropriate directory
 (`~/.config/stagezero` on Linux) rather than `/app-data`.
