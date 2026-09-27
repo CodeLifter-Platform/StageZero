@@ -13,8 +13,9 @@ using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Access;
+using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
-using StageZero.Services.Email;
+using StageZero.Services.Auth;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
 using Microsoft.AspNetCore.DataProtection;
@@ -169,8 +170,17 @@ try
     // SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
-    builder.Services.AddScoped<StageZero.Services.Email.IEmailService, StageZero.Services.Email.EmailService>();
-    builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, StageZero.Services.Email.EmailService>();
+
+    // StageZero does not send email. The auth library's one-time codes (password reset,
+    // re-verifying a changed address) go to the server log as an unmissable banner:
+    // whoever can read the log controls the server, and that is who may reset the admin.
+    builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, ServerLogCodeService>();
+
+    // The optional newsletter / StageZero-updates boxes on the first-run setup form.
+    // They post to codelifter.net; a blank CodeLifter__SubscriptionsUrl hides them.
+    builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
+    builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
+    builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
     builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
@@ -519,6 +529,13 @@ try
         }
     }
 
+    // Said once at startup so an operator reading `docker logs` knows where a reset code
+    // will land before they ever need one.
+    Log.Information(
+        "Password reset: StageZero does not send email. A reset code requested on /forgot-password "
+        + "is written to this log as a banner headed \"{Heading}\"; grep for it, then enter it on /reset-password",
+        ServerLogCodeService.PasswordResetHeading);
+
     // Must run before anything that inspects the scheme or client IP, so the app
     // sees the original https:// request rather than the connector's plain HTTP hop.
     app.UseForwardedHeaders();
@@ -540,8 +557,12 @@ try
     app.UseStaticFiles();
     app.UseAntiforgery();
 
+    // The auth library's pages (/login, /setup, /forgot-password, /reset-password) live in
+    // another assembly. Routes.razor already lists it for in-app navigation; without this
+    // the server does not know those routes, and typing the URL or reloading returns 404.
     app.MapRazorComponents<StageZero.Application.App>()
-        .AddInteractiveServerRenderMode();
+        .AddInteractiveServerRenderMode()
+        .AddAdditionalAssemblies(typeof(Lifted.BlazorAuth.Basic.Components.Login).Assembly);
 
     app.Run();
 }

@@ -118,26 +118,41 @@ The application uses a `.env` file for configuration. Copy `.env.example` to `.e
 cp .env.example .env
 ```
 
-**Email Configuration (Optional):**
+**First run:** open `/setup`, enter an email and a password, and that is the admin
+account. No verification code; StageZero never sends email. The form has two optional boxes, the CodeLifter
+newsletter and StageZero update news, which post to codelifter.net and get one
+confirmation email; unticked, nothing is sent. To hide them (a fork, an air-gapped
+install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
 
-To enable email verification for new user setup, configure SMTP settings in `.env`:
+**Password reset without email:** StageZero does not send email, on purpose. The only
+flow that ever needed it, "forgot password", writes its code to the server log instead,
+in a banner headed `STAGEZERO PASSWORD RESET CODE`. Whoever can read the log controls the
+server, and that is exactly who may reset the admin password.
+
+**Forgotten admin password:** the reset is "prove you control the server", the same way
+Jenkins or Vaultwarden do it. Three steps:
+
+1. On `/forgot-password`, enter the admin email. The page says the code went to the
+   server log.
+2. Read the code from the log:
+   ```bash
+   docker logs stagezero-local 2>&1 | grep -A6 "PASSWORD RESET CODE"     # Docker
+   grep -rA6 "PASSWORD RESET CODE" ~/.config/stagezero/logs/               # Linux host
+   ```
+3. Enter it on `/reset-password` with the new password. Codes expire after 15 minutes;
+   request another if it lapsed.
+
+**Last resort** (the log is gone, or the address itself is forgotten): remove the admin row
+and `/setup` comes back on the next visit. DNS records, tunnel routes and Access settings are
+in other tables and are untouched. With the app stopped and `sqlite3` on the host:
 
 ```bash
-# Uncomment and configure these to enable email sending:
-Email__SmtpHost=smtp.gmail.com
-Email__SmtpPort=587
-Email__SmtpUsername=your-email@gmail.com
-Email__SmtpPassword=your-app-password
-Email__FromEmail=your-email@gmail.com
-Email__FromName=StageZero
+sqlite3 <data-dir>/stagezero.db "DELETE FROM Users;"
 ```
 
-**Gmail Setup:**
-1. Enable 2-factor authentication on your Google account
-2. Generate an App Password: https://myaccount.google.com/apppasswords
-3. Use the App Password (not your regular password) in `Email__SmtpPassword`
-
-**Note:** If SMTP is not configured, verification codes will be logged to the console during development.
+where `<data-dir>` is the mounted `/app-data` volume in Docker, `~/.config/stagezero` on
+Linux, `~/Library/Application Support/StageZero` on macOS, or `%APPDATA%\StageZero` on
+Windows. Deleting `stagezero.db` itself also works but loses every DNS and tunnel setting.
 
 ### DNS Provider Control
 

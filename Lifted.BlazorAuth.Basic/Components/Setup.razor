@@ -2,9 +2,10 @@
 @using Lifted.BlazorAuth.Basic.Models
 @using Lifted.BlazorAuth.Basic.DataAdapters
 @using Lifted.BlazorAuth.Basic.Services
+@using Microsoft.Extensions.DependencyInjection
 @inject IUserReader UserReader
 @inject IUserWriter UserWriter
-@inject IEmailService EmailService
+@inject IServiceProvider Services
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
@@ -18,13 +19,13 @@
         </MudText>
 
         <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-6" Color="Color.Secondary">
-            Let's create your admin account
+            Create your admin account
         </MudText>
 
         @if (_setupComplete)
         {
             <MudAlert Severity="Severity.Success" Class="mb-4">
-                Admin account created successfully! Redirecting to login...
+                Admin account created. Redirecting to login...
             </MudAlert>
         }
         else if (_setupNotNeeded)
@@ -35,135 +36,81 @@
         }
         else
         {
-            @if (_currentStep == 1)
-            {
-                @* Step 1: Email Entry *@
-                <MudTextField @bind-Value="_email"
-                              Label="Admin Email"
-                              Variant="Variant.Outlined"
-                              InputType="InputType.Email"
-                              Required="true"
-                              HelperText="We'll send you a verification code"
-                              Class="mb-4"
-                              Disabled="@_isLoading" />
+            <MudTextField @bind-Value="_email"
+                          Label="Admin Email"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Email"
+                          Required="true"
+                          Immediate="true"
+                          HelperText="This is your login"
+                          Class="mb-4"
+                          Disabled="@_isLoading" />
 
-                @if (!string.IsNullOrEmpty(_errorMessage))
+            <MudTextField @bind-Value="_password"
+                          Label="Password"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          Required="true"
+                          Immediate="true"
+                          HelperText="Minimum 8 characters"
+                          Class="mb-4"
+                          Disabled="@_isLoading" />
+
+            <MudTextField @bind-Value="_confirmPassword"
+                          Label="Confirm Password"
+                          Variant="Variant.Outlined"
+                          InputType="InputType.Password"
+                          Required="true"
+                          Immediate="true"
+                          Class="@(_optIn is { Choices.Count: > 0 } ? "mb-4" : "mb-6")"
+                          Disabled="@_isLoading" />
+
+            @if (_optIn is { Choices.Count: > 0 })
+            {
+                @* Optional, unchecked by default: the host app decides what is offered *@
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-1">
+                    Optional
+                </MudText>
+                @foreach (var choice in _optIn.Choices)
                 {
-                    <MudAlert Severity="Severity.Error" Class="mb-4">
-                        @_errorMessage
-                    </MudAlert>
+                    var key = choice.Key;
+                    <MudCheckBox T="bool"
+                                 Value="@_selectedOptIns.Contains(key)"
+                                 ValueChanged="@(on => ToggleOptIn(key, on))"
+                                 Color="Color.Primary"
+                                 Dense="true"
+                                 Disabled="@_isLoading"
+                                 Label="@choice.Label" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block ml-8 mb-2">
+                        @choice.Description
+                    </MudText>
                 }
-
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           FullWidth="true"
-                           Size="Size.Large"
-                           OnClick="SendVerificationCode"
-                           Disabled="@(string.IsNullOrWhiteSpace(_email) || _isLoading)">
-                    @if (_isLoading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Sending Code...</span>
-                    }
-                    else
-                    {
-                        <span>Continue</span>
-                    }
-                </MudButton>
+                <div class="mb-4"></div>
             }
-            else if (_currentStep == 2)
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
             {
-                @* Step 2: Code Verification *@
-                <MudAlert Severity="Severity.Info" Class="mb-4">
-                    A verification code has been sent to <strong>@_email</strong>
+                <MudAlert Severity="Severity.Error" Class="mb-4">
+                    @_errorMessage
                 </MudAlert>
-
-                <MudTextField @bind-Value="_verificationCode"
-                              Label="Verification Code"
-                              Variant="Variant.Outlined"
-                              Required="true"
-                              MaxLength="6"
-                              HelperText="Enter the 6-digit code from your email"
-                              Class="mb-4"
-                              Disabled="@_isLoading" />
-
-                @if (!string.IsNullOrEmpty(_errorMessage))
-                {
-                    <MudAlert Severity="Severity.Error" Class="mb-4">
-                        @_errorMessage
-                    </MudAlert>
-                }
-
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           FullWidth="true"
-                           Size="Size.Large"
-                           OnClick="VerifyCode"
-                           Disabled="@(string.IsNullOrWhiteSpace(_verificationCode) || _isLoading)"
-                           Class="mb-2">
-                    @if (_isLoading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Verifying...</span>
-                    }
-                    else
-                    {
-                        <span>Verify & Continue</span>
-                    }
-                </MudButton>
-
-                <MudButton Variant="Variant.Text"
-                           Color="Color.Secondary"
-                           FullWidth="true"
-                           OnClick="ResendCode"
-                           Disabled="@_isLoading">
-                    Resend Code
-                </MudButton>
             }
-            else if (_currentStep == 3)
-            {
-                @* Step 3: Password Creation *@
-                <MudTextField @bind-Value="_password"
-                              Label="Password"
-                              Variant="Variant.Outlined"
-                              InputType="InputType.Password"
-                              Required="true"
-                              HelperText="Minimum 8 characters"
-                              Class="mb-4"
-                              Disabled="@_isLoading" />
 
-                <MudTextField @bind-Value="_confirmPassword"
-                              Label="Confirm Password"
-                              Variant="Variant.Outlined"
-                              InputType="InputType.Password"
-                              Required="true"
-                              Class="mb-6"
-                              Disabled="@_isLoading" />
-
-                @if (!string.IsNullOrEmpty(_errorMessage))
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       FullWidth="true"
+                       Size="Size.Large"
+                       OnClick="CreateAdminAccount"
+                       Disabled="@(!CanSubmit || _isLoading)">
+                @if (_isLoading)
                 {
-                    <MudAlert Severity="Severity.Error" Class="mb-4">
-                        @_errorMessage
-                    </MudAlert>
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    <span>Creating Account...</span>
                 }
-
-                <MudButton Variant="Variant.Filled"
-                           Color="Color.Primary"
-                           FullWidth="true"
-                           Size="Size.Large"
-                           OnClick="CreateAdminAccount"
-                           Disabled="@(string.IsNullOrWhiteSpace(_password) || _isLoading)">
-                    @if (_isLoading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Creating Account...</span>
-                    }
-                    else
-                    {
-                        <span>Create Admin Account</span>
-                    }
-                </MudButton>
-            }
+                else
+                {
+                    <span>Create Admin Account</span>
+                }
+            </MudButton>
         }
     </MudPaper>
 </MudContainer>
@@ -173,23 +120,26 @@
     private bool _setupComplete;
     private bool _setupNotNeeded;
     private string? _errorMessage;
-    private int _currentStep = 1;
 
-    // Step 1: Email
     private string _email = string.Empty;
-
-    // Step 2: Verification Code
-    private string _verificationCode = string.Empty;
-    private string? _storedVerificationCode;
-    private DateTime? _codeExpiry;
-
-    // Step 3: Password
     private string _password = string.Empty;
     private string _confirmPassword = string.Empty;
 
+    // Opt-ins are an optional extension point; a host app that registers nothing
+    // gets a form with no boxes.
+    private ISignupOptIn? _optIn;
+    private readonly HashSet<string> _selectedOptIns = new(StringComparer.Ordinal);
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_email)
+        && !string.IsNullOrWhiteSpace(_password)
+        && !string.IsNullOrWhiteSpace(_confirmPassword);
+
     protected override async Task OnInitializedAsync()
     {
-        // Check if setup is needed
+        _optIn = Services.GetService<ISignupOptIn>();
+
+        // Setup is a one-time page: with any user present it only redirects.
         var users = await UserReader.GetAllAsync();
         if (users.Any())
         {
@@ -199,88 +149,10 @@
         }
     }
 
-    private async Task SendVerificationCode()
+    private void ToggleOptIn(string key, bool on)
     {
-        _isLoading = true;
-        _errorMessage = null;
-
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_email) || !_email.Contains("@"))
-            {
-                _errorMessage = "Please enter a valid email address";
-                _isLoading = false;
-                return;
-            }
-
-            // Generate 6-digit code
-            _storedVerificationCode = new Random().Next(100000, 999999).ToString();
-            _codeExpiry = DateTime.UtcNow.AddMinutes(15);
-
-            // Send email
-            await EmailService.SendVerificationCodeAsync(_email, _storedVerificationCode);
-
-            Snackbar.Add($"Verification code sent to {_email}", Severity.Success);
-
-            // Move to next step
-            _currentStep = 2;
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Failed to send verification code: {ex.Message}";
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-
-    private async Task ResendCode()
-    {
-        await SendVerificationCode();
-    }
-
-    private async Task VerifyCode()
-    {
-        _isLoading = true;
-        _errorMessage = null;
-
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_verificationCode))
-            {
-                _errorMessage = "Please enter the verification code";
-                _isLoading = false;
-                return;
-            }
-
-            if (_codeExpiry == null || _codeExpiry < DateTime.UtcNow)
-            {
-                _errorMessage = "Verification code has expired. Please request a new one.";
-                _isLoading = false;
-                return;
-            }
-
-            if (_verificationCode != _storedVerificationCode)
-            {
-                _errorMessage = "Invalid verification code. Please try again.";
-                _isLoading = false;
-                return;
-            }
-
-            Snackbar.Add("Email verified successfully!", Severity.Success);
-
-            // Move to next step
-            _currentStep = 3;
-        }
-        catch (Exception ex)
-        {
-            _errorMessage = $"Verification failed: {ex.Message}";
-        }
-        finally
-        {
-            _isLoading = false;
-        }
+        if (on) _selectedOptIns.Add(key);
+        else _selectedOptIns.Remove(key);
     }
 
     private async Task CreateAdminAccount()
@@ -290,24 +162,22 @@
 
         try
         {
-            if (string.IsNullOrWhiteSpace(_password))
+            var email = _email.Trim();
+            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
             {
-                _errorMessage = "Please enter a password";
-                _isLoading = false;
+                _errorMessage = "Please enter a valid email address";
                 return;
             }
 
             if (_password.Length < 8)
             {
                 _errorMessage = "Password must be at least 8 characters long";
-                _isLoading = false;
                 return;
             }
 
             if (_password != _confirmPassword)
             {
                 _errorMessage = "Passwords do not match";
-                _isLoading = false;
                 return;
             }
 
@@ -320,14 +190,16 @@
                 return;
             }
 
-            // Create admin user
+            // The first admin is whoever reaches a fresh install first. Their
+            // address is the login, not a proof of anything, so it is marked
+            // verified rather than gated on an email round-trip.
             var adminUser = new User
             {
-                Email = _email,
+                Email = email,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(_password),
                 IsActive = true,
                 RequiresPasswordChange = false,
-                EmailVerified = true, // Email already verified in step 2
+                EmailVerified = true,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -335,6 +207,8 @@
 
             _setupComplete = true;
             Snackbar.Add("Admin account created successfully!", Severity.Success);
+
+            await SubmitOptInsAsync(email);
 
             await Task.Delay(1500);
             Navigation.NavigateTo("/login");
@@ -348,5 +222,23 @@
             _isLoading = false;
         }
     }
-}
 
+    /// <summary>
+    /// Best-effort, after the account exists: the signup is a courtesy, and its
+    /// outcome is reported but can never fail setup.
+    /// </summary>
+    private async Task SubmitOptInsAsync(string email)
+    {
+        if (_optIn is null || _selectedOptIns.Count == 0) return;
+
+        try
+        {
+            var result = await _optIn.SubmitAsync(email, _selectedOptIns.ToArray());
+            Snackbar.Add(result.Message, result.Sent ? Severity.Info : Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Couldn't send the signup: {ex.Message}", Severity.Warning);
+        }
+    }
+}
