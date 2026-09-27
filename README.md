@@ -156,6 +156,31 @@ directory), and the pages that ask for a code say so. The startup log states whi
 Email__FromEmail not set, so verification and password-reset codes will be written to this
 log`. A failed send shows the SMTP server's reason in the log.
 
+**Forgotten admin password, no SMTP:** the reset is "prove you control the server", the
+same way Jenkins or Vaultwarden do it. Three steps:
+
+1. On `/forgot-password`, enter the admin email. The page says the code went to the
+   server log.
+2. Read the code from the log:
+   ```bash
+   docker logs stagezero-local 2>&1 | grep -i "password reset code"     # Docker
+   grep -ri "password reset code" ~/.config/stagezero/logs/               # Linux host
+   ```
+3. Enter it on `/reset-password` with the new password. Codes expire after 15 minutes;
+   request another if it lapsed.
+
+**Last resort** (the log is gone, or the address itself is forgotten): remove the admin row
+and `/setup` comes back on the next visit. DNS records, tunnel routes and Access settings are
+in other tables and are untouched. With the app stopped and `sqlite3` on the host:
+
+```bash
+sqlite3 <data-dir>/stagezero.db "DELETE FROM Users;"
+```
+
+where `<data-dir>` is the mounted `/app-data` volume in Docker, `~/.config/stagezero` on
+Linux, `~/Library/Application Support/StageZero` on macOS, or `%APPDATA%\StageZero` on
+Windows. Deleting `stagezero.db` itself also works but loses every DNS and tunnel setting.
+
 ### DNS Provider Control
 
 Each DNS provider (Cloudflare, etc.) can be individually enabled or disabled for updates:
