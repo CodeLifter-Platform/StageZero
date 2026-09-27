@@ -54,6 +54,10 @@ versioning migration.
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
   single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
   never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
+- **The chrome needs a sign-in.** The public-IP chip and the navigation drawer render only
+  for a signed-in user; the sign-in and setup pages get a bare app bar (title and theme
+  toggle). The chip is its own component (`Layout/CurrentIpChip.razor`) and loads the IP
+  only when it renders, so an anonymous request never reads it.
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
   StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
   toggle swaps the whole UI and the choice persists per browser (`localStorage`).
