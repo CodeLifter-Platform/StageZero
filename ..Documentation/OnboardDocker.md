@@ -32,14 +32,18 @@ your admin account`, then one `Email:` line saying whether codes will be emailed
 The IP monitor and change-handler services start. `/` answers 200.
 
 Go to `/setup` first — with no users, that is the only useful page. It asks for the admin
-email, then for a 6-digit verification code:
+email and a password, and that is the account. No verification code, no SMTP. The two
+optional boxes (CodeLifter newsletter, StageZero update news) post to codelifter.net,
+which sends one confirmation email; unticked, nothing is sent.
+
+"Forgot password" still sends a 6-digit code:
 
 - **With SMTP configured** (`Email__*` in `.env`; see [README.md](../README.md#configuration)),
   the code is emailed.
 - **Without SMTP**, the page says the code went to the server log. Read it with
   `docker logs <container>` — the line is
-  `SMTP is not configured (...), so the verification code for you@example.com was written
-  here instead of emailed. Verification code: 123456`. The same applies to "forgot password".
+  `SMTP is not configured (...), so the password reset code for you@example.com was written
+  here instead of emailed. Password reset code: 123456`.
 
 For the real deployment — release image on `127.0.0.1:5100`, optional `cloudflared`
 sidecar — use `prod.docker-compose.yml` via `./docker-run.sh up prod` (or

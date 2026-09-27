@@ -118,11 +118,16 @@ The application uses a `.env` file for configuration. Copy `.env.example` to `.e
 cp .env.example .env
 ```
 
+**First run:** open `/setup`, enter an email and a password, and that is the admin
+account. No verification code, no SMTP. The form has two optional boxes, the CodeLifter
+newsletter and StageZero update news, which post to codelifter.net and get one
+confirmation email; unticked, nothing is sent. To hide them (a fork, an air-gapped
+install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
+
 **Email Configuration (Optional):**
 
-The first-run setup, "forgot password", and the change-password dialog each send a
-6-digit code by email. To send them, configure SMTP in `.env` (the compose files pass
-`.env` into the container):
+"Forgot password" and the change-password dialog each send a 6-digit code by email. To
+send them, configure SMTP in `.env` (the compose files pass `.env` into the container):
 
 ```bash
 # Uncomment and configure these to enable email sending:
@@ -149,7 +154,7 @@ instead (`docker logs <container>` in Docker, or the `logs/` directory under the
 directory), and the pages that ask for a code say so. The startup log states which it is:
 `Email: sending through smtp.gmail.com:587 (...)` or `Email: Email__SmtpHost and
 Email__FromEmail not set, so verification and password-reset codes will be written to this
-log`. A failed send shows the SMTP server's reason on the setup page and in the log.
+log`. A failed send shows the SMTP server's reason in the log.
 
 ### DNS Provider Control
 

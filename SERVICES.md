@@ -5,7 +5,7 @@ file in the same change that adds, removes, or reconfigures a service. Platform-
 map: `Platform-Standards/services/registry.md` (sibling repo,
 github.com/CodeLifter-Platform/Platform-Standards).
 
-Last reviewed: 2026-09-26.
+Last reviewed: 2026-09-27.
 
 ## Cloudflare (DNS provider)
 
@@ -56,6 +56,19 @@ Last reviewed: 2026-09-26.
 - **Managed at:** nuget.org (`NUGET_API_KEY` GitHub secret, not yet set); GitHub Packages
   uses the workflow's `GITHUB_TOKEN`.
 - **Detail:** [..Documentation/NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md).
+
+## Subscriptions API (codelifter.net, optional signups on first run)
+
+- **Usage:** The two optional boxes on `/setup` (CodeLifter newsletter, StageZero
+  update news) post once to `POST https://codelifter.net/api/subscriptions`
+  (`StageZero/Services/CodeLifter/CodeLifterSubscriptions.cs`) with the email, the
+  app id `stagezero`, and the app version. The site sends one double-opt-in
+  confirmation email; nothing is subscribed until it is clicked. No token: the
+  endpoint is public by design and rate-limited on the site. Unreachable or
+  declined is a notice on the setup page, never a failed setup.
+- **Managed at:** codelifter.net (CodeLifter.Net repo, `NEWSLETTER.md` → In-app
+  subscriptions). The app id must exist in the site's `apps` registry. Operators
+  can hide the boxes with a blank `CodeLifter__SubscriptionsUrl`.
 
 ## Release notes API (codelifter.net)
 

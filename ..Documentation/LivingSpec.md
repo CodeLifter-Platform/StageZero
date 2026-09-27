@@ -39,13 +39,19 @@ versioning migration.
   permissions are detected and named before anything is provisioned. Detail:
   [CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
 - **Username/password authentication** via the in-repo `Lifted.BlazorAuth.Basic` library.
-  `/setup` creates the first admin (email → verification code → password) when no users
-  exist; `/forgot-password` and the change-password dialog use the same codes. Codes go
-  out over SMTP (`Email__*` settings; `EmailOptions`, `EmailService`), STARTTLS by default
-  with a switch for plaintext relays and optional authentication. With SMTP unconfigured
-  the code is written to the log, the pages say so, and the startup log states which mode
-  is active. A failed send reports the server's reason. The auth pages are reachable by
-  direct URL and reload, not only by in-app navigation.
+  `/setup` creates the first admin from one form (email, password) when no users exist;
+  there is no email verification step, because the first person to reach a fresh install
+  is the operator and the address is a login, not a proof. `/forgot-password` and the
+  change-password dialog send 6-digit codes over SMTP (`Email__*` settings;
+  `EmailOptions`, `EmailService`), STARTTLS by default with a switch for plaintext relays
+  and optional authentication. With SMTP unconfigured the code is written to the log, the
+  pages say so, and the startup log states which mode is active. A failed send reports
+  the server's reason. The auth pages are reachable by direct URL and reload.
+- **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
+  StageZero update news) post once to codelifter.net's subscriptions API
+  (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
+  single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
+  never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
   StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
   toggle swaps the whole UI and the choice persists per browser (`localStorage`).
@@ -114,7 +120,7 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 | Target | Ships | Format | Verified |
 |---|---|---|---|
 | Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages), three compose files | Assumed — not built in the 2026-09-26 docs pass (no Docker daemon) |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 96 tests, run, setup → login over an SMTP relay and with the log fallback, both themes |
+| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build, 109 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password over an SMTP relay and with the log fallback, both themes |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and

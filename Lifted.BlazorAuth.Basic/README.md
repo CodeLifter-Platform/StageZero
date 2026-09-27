@@ -5,9 +5,10 @@ A simple, ready-to-use authentication library for Blazor applications with beaut
 ## ✨ Features
 
 - 🔐 **Email/Password Authentication** - Secure authentication with BCrypt password hashing
-- ✉️ **Email Verification** - 6-digit verification codes for new accounts
+- 👤 **First-run Setup** - One form creates the first admin (email + password); no email round-trip
+- ✉️ **Email Verification** - 6-digit codes for verifying a changed address
 - 🔑 **Password Reset** - Secure password reset workflow with email codes
-- 👤 **Account Setup** - Guided setup flow for new users
+- ☑️ **Setup Opt-ins** - Optional `ISignupOptIn` hook adds checkboxes (newsletter, product updates) to the setup form
 - 🎨 **MudBlazor UI** - Beautiful, responsive UI components out of the box
 - 🗄️ **Entity Framework Core** - Built-in database integration
 - 🔒 **Route Protection** - Simple `<RequireAuth>` component to protect pages
@@ -117,6 +118,31 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+```
+
+### 3b. Optional: opt-in boxes on the setup form
+
+Register an `ISignupOptIn` to add unchecked boxes (a newsletter, product updates) to
+the account-creation form. Nothing in the library depends on it; with no registration the
+form has no boxes. `SubmitAsync` runs once, after the account exists, only when a box was
+ticked, and must report rather than throw: the account is never affected by its outcome.
+
+```csharp
+public class NewsletterOptIn : ISignupOptIn
+{
+    public IReadOnlyList<SignupOptInChoice> Choices { get; } = new[]
+    {
+        new SignupOptInChoice("newsletter", "Send me the newsletter", "One confirmation email; unsubscribe any time."),
+    };
+
+    public async Task<SignupOptInResult> SubmitAsync(string email, IReadOnlyCollection<string> selectedKeys, CancellationToken ct = default)
+    {
+        // POST to your mailing service here; return what to tell the user.
+        return new SignupOptInResult(Sent: true, Message: "Check your inbox to confirm.");
+    }
+}
+
+builder.Services.AddScoped<ISignupOptIn, NewsletterOptIn>();
 ```
 
 ### 4. Add to _Imports.razor

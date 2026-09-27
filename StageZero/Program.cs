@@ -13,6 +13,7 @@ using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Access;
+using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Email;
 using StageZero.Services.IpMonitoring;
@@ -176,6 +177,12 @@ try
     builder.Services.AddSingleton(EmailOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddScoped<StageZero.Services.Email.IEmailService, StageZero.Services.Email.EmailService>();
     builder.Services.AddScoped<Lifted.BlazorAuth.Basic.Services.IEmailService, StageZero.Services.Email.EmailService>();
+
+    // The optional newsletter / StageZero-updates boxes on the first-run setup form.
+    // They post to codelifter.net; a blank CodeLifter__SubscriptionsUrl hides them.
+    builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
+    builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
+    builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
     builder.Services.AddScoped<IIpMonitorService, IpMonitorService>();
     builder.Services.AddScoped<ICloudflareService, CloudflareService>();
     builder.Services.AddScoped<IDnsUpdateService, DnsUpdateService>();
