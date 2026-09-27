@@ -84,6 +84,8 @@ versioning migration.
   themed page with a reference (the request's trace ID) to find it in the logs, and never
   the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
   picks the render mode per page) so it needs no circuit and the reference stays.
+- **No outside assets.** Every stylesheet, script and font is served by the app; pages make
+  no request to a CDN, font service or script kit (checked by a test).
 - **Serilog** structured logging to console and daily rolling files (31 kept). Debug in
   Development, Information elsewhere; `STAGEZERO_LOG_LEVEL` overrides. ASP.NET Core,
   EF Core, HttpClient and MudBlazor log at Warning and above whatever the level, so
@@ -95,7 +97,8 @@ versioning migration.
 - **Sign-in does not survive a page reload.** `AuthService` holds the current user in a
   scoped service, which in Blazor Server means per circuit; a reload starts a new circuit
   and lands on `/login`.
-- **Home page feature cards are static copy**, not live status.
+- **Home page feature cards are static copy**, not live status. They claim only what
+  StageZero does: Cloudflare is the only DNS provider and the only tunnel.
 
 **Removed**
 
@@ -177,6 +180,4 @@ GitHub-hosted runners.
   accent was locked. They need re-cutting in the icon design project.
 - **Platform-Design has no `--cl-app-stagezero`.** The design system's per-app accent block
   doesn't list StageZero; the accent is locked only in the harness table for now.
-- **`src/Quip/Quip.csproj` is a stray template project**, not in the solution and not
-  built. It can be deleted.
 - **Auth is per circuit** (see *Partial*).
