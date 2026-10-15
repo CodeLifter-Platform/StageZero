@@ -1,0 +1,68 @@
+/* ============================================================
+   CodeLifter — Spacing & radius tokens
+   ============================================================ */
+:root {
+  --cl-space-2xs: 4px;
+  --cl-space-xs: 8px;
+  --cl-space-sm: 12px;
+  --cl-space-md: 16px;
+  --cl-space-lg: 24px;
+  --cl-space-xl: 32px;
+  --cl-space-2xl: 48px;
+  --cl-space-3xl: 64px;
+
+  --cl-radius-sm: 6px;
+  --cl-radius-md: 10px;   /* buttons, inputs */
+  --cl-radius-lg: 16px;   /* cards */
+  --cl-radius-xl: 24px;
+  --cl-radius-full: 9999px;
+
+  /* ---- Density ----------------------------------------------------------
+     One axis, two settings, set once on a scope. Comfortable is the web
+     default; compact is the desktop default and is meant to be a REAL step
+     down, not a nudge — a desktop list shows roughly twice the rows in the
+     same height. Density moves padding, gaps, control font size and heading
+     size. It never moves radius, colour or font family.
+     --------------------------------------------------------------------- */
+  --cl-ctrl-py: 0.72rem;
+  --cl-ctrl-px: 1.2rem;
+  --cl-ctrl-fs: 0.95rem;
+  --cl-row-py: 0.85rem;
+  --cl-card-pad: 1.6rem;
+  --cl-stack: 1rem;      /* gap between siblings in a stack */
+  --cl-sec-gap: 3.25rem; /* gap between page sections */
+  --cl-cell-py: 0.95rem; /* table cell padding */
+  --cl-body-fs: 0.94rem;
+  --cl-h2-fs: 1.4rem;
+
+  --cl-container: 1120px;
+}
+
+[data-density="compact"],
+[data-cl-density="compact"] {
+  --cl-ctrl-py: 0.3rem;
+  --cl-ctrl-px: 0.7rem;
+  --cl-ctrl-fs: 0.8rem;
+  --cl-row-py: 0.26rem;
+  --cl-card-pad: 0.85rem;
+  --cl-stack: 0.5rem;
+  --cl-sec-gap: 1.5rem;
+  --cl-cell-py: 0.4rem;
+  --cl-body-fs: 0.84rem;
+  --cl-h2-fs: 1.08rem;
+}
+
+/* Explicit comfortable scope, so a compact region can nest a comfortable one. */
+[data-density="comfortable"],
+[data-cl-density="comfortable"] {
+  --cl-ctrl-py: 0.72rem;
+  --cl-ctrl-px: 1.2rem;
+  --cl-ctrl-fs: 0.95rem;
+  --cl-row-py: 0.85rem;
+  --cl-card-pad: 1.6rem;
+  --cl-stack: 1rem;
+  --cl-sec-gap: 3.25rem;
+  --cl-cell-py: 0.95rem;
+  --cl-body-fs: 0.94rem;
+  --cl-h2-fs: 1.4rem;
+}

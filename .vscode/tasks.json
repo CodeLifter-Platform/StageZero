@@ -14,6 +14,33 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "web: install",
+      "type": "shell",
+      "command": "npm install --no-audit --no-fund",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "web: build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "web: test",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "publish",
       "command": "dotnet",
       "type": "process",
@@ -97,7 +124,9 @@
     {
       "label": "docker-run: debug",
       "type": "docker-run",
-      "dependsOn": ["docker-build: debug"],
+      "dependsOn": [
+        "docker-build: debug"
+      ],
       "dockerRun": {
         "containerName": "stagezero-debug",
         "env": {
@@ -106,7 +135,9 @@
           "ASPNETCORE_Kestrel__Certificates__Default__Password": "",
           "ASPNETCORE_Kestrel__Certificates__Default__Path": "/https/aspnetapp.pfx"
         },
-        "envFiles": ["${workspaceFolder}/.env"],
+        "envFiles": [
+          "${workspaceFolder}/.env"
+        ],
         "ports": [
           {
             "containerPort": 80,
@@ -148,7 +179,7 @@
         "tag": "stagezero:debug",
         "target": "debug",
         "dockerfile": "${workspaceFolder}/StageZero/Dockerfile",
-        "context": "${workspaceFolder}/StageZero",
+        "context": "${workspaceFolder}",
         "pull": true
       },
       "netCore": {
@@ -157,4 +188,3 @@
     }
   ]
 }
-

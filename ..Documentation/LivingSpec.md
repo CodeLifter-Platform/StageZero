@@ -5,13 +5,14 @@ what StageZero does updates this file in the same commit.
 
 ## What it is
 
-StageZero is a **self-hosting control panel for Cloudflare**: a Blazor Server app that keeps
+StageZero is a **self-hosting control panel for Cloudflare**: an ASP.NET Core Web API with a
+React web app that keeps
 domains pointed at the right IP address (dynamic DNS), publishes local services to the
 internet through a Cloudflare Tunnel, and puts a Cloudflare Access policy in front of every
 hostname it publishes. It is for one operator running services at home or on a small
 server, and it runs anywhere .NET 10 or Docker runs. The repo also publishes the
-`Lifted.BlazorAuth.Basic` NuGet package, which provides the username/password
-authentication the app itself uses.
+`Lifted.BlazorAuth.Basic` NuGet package, whose services provide the username/password
+authentication the app itself uses (its Blazor components are no longer used by StageZero).
 
 ## Status
 
@@ -34,8 +35,9 @@ versioning migration.
   records once (all pages — Cloudflare pages at 500 records) and matches the records in
   memory, taking each record's current ID from the listing. Each provider can be switched
   off without stopping monitoring. A change is
-  published on the singleton `IIpChangeNotifier`, which the header chip and the IP Monitor
-  page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
+  published on the singleton `IIpChangeNotifier`; `GET /api/ip/events` streams it to the
+  browser as server-sent events (first event: the IP as it stands), which the top-bar chip
+  and the IP Monitor page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
 - **Public IP by consensus.** `PublicIpResolver` asks three independent services in
   parallel — Cloudflare's `1.1.1.1/cdn-cgi/trace`, ipify, and AWS `checkip` — with a 5-second
   timeout each. Only a public IPv4 address counts as an answer (an HTML captive-portal
@@ -57,7 +59,15 @@ versioning migration.
   `IAccessSecretSink` is the extension point for sending them to a vault. Missing token
   permissions are detected and named before anything is provisioned. Detail:
   [CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
-- **Username/password authentication** via the in-repo `Lifted.BlazorAuth.Basic` library.
+- **Username/password authentication** via the in-repo `Lifted.BlazorAuth.Basic` library's
+  services, carried over HTTP by `Api/AuthEndpoints.cs`. A sign-in issues an encrypted,
+  HTTP-only, SameSite=Strict session cookie (`stagezero.session`, 7 days sliding, Data
+  Protection key ring). **It survives a reload and a restart.** Every request re-reads the
+  user and checks a stamp of their id, email and password hash (`Api/Session.cs`), so a
+  deleted, deactivated or locked-out account, or a changed password or email, ends every
+  other session at its next request. A user who owes account setup (an unverified email
+  after a reset, or the one-time password from `reset-password`) is signed in but gets 403
+  from everything except finishing it, on `/account-setup`.
   `/setup` creates the first admin from one form (email, password) when no users exist;
   there is no email verification step, because the first person to reach a fresh install
   is the operator and the address is a login, not a proof. **StageZero never sends
@@ -75,46 +85,61 @@ versioning migration.
   5 wrong guesses; 5 wrong passwords in a row lock the account for 15 minutes (a success
   clears the count, and an unknown email pays the same BCrypt cost as a wrong password);
   and a per-address sliding window (10 per 15 minutes) throttles failed sign-ins and every
-  reset request or wrong reset code. The address is captured when the circuit opens
-  (`ClientAddressCircuitHandler`), after forwarded headers.
+  reset request or wrong reset code. The address is the request's, after
+  forwarded headers.
 - **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
   StageZero update news) post once to codelifter.net's subscriptions API
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
   single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
   never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
-- **The chrome needs a sign-in.** The public-IP chip and the navigation drawer render only
-  for a signed-in user; the sign-in and setup pages get a bare app bar (title and theme
-  toggle). The chip is its own component (`Layout/CurrentIpChip.razor`) and loads the IP
-  only when it renders, so an anonymous request never reads it.
+- **The API refuses anyone not signed in.** Every `/api/ip`, `/api/dns` and `/api/tunnel`
+  route answers 401 without the cookie (tested route by route, and that no 401 body carries
+  the IP). Only `/api/auth/*` and `/healthz` are open, and `GET /api/auth/session` says
+  only whether setup is needed and who is signed in. Every non-GET API call must carry
+  `X-Requested-With: StageZero` (`Api/ApiPipeline.cs`), which a cross-site form can't send.
+- **The chrome needs a sign-in.** The public-IP chip and the sidebar render only inside the
+  signed-in shell; the sign-in, setup and reset pages get a bare top bar (title and theme
+  toggle), and never request the IP (tested).
 - **Theme.** CodeLifter design system: dark (canonical ink) and light (warm paper) themes,
-  StageZero teal accent, Inter + JetBrains Mono bundled in `wwwroot/fonts`. The header
-  toggle swaps the whole UI and the choice persists per browser (`localStorage`).
-- **An error page.** Outside Development, an unhandled exception re-executes `/Error`: a
-  themed page with a reference (the request's trace ID) to find it in the logs, and never
-  the exception. It is server-rendered only (`[ExcludeFromInteractiveRouting]`; `App.razor`
-  picks the render mode per page) so it needs no circuit and the reference stays.
+  StageZero teal accent, Inter + JetBrains Mono bundled in `web/public/fonts`. The top-bar
+  toggle swaps a root attribute, which re-skins everything at once; the choice persists per
+  browser (`localStorage`, `stagezero.theme`) and is applied before first paint.
+- **Errors.** API errors are RFC 9457 problem details. A refused request (validation, not
+  found, conflict, Cloudflare refusing a call: 400/404/409/502) carries a message written
+  for the operator, which the web app shows as is. Outside Development, an unhandled
+  exception is a 500 with a reference (the trace ID) and nothing from the exception; the
+  web app shows a calm message with that reference.
 - **Health.** `/healthz` (anonymous, status only): Unhealthy if the database can't be
   reached; Degraded — still HTTP 200 — when the public IP hasn't been confirmed for 15
   minutes (an upstream outage a restart wouldn't fix). The image's `HEALTHCHECK` runs
   `dotnet StageZero.dll healthcheck`, which probes the app's own port (from
   `ASPNETCORE_URLS` / `ASPNETCORE_HTTP_PORTS`, default 8080) — the runtime image has no curl.
 - **No outside assets.** Every stylesheet, script and font is served by the app; pages make
-  no request to a CDN, font service or script kit (checked by a test).
+  no request to a CDN, font service or script kit (checked by a web test; the vendored
+  design system's Google Fonts import is deliberately not vendored).
+- **Deep links.** Any path that isn't the API or a file gets the web app's `index.html`
+  (uncached), so a reload or a bookmark lands on the right screen. An unknown `/api` path
+  is a 404 problem, never HTML. A checkout run with `dotnet run` before the web app was
+  built answers 503 with how to build it.
 - **Serilog** structured logging to console and daily rolling files (31 kept). Debug in
   Development, Information elsewhere; `STAGEZERO_LOG_LEVEL` overrides. ASP.NET Core,
-  EF Core, HttpClient and MudBlazor log at Warning and above whatever the level, so
+  EF Core and HttpClient log at Warning and above whatever the level, so
   per-request framework chatter never reaches the logs. Password-reset codes are logged at
   Warning, so they show at every level.
 
 **Partial**
 
-- **Sign-in does not survive a page reload.** `AuthService` holds the current user in a
-  scoped service, which in Blazor Server means per circuit; a reload starts a new circuit
-  and lands on `/login`.
 - **Home page feature cards are static copy**, not live status. They claim only what
   StageZero does: Cloudflare is the only DNS provider and the only tunnel.
 
 **Removed**
+
+- **The Blazor Server UI and MudBlazor are gone** (2026-10-15). The same screens are now
+  the React app in `web/`, on the same URLs; the view models' logic moved to
+  `Services/Dns/DnsConfigService.cs`, `Services/Tunnel/TunnelRouteService.cs` and
+  `Services/Tunnel/TunnelSetupService.cs`. Two behaviours changed on the way: the Add
+  Provider dialog's "enable updates" switch is honoured (it was ignored), and every
+  password rule is 8 characters (the account-setup dialog accepted 6).
 
 - **The YARP reverse proxy and Let's Encrypt handling are gone** (PR #7). StageZero no
   longer terminates TLS or routes traffic itself; Cloudflare's edge and `cloudflared` do.
@@ -123,31 +148,58 @@ versioning migration.
 
 ## Architecture
 
-One ASP.NET Core project (`StageZero/`): Blazor Server in InteractiveServer mode, MudBlazor
-UI, EF Core over SQLite, MVVM (views bind to view models; business logic lives in
-`Services/`; data access in `DataAdapters/` as Reader/Writer pairs).
-`Lifted.BlazorAuth.Basic/` is a separate library, published to NuGet and referenced by the
-app. `StageZero.Tests/` is xUnit; most tests host the real app in memory
-(`WebApplicationFactory`) with every outbound `HttpClient` answered by a fake, so
-Cloudflare and the IP sources are scripted per test and nothing reaches the network.
+Three projects and a web app:
+
+- **`StageZero/`** — the ASP.NET Core host. `Api/` holds the HTTP surface: thin minimal-API
+  endpoint groups (`AuthEndpoints`, `IpEndpoints`, `DnsEndpoints`, `TunnelEndpoints`) that
+  bind a request, call a service and shape the response; `Session.cs` (cookie auth and the
+  per-request user check); `ApiPipeline.cs` (JSON conventions, the request-header guard,
+  `no-store`, problem details); `SpaHosting.cs` (static files and the deep-link fallback).
+  Business logic lives in `Services/`; data access in `DataAdapters/` as Reader/Writer
+  pairs; EF Core over SQLite. A service throws `UserFacingException` for anything the
+  operator should read; anything else is a 500 with a reference.
+- **`web/`** — the React 18 + TypeScript (strict) app, built by Vite into
+  `StageZero/wwwroot`. `src/api/client.ts` is the only way it talks to the API;
+  `src/app/` holds the session, guards, shell and toasts; `src/pages/` the screens.
+  UI is built only from the CodeLifter Design System, vendored verbatim in `src/design/`
+  (`npm run design:sync` copies it from the sibling `Platform-Design` checkout, and
+  `design:check` fails CI on drift) and imported through `src/ui.ts`.
+- **`Lifted.BlazorAuth.Basic/`** — the auth library, published to NuGet. StageZero uses its
+  `AuthService`, throttle, user store and opt-in extension point; `IAuthService.ResumeAsync`
+  (added for this, with a default so other implementers don't break) makes a
+  cookie-authenticated user current for one request.
+- **`tests/StageZero.Tests/`** — xUnit. Most tests host the real app in memory
+  (`WebApplicationFactory`) and call the API through a cookie-keeping client that sends the
+  request header (`Infrastructure/TestApi.cs`); every outbound `HttpClient` is answered by a
+  fake, and Cloudflare's tunnel and Access APIs can be swapped for in-memory accounts, so
+  nothing reaches the network. The web app has its own Vitest suite (`web/src/**/*.test.ts*`)
+  against the API faked with MSW.
 
 Files worth opening first:
 
-- `StageZero/Program.cs` — DI registrations, data directory, the `healthcheck` and
-  `reset-password` commands; `Data/DatabaseInitializer.cs` applies the EF Core migrations
-  (and adopts a pre-migration database once).
-- `StageZero/Application/Layout/MainLayout.razor` + `AppVM.cs` — shell, nav, theme toggle.
-- `StageZero/Application/Theme/StageZeroTheme.cs` — the token dictionary port (see below).
+- `StageZero/Program.cs` — DI registrations, the pipeline, data directory, the
+  `healthcheck` and `reset-password` commands; `Data/DatabaseInitializer.cs` applies the
+  EF Core migrations (and adopts a pre-migration database once).
+- `StageZero/Api/Session.cs` and `StageZero/Api/ApiPipeline.cs` — the trust boundary.
+- `web/src/App.tsx`, `web/src/app/guards.tsx`, `web/src/app/Shell.tsx` — routes, who may
+  see what, and the signed-in frame.
+- `web/src/theme/stagezero.css` — the token dictionary port (see below).
 - `StageZero/Services/Tunnel/TunnelSyncService.cs` and
   `StageZero/Services/Access/AccessProvisioningService.cs` — the two services that write to
   Cloudflare on route changes.
 
-**Design system.** `StageZeroTheme.cs` is StageZero's port of
-`Platform-Standards/design/tokens.md`: the dark and light values are copied verbatim, the
-accent family is StageZero teal (`#14b8a6` dark, `#0f766e` light, locked in
-`Platform-Standards/design/app-accents.md`), and MudBlazor's palette slots are mapped onto
-those roles. Views use `Color.*` and `--mud-palette-*` only; `wwwroot/css/app.css` holds
-the `@font-face` rules and the `sz-mono` / `sz-on-accent` classes and has no raw colors.
+**Design system.** `web/src/theme/stagezero.css` is StageZero's port of
+`Platform-Standards/design/tokens.md`. On top of the design system's own `--cl-*` tokens it
+re-points the accent family to StageZero teal (`#14b8a6` dark, `#0f766e` light; accent text
+`#2dd4bf` / `#115e59`; locked in `Platform-Standards/design/app-accents.md`) and the light
+canvas to the harness's light-warm paper, which is recorded divergence #1 between the
+harness and `Platform-Design`, left unresolved. It is the only file in `web/` that names a
+colour (an ESLint rule and a test enforce it).
+
+**Web stack exception.** The platform's web standard is Next.js on Vercel. StageZero has to
+run on the operator's own network (it finds their public IP and drives `cloudflared`
+there), so its web app is a Vite SPA served by its own API host, one container. Recorded in
+`Platform-Standards/architecture/web.md`, alongside Singular's identical exception.
 
 `DataPathService` resolves the app data directory and **detects a container**, returning
 `/app-data` inside one and a platform directory otherwise.
@@ -165,7 +217,9 @@ and then migrated like any other. The Cloudflare DNS token and tunnel token are 
 with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
 SQLite — a plaintext token from an older install is encrypted on first start — and losing
 the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
-lives in the browser's `localStorage` (`stagezero.theme`), not on the server.
+and the sidebar's collapsed state live in the browser's `localStorage` (`stagezero.theme`,
+`stagezero.sidebar`), not on the server. The session is a cookie holding the user id and a
+credentials stamp, encrypted with the same key ring; no session state is kept server-side.
 
 ## External services
 
@@ -177,11 +231,11 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 
 | Target | Ships | Format | Verified |
 |---|---|---|---|
-| Container | ✅ | `StageZero/Dockerfile` (`debug` / `release` stages, non-root, `HEALTHCHECK`), three compose files | Assumed — not built in the 2026-09-27 audit pass (no Docker daemon); the non-root change is untested in a real container |
-| Any .NET 10 host | ✅ | `dotnet run` / published output | ✅ Linux, 2026-09-27: build (0 warnings), 181 tests, run, one-form setup → login (opt-ins posted to a fake codelifter.net), forgot-password code read from the log banner, both themes |
+| Container | ✅ | `StageZero/Dockerfile` (`web` → `build` → `release` stages, plus `debug`; non-root, `HEALTHCHECK`), three compose files | Partly, 2026-10-15: the published app run in the `release` stage's base and settings came up healthy as uid 1654, served the web app on a deep link and refused anonymous API calls. The full multi-stage build was not run locally (Docker Hub rate-limited the `node` image, and NuGet restore inside the container couldn't trust the sandbox proxy); CI's `image` job builds it and smoke-tests it on every push |
+| Any .NET 10 host | ✅ | `dotnet run` + `npm run build` / published output | ✅ Linux, 2026-10-15: build (0 warnings), 222 xUnit + 57 Vitest tests, lint and strict typecheck clean, and a Chromium walkthrough of the built app: fresh install → setup (validation) → wrong password → sign in → reload keeps the session → IP Monitor, DNS (add-provider dialog), Tunnel Routes, route editor (owner-email default, mode switching), save refused before tunnel setup, Tunnel Setup, light theme persists across reload, sign out → deep link → sign in returns to it, phone width without horizontal scroll. Cloudflare itself was not reachable from the test machine, so no live DNS or tunnel write was made |
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
 
-Onboarding: [OnboardWeb.md](OnboardWeb.md) (run on a .NET host) and
+Onboarding: [OnboardWeb.md](OnboardWeb.md) (build and run from source) and
 [OnboardDocker.md](OnboardDocker.md). This repo is **public**, so its CI stays on
 GitHub-hosted runners.
 
@@ -198,8 +252,24 @@ GitHub-hosted runners.
   accent was locked. They need re-cutting in the icon design project.
 - **Platform-Design has no `--cl-app-stagezero`.** The design system's per-app accent block
   doesn't list StageZero; the accent is locked only in the harness table for now.
-- **Auth is per circuit** (see *Partial*), and there is no second factor: the release
-  audit decided both against this release (a cookie ticket and TOTP would widen the NuGet
-  library's surface; local-only sign-in on a home network is the accepted model for now).
-- **Not published anywhere yet.** No CI job builds or releases the app, and no container
-  image is pushed (audit items 1.5 and 1.6); the install path is clone and build.
+- **There is no second factor.** The release audit decided against TOTP for this release
+  (local-only sign-in on a home network is the accepted model for now). Sessions now live
+  in a cookie, which the audit had also deferred; that was needed for an API anyway.
+- **Not published anywhere yet.** CI (`build.yml`) builds and tests the API, the web app and
+  the container on every push, but nothing releases the app or pushes an image (audit items
+  1.5 and 1.6); the install path is clone and build.
+- **The design system has no inline alert.** `web/src/components/Notice.tsx` composes Card
+  + StatusDot for the info/warning/error notices the screens need. An `Alert` (or
+  `Callout`) component should be added to Platform-Design and replace it. Three smaller
+  design-system issues surfaced too, worked around in StageZero without editing the
+  vendored files: `StatusDot` without a label renders as a sizeless inline span (Notice
+  wraps it in a flex box); `Switch` accepts no label or `aria-label` (StageZero wraps each
+  in a `<label>`); and `Input`'s accessible name includes its hint text, because the hint
+  sits inside the `<label>`. All four are in `Platform-Standards/FOLLOWUPS.md`.
+- **The library still ships Blazor components StageZero doesn't use.** The app references
+  `Lifted.BlazorAuth.Basic` for its services only, which brings MudBlazor in transitively.
+  Splitting the services into their own package is the clean fix; it changes the published
+  package, so it is left for its own change.
+- **The tunnel API token is typed on every setup step.** The wizard is stateless: the token
+  travels in each request body (never a URL) until a tunnel is saved, then lives encrypted
+  in the database. Same behaviour as before, now visible as API calls.

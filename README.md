@@ -2,7 +2,7 @@
 
 **Self-hosting control panel for Cloudflare DNS and Cloudflare Tunnels**
 
-A Blazor Server application that keeps your domains pointed at the right IP
+A React web app on an ASP.NET Core Web API that keeps your domains pointed at the right IP
 addresses and publishes your local services to the internet through a Cloudflare
 Tunnel — no port forwarding, no certificate management, no public IP required.
 
@@ -18,17 +18,19 @@ Three features, one Cloudflare API token:
 
 ## Tech Stack
 
-- .NET 10.0 / Blazor Server (InteractiveServer mode)
-- MudBlazor UI Framework
-- SQLite with Entity Framework Core
-- Basic Username/Password Authentication
-- Serilog for Structured Logging
+- **API:** .NET 10 / ASP.NET Core minimal APIs, SQLite with Entity Framework Core, Serilog,
+  a cookie session over the in-repo `Lifted.BlazorAuth.Basic` services
+- **Web app:** React 18 + TypeScript (strict), built with Vite, served by the API from
+  `wwwroot`; UI from the CodeLifter Design System (`Platform-Design`), vendored in
+  `web/src/design`
+- **Tests:** xUnit hosting the real app in memory; Vitest + Testing Library + MSW
 
 ## Getting Started
 
 ### Prerequisites
 
 - .NET 10.0 SDK
+- Node.js 22 (for the web app)
 - Docker & Docker Compose (for containerized development)
 
 ### Local Development
@@ -38,13 +40,24 @@ Three features, one Cloudflare API token:
    cp .env.example .env
    ```
 
-2. **Run the application:**
+2. **Run the API** (https://localhost:5001):
    ```bash
    cd StageZero
    dotnet run
    ```
 
-3. **Access the app:** https://localhost:5001
+3. **Run the web app** with hot reload, in a second terminal:
+   ```bash
+   cd web
+   npm ci
+   npm run dev
+   ```
+
+4. **Open** http://localhost:5173. Vite proxies `/api` to the API.
+
+To have the API serve the web app itself (as it does in production), build it once with
+`npm run build` in `web/`; the output lands in `StageZero/wwwroot`, and
+https://localhost:5001 then serves the app directly.
 
 ### Docker Development
 
@@ -75,24 +88,24 @@ to install the connector and publish it.
 
 ```
 StageZero/
-├── StageZero/
-│   ├── Application/           # UI Layer
-│   │   ├── Areas/            # Feature areas
-│   │   │   ├── DnsConfig/        # DNS providers + records
-│   │   │   ├── IpMonitor/        # Public IP history
-│   │   │   └── TunnelManagement/ # Tunnel routes, Access, setup wizard
-│   │   ├── Components/       # Shared components
-│   │   └── Layout/           # MainLayout, AppVM
-│   ├── Data/                 # DbContext
-│   ├── DataAdapters/         # Data access (Readers/Writers)
-│   ├── Models/               # Domain entities
-│   ├── Services/             # Business logic
-│   │   ├── Access/               # Cloudflare Access apps, policies, service tokens
-│   │   ├── Dns/                  # Cloudflare DNS + DDNS updates
-│   │   ├── IpMonitoring/         # Public IP polling
-│   │   └── Tunnel/               # Cloudflare Tunnel API + route sync
-│   └── wwwroot/              # Static assets
-├── StageZero.Tests/           # Unit tests (xUnit)
+├── StageZero/                 # ASP.NET Core host: Web API + serves the built web app
+│   ├── Api/                   # Endpoints, cookie session, error shape, SPA hosting
+│   ├── Data/                  # DbContext, migrations
+│   ├── DataAdapters/          # Data access (Readers/Writers)
+│   ├── Models/                # Domain entities
+│   ├── Services/              # Business logic
+│   │   ├── Access/                # Cloudflare Access apps, policies, service tokens
+│   │   ├── Dns/                   # Cloudflare DNS, DDNS updates, the DNS screen's rules
+│   │   ├── IpMonitoring/          # Public IP polling
+│   │   └── Tunnel/                # Cloudflare Tunnel API, route sync, setup and routes
+│   └── wwwroot/               # Build output of web/ (not in git)
+├── web/                       # React + TypeScript web app (Vite)
+│   ├── src/design/            # CodeLifter Design System, vendored verbatim
+│   ├── src/theme/             # StageZero token layer (teal accent, warm light canvas)
+│   ├── src/api/               # Typed API client
+│   └── src/pages/             # Screens
+├── Lifted.BlazorAuth.Basic/   # Auth library, published to NuGet
+├── tests/StageZero.Tests/     # xUnit: API, services, persistence, auth
 ├── debug.docker-compose.yml   # Hot-reload development
 ├── prod.docker-compose.yml    # Release build + optional cloudflared sidecar
 ├── .env.example
@@ -101,12 +114,14 @@ StageZero/
 
 ## Architecture
 
-This project follows **MVVM** architecture:
-
-- **Views** (Razor components) - Zero logic, bind to ViewModels
-- **ViewModels** - UI state translation only
-- **Services** - All business logic
-- **DataAdapters** - Focused data access (Reader/Writer pattern)
+- **Web app** (`web/`) — screens and their state only. It talks to the API through one
+  typed client (`web/src/api/client.ts`) and holds no business rules the server doesn't
+  also enforce.
+- **API** (`StageZero/Api/`) — thin endpoints: bind the request, call a service, shape the
+  response. Every operator route requires the session cookie; errors are problem details
+  whose message is written for the operator.
+- **Services** — all business logic, unchanged by the move off Blazor.
+- **DataAdapters** — focused data access (Reader/Writer pattern).
 
 ## Configuration
 
@@ -118,7 +133,7 @@ The application uses a `.env` file for configuration. Copy `.env.example` to `.e
 cp .env.example .env
 ```
 
-**First run:** open `/setup`, enter an email and a password, and that is the admin
+**First run:** open the app (it goes to `/setup` on a fresh install), enter an email and a password, and that is the admin
 account. No verification code; StageZero never sends email. The form has two optional boxes, the CodeLifter
 newsletter and StageZero update news, which post to codelifter.net and get one
 confirmation email; unticked, nothing is sent. To hide them (a fork, an air-gapped
@@ -241,17 +256,18 @@ behaviour when Access setup fails — are in
 The project includes VS Code launch configuration with `.env` file support. To debug:
 
 1. Open the project in VS Code
-2. Press `F5` or use the "Run and Debug" panel
-3. Select ".NET Core Launch (web)"
+2. Pick **StageZero (API + web)** in the "Run and Debug" panel and press `F5`
+3. It starts the API under the debugger and the Vite dev server, and opens http://localhost:5173
 
 The `.env` file will be automatically loaded when debugging.
 
 ### Layout and theme
-- Dense header with the current public IP and the light/dark toggle
-- Mini navigation drawer
-- 80% body width, centered, scrollable content
+- Top bar with the current public IP (signed-in only), the light/dark toggle and the account
+- Collapsible sidebar navigation (the design system's `Sidebar`, with an icon rail)
 - CodeLifter design system: dark and light themes, StageZero teal accent, Inter + JetBrains
-  Mono bundled with the app. Colors come only from `Application/Theme/StageZeroTheme.cs`.
+  Mono bundled with the app. Components come from `Platform-Design`, vendored verbatim in
+  `web/src/design` (`npm run design:sync` / `design:check`); colors come only from
+  `web/src/theme/stagezero.css`.
 
 ### Database
 SQLite, created automatically as `stagezero.db` in the app data directory (`/app-data` in
@@ -275,10 +291,14 @@ folder — `ls -a`):
 ## Tests
 
 ```bash
-dotnet test StageZero.Tests/StageZero.Tests.csproj
+dotnet test tests/StageZero.Tests          # API, services, persistence, auth
+cd web && npm test                          # web app (Vitest)
+cd web && npm run lint && npm run typecheck
 ```
 
-Cloudflare is faked at the service interfaces, so the tests make no network calls.
+Cloudflare is faked at the service interfaces and the API is faked with MSW in the web
+tests, so neither suite makes network calls. CI (`.github/workflows/build.yml`) also builds
+the container and checks it comes up healthy.
 
 ## License
 

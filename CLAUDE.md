@@ -15,8 +15,9 @@
 
 <!-- App-specific rules only. Platform-wide standards live in the harness. -->
 
-StageZero is a dynamic-DNS tool: a Blazor Server app (.NET 10, MudBlazor, EF Core/SQLite,
-Serilog) that keeps domains pointed at the right IP addresses automatically. It also
+StageZero is a dynamic-DNS tool: an ASP.NET Core Web API (.NET 10, EF Core/SQLite, Serilog)
+with a React + TypeScript web app (Vite, `web/`) that it serves from `wwwroot`, keeping
+domains pointed at the right IP addresses automatically. It also
 publishes hostnames through Cloudflare Tunnels and puts Cloudflare Access policies in front
 of them. The repo also publishes the `Lifted.BlazorAuth.Basic` NuGet package.
 
@@ -24,8 +25,11 @@ of them. The repo also publishes the `Lifted.BlazorAuth.Basic` NuGet package.
 
 ```bash
 dotnet build StageZero.sln
-dotnet run --project StageZero
-dotnet test StageZero.Tests/StageZero.Tests.csproj
+dotnet run --project StageZero                 # API on https://localhost:5001
+dotnet test tests/StageZero.Tests
+cd web && npm ci && npm run dev                # web app on http://localhost:5173, /api proxied
+cd web && npm run lint && npm run typecheck && npm test
+cd web && npm run build                        # into StageZero/wwwroot, served by the API
 ```
 
 ## App-specific notes
@@ -38,11 +42,26 @@ dotnet test StageZero.Tests/StageZero.Tests.csproj
   `Access: Service Tokens Edit` on top of the tunnel and DNS permissions
   (`..Documentation/CLOUDFLARE_ACCESS_SETUP.md`). A minted service token's client secret
   is returned by Cloudflare exactly once — never log it, store it, or write it to disk.
-- **Theme = `StageZero/Application/Theme/StageZeroTheme.cs`.** It is this app's port of
-  `Platform-Standards/design/tokens.md` (light = warm paper) with the locked StageZero teal
-  accent (`#14b8a6` / light `#0f766e`). Views use MudBlazor `Color.*` and
-  `--mud-palette-*` only, never a hex; mono text uses the `sz-mono` class. Change
-  `tokens.md` first, then this file.
+- **Web stack is a recorded exception to the Next.js/Vercel web standard**
+  (`Platform-Standards/architecture/web.md`, "Recorded exceptions"): StageZero must run on
+  the operator's own network, so the web app is a Vite + React SPA built into the API
+  host's `wwwroot`, one container. Keep the rest of the standard: TypeScript strict, ESLint,
+  Vitest + MSW, dark + light.
+- **UI comes from Platform-Design, vendored verbatim** in `web/src/design` (the list is in
+  `web/scripts/sync-design.mjs`). Never edit those files; `npm run design:sync` copies them
+  from the sibling checkout and `npm run design:check` (CI) fails on drift. Screens import
+  them through `web/src/ui.ts` only. `web/src/components/Notice.tsx` is a composition
+  (Card + StatusDot) standing in for an inline alert the design system doesn't have yet.
+- **Theme = `web/src/theme/stagezero.css`.** It is this app's port of
+  `Platform-Standards/design/tokens.md`: it re-points the design system's `--cl-*` roles to
+  the locked StageZero teal (`#14b8a6` / light `#0f766e`) and the harness's light-warm
+  canvas. It is the only file in `web/` that names a colour (a test and an ESLint rule
+  enforce it); views use `var(--cl-*)`. Change `tokens.md` first, then this file.
+- **The API is the boundary.** Every operator route needs the session cookie
+  (`StageZero/Api/Session.cs`); every non-GET needs the `X-Requested-With: StageZero`
+  header; errors are problem details whose `title` is safe to show. A Cloudflare token
+  goes in and never comes back out; a minted service-token secret is in exactly one
+  response. Business rules live in `Services/`, never only in the web app.
 - **Docs live in `..Documentation/`** (`LivingSpec.md`, `OnboardWeb.md`,
   `OnboardDocker.md`, runbooks). A change to what the app does updates `LivingSpec.md` in
   the same commit.

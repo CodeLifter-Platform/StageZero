@@ -1,0 +1,102 @@
+/* ═══════════════════════════════════════════════════════════════
+   StageZero — token layer (the app's port of the token dictionary)
+
+   The design system's tokens (src/design/tokens/*.css, vendored verbatim from
+   Platform-Design) define every --cl-* role. This file is the ONLY place in the web app
+   that names a colour value, and it only re-points roles for this app:
+
+   1. Accent family → StageZero teal, locked in Platform-Standards/design/app-accents.md:
+      #14b8a6 dark, #0f766e light (accent text #115e59). StageZero has one hue, so the
+      design system's primary AND accent families both take it; CodeLifter's purple/cyan
+      brand pair never appears in this app.
+   2. Light canvas → the harness's light-warm paper (Platform-Standards/design/tokens.md:
+      Bg #f6f4ee, Card #fffefb, Bd #e8e2d6, Tx #1c1a17, Tx2 #6b6459), not Platform-Design's
+      light-cool canvas. This is recorded divergence #1 in design/design-system.md; it is
+      the canvas StageZero already shipped, and it is not resolved here.
+   3. Status hues → the tokens.md values (identical to the design system in dark).
+
+   Change Platform-Standards/design/tokens.md first, then this file.
+   Selectors are :root-qualified so they outrank the vendored token files.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Fonts: bundled, never loaded from a font service (Inter + JetBrains Mono, OFL) ── */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght-italic.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+/* ── Dark (canonical ink) ── */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --cl-primary: #14b8a6;
+  --cl-primary-dim: #0f766e;
+  --cl-primary-glow: rgba(20, 184, 166, 0.28);
+  --cl-on-primary: #0a0a0f;
+  --cl-primary-text: #2dd4bf;
+
+  --cl-accent: #14b8a6;
+  --cl-accent-dim: #0f766e;
+  --cl-accent-glow: rgba(20, 184, 166, 0.22);
+  --cl-on-accent: #0a0a0f;
+  --cl-accent-text: #2dd4bf;
+
+  --cl-secondary: #2dd4bf;
+}
+
+/* ── Light (warm paper) ── */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --cl-bg: #f6f4ee;
+  --cl-surface: #fffefb;
+  --cl-surface-hover: #f1ece1;
+  --cl-border: #e8e2d6;
+  --cl-text: #1c1a17;
+  --cl-text-muted: #6b6459;
+
+  --cl-primary: #0f766e;
+  --cl-primary-dim: #115e59;
+  --cl-primary-glow: rgba(15, 118, 110, 0.16);
+  --cl-on-primary: #fffefb;
+  --cl-primary-text: #115e59;
+
+  --cl-accent: #0f766e;
+  --cl-accent-dim: #115e59;
+  --cl-accent-glow: rgba(15, 118, 110, 0.14);
+  --cl-on-accent: #fffefb;
+  --cl-accent-text: #115e59;
+
+  --cl-secondary: #0f766e;
+
+  --cl-success: #0f9d6b;
+  --cl-warning: #b5790a;
+  --cl-danger: #d1373d;
+
+  --cl-grid: rgba(28, 26, 23, 0.05);
+
+  /* Neutral elevation on paper is lighter than on ink (tokens.md Shadow: #3328261e). */
+  --cl-shadow-sm: 0 1px 2px rgba(40, 38, 30, 0.12);
+  --cl-shadow-md: 0 8px 24px rgba(40, 38, 30, 0.14);
+  --cl-shadow-lg: 0 20px 50px rgba(40, 38, 30, 0.2);
+}

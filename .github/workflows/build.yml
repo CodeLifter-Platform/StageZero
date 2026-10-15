@@ -1,0 +1,122 @@
+# StageZero — build and test on every push and PR.
+#
+# Three legs, all Linux on GitHub-hosted runners (this repo is public; see
+# Platform-Standards/process/versioning-ci.md):
+#   web    the React app in web/: design-system drift, lint, strict typecheck, Vitest with
+#          coverage, production build
+#   api    the ASP.NET Core API and the auth library: warnings-as-errors build, xUnit with
+#          coverage (the suite hosts the real app in memory as its integration canary)
+#   image  builds the container the app ships as, starts it, and checks it is healthy and
+#          serves the web app (Platform-Standards/process/testing.md: smoke-test the image)
+#
+# Versioning and releases are not here yet: the app is not released (LivingSpec, Known
+# gaps). The NuGet library keeps its own workflow (basic-auth-nuget-publish.yml).
+
+name: Build
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      # The design system is a sibling repo; the drift check compares the vendored copy in
+      # web/src/design against it. If this repo's token can't read it, the check reports
+      # itself skipped rather than failing the build.
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: CodeLifter-Platform/Platform-Design
+          path: Platform-Design
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Vendored design system matches Platform-Design
+        run: npm run design:check
+        env:
+          PLATFORM_DESIGN: ${{ github.workspace }}/Platform-Design
+
+      - run: npm run lint
+      - run: npm run typecheck
+
+      - name: Tests (with coverage)
+        run: |
+          npm run test:coverage -- --reporter=default | tee test-output.txt
+          {
+            echo '### Web coverage'
+            echo '```'
+            sed -n '/Coverage summary/,/^=*$/p' test-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - run: npm run build
+
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - run: dotnet build StageZero.sln -c Release
+
+      - name: Tests (with coverage)
+        run: dotnet test tests/StageZero.Tests -c Release --no-build --collect:"XPlat Code Coverage" --results-directory coverage/StageZero.Tests
+
+      - name: Coverage summary
+        run: python3 .github/scripts/coverage-summary.py coverage | tee -a "$GITHUB_STEP_SUMMARY"
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [web, api]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the release image
+        run: docker build -f StageZero/Dockerfile --target release -t stagezero:ci .
+
+      - name: Start it and check health and the web app
+        run: |
+          docker run -d --name stagezero -p 8080:8080 -e STAGEZERO_LOG_LEVEL=Information stagezero:ci
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' stagezero)
+            [ "$status" = healthy ] && break
+            sleep 2
+          done
+          docker inspect -f '{{.State.Health.Status}}' stagezero | grep -qx healthy
+          curl -fsS http://localhost:8080/healthz
+          curl -fsS http://localhost:8080/tunnel-routes | grep -q '<div id="root">'
+          curl -fsS http://localhost:8080/api/auth/session | grep -q '"setupRequired":true'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/dns/providers)" = 401
+
+      - name: Container log
+        if: always()
+        run: docker logs stagezero || true

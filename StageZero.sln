@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StageZero", "StageZero\Stag
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lifted.BlazorAuth.Basic", "Lifted.BlazorAuth.Basic\Lifted.BlazorAuth.Basic.csproj", "{1833A0DF-16D2-42AC-A338-F174F4585151}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StageZero.Tests", "StageZero.Tests\StageZero.Tests.csproj", "{E58878E5-1729-491B-85FF-A1A4B063173A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StageZero.Tests", "tests\StageZero.Tests\StageZero.Tests.csproj", "{E58878E5-1729-491B-85FF-A1A4B063173A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

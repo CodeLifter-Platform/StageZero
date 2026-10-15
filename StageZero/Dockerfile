@@ -1,7 +1,8 @@
-# StageZero — Blazor Server dynamic DNS.
+# StageZero — dynamic DNS and Cloudflare Tunnel manager: an ASP.NET Core Web API that also
+# serves the React app built from web/.
 #
-# Build context is the REPO ROOT, not this directory, because the web project references
-# ../Lifted.BlazorAuth.Basic:
+# Build context is the REPO ROOT, not this directory, because the API project references
+# ../Lifted.BlazorAuth.Basic and the web app lives in ../web:
 #
 #   docker build -f StageZero/Dockerfile -t stagezero:local .
 #
@@ -30,6 +31,15 @@ EXPOSE 443
 RUN mkdir -p /app-data && chown $APP_UID /app-data
 VOLUME /app-data
 
+# ── Web app ─────────────────────────────────────────────────────────
+# Builds web/ (Vite + React) into /web/wwwroot. Lint and tests run in CI, not here.
+FROM node:22-alpine AS web
+WORKDIR /src/web
+COPY ["web/package.json", "web/package-lock.json", "./"]
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npx tsc -b && npx vite build --outDir /web/wwwroot --emptyOutDir
+
 # ── Build ───────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -50,11 +60,14 @@ RUN dotnet build "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
+COPY --from=web /web/wwwroot /app/publish/wwwroot
 
 # ── debug: what debug.docker-compose.yml targets ────────────────────
-# This is a hot-reload dev stage, not the published app with a different env var.
-# It runs `dotnet watch` off the SDK image so edits on the mounted source take effect
-# without a rebuild — which is the entire reason debug.docker-compose.yml exists.
+# This is a hot-reload dev stage for the API, not the published app with a different env
+# var. It runs `dotnet watch` off the SDK image so edits on the mounted source take effect
+# without a rebuild — which is the entire reason debug.docker-compose.yml exists. The web
+# app is built once into the image; for hot reload of the UI, run `npm run dev` in web/ on
+# the host instead.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
 WORKDIR /src
 
@@ -63,6 +76,7 @@ COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
 COPY . .
+COPY --from=web /web/wwwroot /src/StageZero/wwwroot
 
 RUN mkdir -p /app-data
 VOLUME /app-data

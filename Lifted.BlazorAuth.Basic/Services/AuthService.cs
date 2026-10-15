@@ -25,6 +25,14 @@ public interface IAuthService
     bool IsAuthenticated { get; }
     bool RequiresPasswordChange { get; }
     bool RequiresEmailVerification { get; }
+
+    /// <summary>
+    /// Makes an already-authenticated user current for this scope, for hosts whose session
+    /// lives outside the scope (an auth cookie in a Web API, where each request is a new
+    /// scope). The host proves the user signed in; this only loads them. False when the
+    /// account no longer exists, is inactive, or is locked out.
+    /// </summary>
+    Task<bool> ResumeAsync(int userId) => Task.FromResult(false);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -171,6 +179,19 @@ public class AuthService : IAuthService
             _logger.LogError(ex, "Login failed for user {Email}", email);
             throw new AuthServiceException("Could not complete login", ex);
         }
+    }
+
+    public async Task<bool> ResumeAsync(int userId)
+    {
+        var user = await _userReader.GetByIdAsync(userId);
+        if (user is null || !user.IsActive || user.LockoutEndsAt > UtcNow)
+        {
+            _currentUser = null;
+            return false;
+        }
+
+        _currentUser = user;
+        return true;
     }
 
     public Task LogoutAsync()
