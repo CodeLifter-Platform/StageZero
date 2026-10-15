@@ -50,7 +50,9 @@ cd web && npm run dev                    # terminal 2: http://localhost:5173
 
 Open http://localhost:5173. Vite proxies `/api` to the API (override the target with
 `STAGEZERO_API=…`). In VS Code, the **StageZero (API + web)** launch configuration starts
-both.
+both; **StageZero API only** builds the web app and runs just the API serving it, as the
+release container does. The same two loops run entirely in containers with
+`docker-compose.debug.yml` ([OnboardDocker.md](OnboardDocker.md#debug)).
 
 The UI is built from the CodeLifter Design System, vendored verbatim in `web/src/design`.
 With the sibling `Platform-Design` repo checked out next to this one, `npm run design:sync`

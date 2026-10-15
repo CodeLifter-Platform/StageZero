@@ -39,8 +39,8 @@ export function connectorInstructions(os: ConnectorOs, token: string): { command
       };
     case 'docker':
       return {
-        commands: `TUNNEL_TOKEN=${token}\ndocker compose -f prod.docker-compose.yml --profile tunnel up -d`,
-        note: 'Put the token in .env, then start the stack with the tunnel profile. The connector stops when the stack does; a host service is more resilient.',
+        commands: `echo "TUNNEL_TOKEN=${token}" >> .env\ndocker compose --profile tunnel up -d`,
+        note: 'Run in the StageZero checkout: the token goes in .env, then the release stack starts with the cloudflared sidecar. The connector stops when the stack does; a host service is more resilient.',
       };
   }
 }

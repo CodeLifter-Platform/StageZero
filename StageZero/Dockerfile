@@ -6,22 +6,24 @@
 #
 #   docker build -f StageZero/Dockerfile -t stagezero:local .
 #
-# Both compose files already expect that (context: ., dockerfile: StageZero/Dockerfile)
-# and select a stage with `target:`, so the `debug` and `release` stage names below are a
-# contract with them — renaming one breaks docker-compose.
+# Two stages are a contract with the compose files at the repo root — renaming one breaks
+# them:
 #
-# The app resolves its own data directory: DataPathService detects a container and uses
-# /app-data, so the SQLite database and logs land on the mounted volume rather than inside
-# the image. Nothing here needs to pass a connection string.
+#   release  what docker-compose.yml runs: the published app, non-root, HEALTHCHECK.
+#   debug    what docker-compose.debug.yml runs: `dotnet watch` over the mounted source,
+#            with the VS Code debugger installed.
+#
+# Both listen on plain HTTP on 8080. The app resolves its own data directory:
+# DataPathService detects a container and uses /app-data, so the SQLite database, logs and
+# data-protection keys land on the mounted volume rather than inside the image. Nothing here
+# needs to pass a connection string.
 
 # ── Base runtime ────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 
-# Kestrel listens on 8080 by default in these images. The compose files override
-# ASPNETCORE_URLS to bind 443 with a mounted dev certificate; both work.
+# Kestrel listens on 8080 by default in these images; the compose files publish it.
 EXPOSE 8080
-EXPOSE 443
 
 # The volume mount point. Created here so a plain `docker run` without a volume still has
 # somewhere writable to put the database instead of failing at startup. Owned by the
@@ -62,40 +64,45 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
 COPY --from=web /web/wwwroot /app/publish/wwwroot
 
-# ── debug: what debug.docker-compose.yml targets ────────────────────
-# This is a hot-reload dev stage for the API, not the published app with a different env
-# var. It runs `dotnet watch` off the SDK image so edits on the mounted source take effect
-# without a rebuild — which is the entire reason debug.docker-compose.yml exists. The web
-# app is built once into the image; for hot reload of the UI, run `npm run dev` in web/ on
-# the host instead.
+# ── debug: what docker-compose.debug.yml runs ───────────────────────
+# A hot-reload dev environment for the API, not the published app with a different env var.
+# It runs `dotnet watch` off the SDK image; the compose file mounts the source over /src so
+# edits on the host take effect without a rebuild. The web app is built once into the image
+# and served from /web/wwwroot — deliberately outside /src, where the bind mount would hide
+# it; the compose file's `web` service runs the Vite dev server for UI hot reload.
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS debug
 WORKDIR /src
+
+# The VS Code debugger, so "StageZero container: attach" in .vscode/launch.json can pipe
+# into this container through `docker exec`.
+RUN curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /vsdbg
 
 COPY ["global.json", "Directory.Build.props", "Directory.Packages.props", "./"]
 COPY ["StageZero/StageZero.csproj", "StageZero/"]
 COPY ["Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj", "Lifted.BlazorAuth.Basic/"]
 RUN dotnet restore "StageZero/StageZero.csproj"
 COPY . .
-COPY --from=web /web/wwwroot /src/StageZero/wwwroot
+COPY --from=web /web/wwwroot /web/wwwroot
 
 RUN mkdir -p /app-data
 VOLUME /app-data
 EXPOSE 8080
-EXPOSE 443
 
 WORKDIR /src/StageZero
-# Polling is required: inotify does not fire for edits made on the host and seen
-# through a bind mount.
-ENV DOTNET_USE_POLLING_FILE_WATCHER=true
-ENV ASPNETCORE_ENVIRONMENT=Development
-ENTRYPOINT ["dotnet", "watch", "run", "--launch-profile", "Docker"]
+# Polling is required: inotify does not fire for edits made on the host and seen through a
+# bind mount. No launch profile: launchSettings.json binds localhost, unreachable from the
+# host; the URL comes from the environment instead.
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true \
+    ASPNETCORE_ENVIRONMENT=Development \
+    ASPNETCORE_URLS=http://+:8080 \
+    ASPNETCORE_WEBROOT=/web/wwwroot
+ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile", "--non-interactive"]
 
-# ── release: what beta.docker-compose.yml targets, and the default ──
+# ── release: what docker-compose.yml runs, and the default ──────────
 FROM base AS release
 COPY --from=publish /app/publish .
 
-# Not root. Kestrel's 8080 needs no privilege; the compose files that bind 443 also set
-# ASPNETCORE_URLS, and ports below 1024 are fine for a non-root process in these images.
+# Not root. Kestrel's 8080 needs no privilege.
 USER $APP_UID
 
 # The app probes its own /healthz (the image has no curl). Degraded — the public IP not

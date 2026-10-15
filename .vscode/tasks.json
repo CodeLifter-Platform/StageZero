@@ -17,27 +17,27 @@
       "label": "web: install",
       "type": "shell",
       "command": "npm install --no-audit --no-fund",
-      "options": {
-        "cwd": "${workspaceFolder}/web"
-      },
+      "options": { "cwd": "${workspaceFolder}/web" },
       "problemMatcher": []
     },
     {
       "label": "web: build",
       "type": "shell",
       "command": "npm run build",
-      "options": {
-        "cwd": "${workspaceFolder}/web"
-      },
+      "options": { "cwd": "${workspaceFolder}/web" },
       "problemMatcher": []
     },
     {
       "label": "web: test",
       "type": "shell",
       "command": "npm test",
-      "options": {
-        "cwd": "${workspaceFolder}/web"
-      },
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "problemMatcher": []
+    },
+    {
+      "label": "build + web",
+      "dependsOrder": "sequence",
+      "dependsOn": ["web: install", "web: build", "build"],
       "problemMatcher": []
     },
     {
@@ -56,135 +56,59 @@
       "label": "watch",
       "command": "dotnet",
       "type": "process",
-      "args": [
-        "watch",
-        "run",
-        "--project",
-        "${workspaceFolder}/StageZero/StageZero.csproj"
-      ],
+      "args": ["watch", "run", "--project", "${workspaceFolder}/StageZero/StageZero.csproj"],
       "problemMatcher": "$msCompile"
     },
     {
       "label": "Kill StageZero",
       "type": "shell",
       "command": "pkill -f 'dotnet.*StageZero' || echo 'No StageZero process found'",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": false,
-        "clear": false
-      },
+      "presentation": { "reveal": "always", "focus": false, "panel": "shared", "showReuseMessage": false },
       "problemMatcher": []
     },
     {
-      "label": "docker-compose-up",
+      "label": "container: release up",
       "type": "shell",
-      "command": "docker-compose -f debug.docker-compose.yml up --build -d",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
+      "command": "docker compose up --build -d",
+      "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []
     },
     {
-      "label": "docker-compose-down",
+      "label": "container: release down",
       "type": "shell",
-      "command": "docker-compose -f debug.docker-compose.yml down",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": false
-      },
+      "command": "docker compose down",
+      "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []
     },
     {
-      "label": "docker-compose-logs",
+      "label": "container: release logs",
       "type": "shell",
-      "command": "docker-compose -f debug.docker-compose.yml logs -f stagezero",
+      "command": "docker compose logs -f",
       "isBackground": true,
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": true,
-        "panel": "dedicated",
-        "showReuseMessage": false,
-        "clear": false
-      },
+      "presentation": { "reveal": "always", "focus": true, "panel": "dedicated" },
       "problemMatcher": []
     },
     {
-      "label": "docker-run: debug",
-      "type": "docker-run",
-      "dependsOn": [
-        "docker-build: debug"
-      ],
-      "dockerRun": {
-        "containerName": "stagezero-debug",
-        "env": {
-          "ASPNETCORE_ENVIRONMENT": "Development",
-          "ASPNETCORE_URLS": "http://+:80;https://+:443",
-          "ASPNETCORE_Kestrel__Certificates__Default__Password": "",
-          "ASPNETCORE_Kestrel__Certificates__Default__Path": "/https/aspnetapp.pfx"
-        },
-        "envFiles": [
-          "${workspaceFolder}/.env"
-        ],
-        "ports": [
-          {
-            "containerPort": 80,
-            "hostPort": 5000
-          },
-          {
-            "containerPort": 443,
-            "hostPort": 5001
-          }
-        ],
-        "volumes": [
-          {
-            "localPath": "${workspaceFolder}/.volumes/data",
-            "containerPath": "/app/data",
-            "permissions": "rw"
-          },
-          {
-            "localPath": "${env:HOME}/.aspnet/https",
-            "containerPath": "/https",
-            "permissions": "ro"
-          }
-        ],
-        "extraHosts": [
-          {
-            "hostname": "host.docker.internal",
-            "ip": "host-gateway"
-          }
-        ]
-      },
-      "netCore": {
-        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj",
-        "enableDebugging": true
-      }
+      "label": "container: debug up",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.debug.yml up --build -d",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
     },
     {
-      "label": "docker-build: debug",
-      "type": "docker-build",
-      "dockerBuild": {
-        "tag": "stagezero:debug",
-        "target": "debug",
-        "dockerfile": "${workspaceFolder}/StageZero/Dockerfile",
-        "context": "${workspaceFolder}",
-        "pull": true
-      },
-      "netCore": {
-        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj"
-      }
+      "label": "container: debug down",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.debug.yml down",
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "container: debug logs",
+      "type": "shell",
+      "command": "docker compose -f docker-compose.debug.yml logs -f",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "focus": true, "panel": "dedicated" },
+      "problemMatcher": []
     }
   ]
 }

@@ -46,7 +46,7 @@ coverage/
 # Docker / compose files themselves (not needed inside the image)
 **/Dockerfile
 **/.dockerignore
-*.docker-compose.yml
+docker-compose*.yml
 docker-run.sh
 docker-run.ps1
 

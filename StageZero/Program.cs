@@ -273,10 +273,11 @@ try
         app.UseHsts();
     }
 
-    // Only redirect in Development. In production Cloudflare terminates TLS and the
-    // container listens on HTTP only, so redirecting here would loop against a
-    // listener that does not exist.
-    if (app.Environment.IsDevelopment())
+    // Only redirect in Development, and only when there is an HTTPS listener to redirect to
+    // (`dotnet run`, the VS Code launch). The containers listen on plain HTTP only — release
+    // because Cloudflare terminates TLS, debug because it is localhost — so there the
+    // redirect would point at a listener that does not exist.
+    if (app.Environment.IsDevelopment() && HttpsListener.IsConfigured(app.Configuration))
     {
         app.UseHttpsRedirection();
     }

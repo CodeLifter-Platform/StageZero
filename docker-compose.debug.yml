@@ -1,0 +1,75 @@
+# StageZero, debug: hot reload for the API and the web app, debugger attachable.
+#
+#   docker compose -f docker-compose.debug.yml up --build
+#     http://localhost:5173  the web app with hot reload (Vite, proxying /api to the API)
+#     http://localhost:5200  the API itself, serving the web app as built into the image
+#   docker compose -f docker-compose.debug.yml down
+#
+# Everything runs in containers; nothing but Docker is needed on the host. Edits under
+# StageZero/ and Lifted.BlazorAuth.Basic/ restart the API (`dotnet watch`); edits under
+# web/ hot-reload in the browser. Changing a package reference, global.json or the
+# Directory.*.props needs `up --build` again.
+#
+# Its data is separate from the release instance's on purpose: a debug build pointed at
+# the real database would rewrite real DNS records within seconds of starting.
+name: stagezero-debug
+
+services:
+  stagezero:
+    container_name: stagezero-debug
+    image: stagezero:debug
+    build:
+      context: .
+      dockerfile: StageZero/Dockerfile
+      target: debug
+    ports:
+      # Not 5000: macOS AirPlay Receiver holds that port and answers 403 for it.
+      - "5200:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    volumes:
+      # The source, live. The API's web root is /web/wwwroot in the image, outside this
+      # mount, so the mount can't hide it.
+      - ./StageZero:/src/StageZero
+      - ./Lifted.BlazorAuth.Basic:/src/Lifted.BlazorAuth.Basic
+      # Build output stays in the container: the host's bin/obj hold host paths and host
+      # binaries, and the container's would otherwise land on the host, root-owned.
+      - /src/StageZero/bin
+      - /src/StageZero/obj
+      - /src/Lifted.BlazorAuth.Basic/bin
+      - /src/Lifted.BlazorAuth.Basic/obj
+      - ${STAGEZERO_DEBUG_DATA_DIR:-./.volumes/stagezero-debug}:/app-data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    container_name: stagezero-debug-web
+    image: node:22-alpine
+    working_dir: /src/web
+    # Dependencies live in a volume, not the host's node_modules: those hold macOS/Windows
+    # native binaries that don't run in this Linux container. Installed from the lockfile
+    # once, and again only when the lockfile changes.
+    command:
+      - sh
+      - -c
+      - |
+        if ! cmp -s package-lock.json node_modules/.installed-lock; then
+          npm ci --no-audit --no-fund && cp package-lock.json node_modules/.installed-lock
+        fi
+        exec npm run dev -- --host 0.0.0.0
+    environment:
+      STAGEZERO_API: http://stagezero:8080
+      STAGEZERO_WATCH_POLL: "true"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/src/web
+      - web-node-modules:/src/web/node_modules
+    depends_on:
+      - stagezero
+
+volumes:
+  web-node-modules:
