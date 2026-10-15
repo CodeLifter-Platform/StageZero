@@ -28,7 +28,6 @@ public static class LoggingSetup
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
             .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
-            .MinimumLevel.Override("MudBlazor", LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
             .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 31);

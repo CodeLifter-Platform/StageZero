@@ -1,0 +1,87 @@
+import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../../api/client';
+import { useSession } from '../../app/session';
+import { useToast } from '../../app/toast';
+import { Notice } from '../../components/Notice';
+import { useDocumentTitle } from '../../components/useDocumentTitle';
+import { Button, Card, Checkbox, Input } from '../../ui';
+
+/** Validation the server repeats; checked here so the person learns before they submit. */
+export function setupProblem(email: string, password: string, confirm: string): string | null {
+  if (!email.trim().includes('@')) return 'Please enter a valid email address.';
+  if (password.length < 8) return 'Password must be at least 8 characters long.';
+  if (password !== confirm) return 'Passwords do not match.';
+  return null;
+}
+
+/** First run: one form creates the admin. Shown only while no user exists. */
+export function SetupPage() {
+  useDocumentTitle('Setup');
+  const { info, refresh } = useSession();
+  const notify = useToast();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [optIns, setOptIns] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (info && !info.setupRequired) {
+    return <Notice tone="info" title="Setup already completed" action={<Button size="sm" onClick={() => navigate('/login')}>Sign in</Button>} />;
+  }
+
+  const choices = info?.signupChoices ?? [];
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const problem = setupProblem(email, password, confirm);
+    if (problem) { setError(problem); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.auth.setup(email.trim(), password, optIns);
+      notify('Admin account created. Sign in to continue.', 'success');
+      if (result.signup) notify(result.signup.message, result.signup.sent ? 'info' : 'warning');
+      await refresh();
+      navigate('/login', { replace: true });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <form className="sz-stack" onSubmit={submit} noValidate>
+        <div className="sz-stack-sm">
+          <h1>Welcome</h1>
+          <p className="sz-muted sz-small">Create your admin account.</p>
+        </div>
+        <Input label="Admin email" hint="This is your login" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
+        <Input label="Password" hint="Minimum 8 characters" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
+        <Input label="Confirm password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={busy} />
+        {choices.length > 0 ? (
+          <div className="sz-stack-sm">
+            <span className="sz-kicker">Optional</span>
+            {choices.map((c) => (
+              <div key={c.key} className="sz-stack-sm">
+                <Checkbox
+                  label={c.label}
+                  checked={optIns.includes(c.key)}
+                  disabled={busy}
+                  onChange={(e) => setOptIns((list) => (e.target.checked ? [...list, c.key] : list.filter((k) => k !== c.key)))}
+                />
+                <span className="sz-xs sz-muted sz-indent">{c.description}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        <Button type="submit" disabled={busy || !email || !password || !confirm}>{busy ? 'Creating account…' : 'Create admin account'}</Button>
+      </form>
+    </Card>
+  );
+}

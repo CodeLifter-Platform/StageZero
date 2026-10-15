@@ -275,6 +275,31 @@ The components use MudBlazor, so you can customize the theme in your app.
 
 The included MudBlazor components are just a reference implementation - feel free to replace them entirely with your own UI while keeping all the authentication logic, database models, and services!
 
+### Using It Behind a Web API (cookie sessions)
+
+`AuthService` keeps the signed-in user for the lifetime of its DI scope. In Blazor Server that
+is the circuit; in a Web API every request is a new scope, so the host keeps the session itself
+(an auth cookie, a token) and calls `ResumeAsync` at the start of each request to make that user
+current again. It returns `false` when the account no longer exists, is inactive, or is locked
+out, and the host should then end the session:
+
+```csharp
+// In CookieAuthenticationEvents.OnValidatePrincipal, for example:
+var auth = context.HttpContext.RequestServices.GetRequiredService<IAuthService>();
+if (!int.TryParse(context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
+    || !await auth.ResumeAsync(id))
+{
+    context.RejectPrincipal();
+}
+```
+
+After that, the account flows that act on the current user (`ChangePasswordAsync`,
+`SendEmailVerificationCodeAsync`, `VerifyEmailCodeAsync`, `UpdateEmailAsync`) work per request.
+`ClientAddress` reads the request's own address there, so the brute-force throttle needs no
+circuit handler. StageZero is the reference: `StageZero/Api/Session.cs` and
+`StageZero/Api/AuthEndpoints.cs`. `ResumeAsync` is a default interface member, so an existing
+`IAuthService` implementation keeps compiling (and resumes no one until it overrides it).
+
 ## � Publishing to NuGet
 
 This package includes a GitHub Actions workflow for automated NuGet publishing. Here's how to set it up:

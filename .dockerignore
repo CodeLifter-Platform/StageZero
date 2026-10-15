@@ -13,6 +13,11 @@
 **/out/
 **/publish/
 
+# Web app: dependencies are installed and the SPA is built inside the image
+**/node_modules/
+StageZero/wwwroot/
+coverage/
+
 # Local dev / IDE
 **/.vs/
 **/.vscode/

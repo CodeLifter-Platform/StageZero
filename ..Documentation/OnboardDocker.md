@@ -19,7 +19,9 @@ docker compose -f beta.docker-compose.yml up --build
 ```
 
 Or build the image directly — note the build context is the **repo root**, not
-`StageZero/`, because the web project references `../Lifted.BlazorAuth.Basic`:
+`StageZero/`, because the API project references `../Lifted.BlazorAuth.Basic` and the web
+app lives in `../web` (the image's `web` stage builds it with Node 22; nothing needs Node
+on the host):
 
 ```bash
 docker build -f StageZero/Dockerfile --target release -t stagezero:local .
@@ -47,15 +49,20 @@ More compose and debugging detail: [DOCKER_SETUP.md](DOCKER_SETUP.md).
 
 ## Test
 
-The test suite is not run inside the image; run it on the host with the .NET SDK
-([OnboardWeb.md](OnboardWeb.md#test)).
+The test suites are not run inside the image; run them on the host
+([OnboardWeb.md](OnboardWeb.md#test)). CI builds this image on every push, starts it, and
+checks it turns healthy, serves the web app and refuses an anonymous API call.
 
-## The two stages
+## The stages
 
+- **`web`** — builds the React app in `web/` with Node 22 (`npm ci`, `tsc`, `vite build`).
+  Both stages below copy its output into the app's `wwwroot`.
 - **`release`** — the published app. What `beta.docker-compose.yml` targets.
-- **`debug`** — a hot-reload dev environment: SDK image, `dotnet watch run`, polling file
-  watcher. What `debug.docker-compose.yml` targets. Edits on the mounted source take effect
-  without a rebuild.
+- **`debug`** — a hot-reload dev environment for the API: SDK image, `dotnet watch run`,
+  polling file watcher. What `debug.docker-compose.yml` targets. Edits to the API on the
+  mounted source take effect without a rebuild; the web app is built once into the image,
+  so for UI work run `npm run dev` in `web/` on the host instead
+  ([OnboardWeb.md](OnboardWeb.md#working-on-the-web-app)).
 
 ## Forgotten password
 
@@ -72,15 +79,18 @@ Full steps: [README.md](../README.md#configuration).
 
 - **`/app-data` must be a mounted volume.** `DataPathService` detects the container and puts
   the database, logs, *and* the Data Protection keys there. Without a volume you lose all
-  three on restart — and losing the keys means every user is logged out and form posts break
-  until a reload.
+  three on restart — and losing the keys means every user is signed out and the stored
+  Cloudflare tokens can't be decrypted.
 - **The container runs as a non-root user** (`$APP_UID`, 1654) since the release audit. A
   named volume created against this image is owned correctly; a bind mount, or a volume
   from an install that ran as root, needs its ownership fixed once or the database can't
   be written: `docker run --rm -v stagezero-data:/app-data alpine chown -R 1654 /app-data`
   (for a bind mount, `sudo chown -R 1654 <dir>` on the host).
 - **The build context is the repo root.** Building from inside `StageZero/` fails on the
-  first `COPY`, because the auth library lives one level up.
+  first `COPY`, because the auth library and the web app live one level up.
+- **`debug.docker-compose.yml` mounts `./StageZero` over the image's copy**, which hides
+  the `wwwroot` the image built unless you have also run `npm run build` in `web/` on the
+  host. Without it the page says the web app hasn't been built; the API still works.
 - **The polling file watcher is required in `debug`.** inotify does not fire for edits made
   on the host and seen through a bind mount, so without `DOTNET_USE_POLLING_FILE_WATCHER`
   hot reload silently does nothing.

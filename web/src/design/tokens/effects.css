@@ -1,0 +1,28 @@
+/* ============================================================
+   CodeLifter — Effects: shadows, glow, motion
+   Glow is the signature: primary/accent elements emit a colored halo.
+   ============================================================ */
+:root {
+  /* Neutral elevation */
+  --cl-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --cl-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --cl-shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.45);
+
+  /* Signature glow (uses the live glow tokens from colors.css) */
+  --cl-glow-primary: 0 0 28px var(--cl-primary-glow);
+  --cl-glow-primary-strong: 0 0 30px var(--cl-primary-glow), 0 0 60px var(--cl-primary-glow);
+  --cl-glow-accent: 0 0 28px var(--cl-accent-glow);
+
+  /* Focus ring */
+  --cl-ring: 0 0 0 3px var(--cl-primary-glow);
+
+  /* Motion */
+  --cl-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --cl-dur-fast: 0.2s;
+  --cl-dur: 0.3s;
+}
+
+@keyframes cl-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}

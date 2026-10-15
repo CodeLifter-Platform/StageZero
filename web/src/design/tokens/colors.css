@@ -1,0 +1,173 @@
+/* ============================================================
+   CodeLifter — Color tokens
+   Source of truth: CodeLifter.Net/src/app/globals.css (@theme block).
+   Dark is the canonical CodeLifter theme (the site ships dark-only today).
+   Light mode is an opt-in scope with crisp, cool neutrals:
+     [data-theme="light"]
+   ============================================================ */
+
+:root {
+  /* ---- Brand scale: royal purple (matches the barbell logo) ---- */
+  --cl-purple-100: #cbb3f8;
+  --cl-purple-200: #b896f5;
+  --cl-purple-300: #a78bfa;
+  --cl-purple-400: #9a68f1;
+  --cl-purple-500: #7c3aed;   /* primary */
+  --cl-purple-600: #6d28d9;
+  --cl-purple-700: #5b21b6;
+
+  /* ---- Brand scale: electric cyan (complementary accent) ---- */
+  --cl-cyan-300: #66e4ff;
+  --cl-cyan-400: #00d4ff;     /* accent */
+  --cl-cyan-600: #0099bb;
+  --cl-cyan-700: #0e7490;
+
+  /* ---- Status hues ---- */
+  --cl-green-500: #34d399;
+  --cl-amber-500: #f5b544;
+  --cl-red-500:   #f2555a;
+
+  /* ---- Dark neutral ramp (canonical) ---- */
+  --cl-ink-950: #0a0a0f;
+  --cl-ink-900: #12121a;
+  --cl-ink-800: #1a1a28;
+  --cl-ink-700: #1e1e2e;
+  --cl-ink-400: #8888a0;
+  --cl-ink-100: #e8e8ed;
+
+  /* ================= Semantic aliases (dark = default) ================= */
+  --cl-bg: var(--cl-ink-950);
+  --cl-surface: var(--cl-ink-900);
+  --cl-surface-hover: var(--cl-ink-800);
+  --cl-border: var(--cl-ink-700);
+  --cl-text: var(--cl-ink-100);
+  --cl-text-muted: var(--cl-ink-400);
+
+  --cl-primary: var(--cl-purple-500);
+  --cl-primary-dim: var(--cl-purple-600);
+  --cl-primary-glow: rgba(124, 58, 237, 0.28);
+  --cl-on-primary: #ffffff;
+  /* Text-safe purple. --cl-primary is a FILL color: at #7c3aed on --cl-surface it
+     measures 3.27:1, which fails AA for body/label text. Use this for small purple
+     TEXT on dark surfaces (6.97:1); keep --cl-primary for fills, borders, and glow. */
+  --cl-primary-text: var(--cl-purple-300);
+
+  --cl-accent: var(--cl-cyan-400);
+  --cl-accent-dim: var(--cl-cyan-600);
+  --cl-accent-glow: rgba(0, 212, 255, 0.22);
+  --cl-on-accent: #04121a;
+  /* Text-safe cyan — the mirror of --cl-primary-text. --cl-accent is a FILL color;
+     on a light surface it measures 3.68:1 and fails AA for text. Use this for small
+     accent TEXT; keep --cl-accent for fills, borders, and glow. */
+  --cl-accent-text: var(--cl-cyan-400);
+
+  --cl-secondary: var(--cl-purple-300);
+
+  --cl-success: var(--cl-green-500);
+  --cl-warning: var(--cl-amber-500);
+  --cl-danger: var(--cl-red-500);
+  /* Status text steps. The tinted-pill pattern paints the SAME hue as a 14% tint
+     and as the label on top of it, so the label needs its own step; on dark the
+     hue itself already clears 7.5:1. */
+  --cl-success-text: var(--cl-success);
+  --cl-warning-text: var(--cl-warning);
+  --cl-danger-text: var(--cl-danger);
+
+  --cl-grid: rgba(255, 255, 255, 0.04);
+
+  /* ---- Per-app accent marks (brand-fixed; identical in dark & light) ----
+     `-2` is the brighter glyph tone used inside app-icon tiles.
+     `-btn` / `-on` are the AA-safe pairing for solid buttons and filled
+     chips: the raw accent is tuned for glyphs and glow, not for carrying
+     text, so never put label text directly on `--cl-app-X`. */
+  /* BoxCar — ultraviolet */
+  --cl-app-boxcar: #d946ef;   --cl-app-boxcar-2: #f0abfc;
+  --cl-app-boxcar-btn: #a21caf; --cl-app-boxcar-on: #ffffff;
+
+  /* Specter — blue */
+  --cl-app-specter:    #4f7cff;   --cl-app-specter-2:    #a9c0ff;
+  --cl-app-specter-btn: #3a63e0;  --cl-app-specter-on:   #ffffff;
+
+  /* Singular — royal purple, the platform hue (shares CodeLifter's brand color) */
+  --cl-app-singular:   #7c3aed;   --cl-app-singular-2:   #cbb3f8;
+  --cl-app-singular-btn: #6d28d9; --cl-app-singular-on:  #ffffff;
+
+  --cl-app-reps:       #f59e0b;   --cl-app-reps-2:       #fcd34d;
+  --cl-app-reps-btn:   #f59e0b;   --cl-app-reps-on:      #1c1a17;
+
+  --cl-app-touchdown:  #ff6b3d;   --cl-app-touchdown-2:  #ffb59d;
+  --cl-app-touchdown-btn: #d1421a; --cl-app-touchdown-on: #ffffff;
+
+  --cl-app-dossier:    #06b6d4;   --cl-app-dossier-2:    #67e8f9;
+  --cl-app-dossier-btn: #0e7490;  --cl-app-dossier-on:   #ffffff;
+
+  /* Conflagration — ember crimson. The warm "fire" band the name suggests was
+     already spoken for (Reps amber #f59e0b, TouchDown coral #ff6b3d) and lime
+     collides with --cl-chart-3, so the hue sits at the hot end of the rose
+     range instead: deeper and far more saturated than the salmon danger red,
+     and 46° off BoxCar's magenta. Because it is adjacent to --cl-danger,
+     Conflagration's own UI never uses the accent to carry STATE — state reads
+     from the status hues, the accent is chrome only. */
+  --cl-app-conflagration:   #e0245e;  --cl-app-conflagration-2:  #ff85aa;
+  --cl-app-conflagration-btn: #c01049; --cl-app-conflagration-on: #ffffff;
+
+  /* Text step for app accents. Neither the raw accent nor the button fill is
+     readable on both canvases (e.g. BoxCar #4f7cff = 5.0:1 on dark but
+     3.7:1 on white; #3a63e0 = 3.6:1 on dark but 5.2:1 on white), so the text
+     step is theme-aware: the bright accent on dark, the button shade on light. */
+  --cl-app-boxcar-text: var(--cl-app-boxcar);
+  --cl-app-specter-text:    var(--cl-app-specter);
+  --cl-app-singular-text:   var(--cl-primary-text);
+  --cl-app-reps-text:       var(--cl-app-reps);
+  --cl-app-touchdown-text:  var(--cl-app-touchdown);
+  --cl-app-dossier-text:    var(--cl-app-dossier);
+  /* Crimson at #e0245e is 4.4:1 on dark — under AA for small text — so the dark
+     text step lifts to a brighter rose (7.4:1). */
+  --cl-app-conflagration-text: #ff6e96;
+}
+
+/* ---- Light: crisp, cool-neutral canvas ---- */
+[data-theme="light"] {
+  --cl-bg: #f6f7fb;
+  --cl-surface: #ffffff;
+  --cl-surface-hover: #f0f0f8;
+  --cl-border: #e3e3ee;
+  --cl-text: #14141c;
+  --cl-text-muted: #5a5a72;
+
+  --cl-primary: var(--cl-purple-600);
+  --cl-primary-dim: var(--cl-purple-700);
+  --cl-primary-glow: rgba(109, 40, 217, 0.16);
+  --cl-on-primary: #ffffff;
+  /* On a light canvas the fill purple is already AA as text (5.70:1). */
+  --cl-primary-text: var(--cl-purple-600);
+
+  --cl-accent: #0891b2;
+  --cl-accent-dim: var(--cl-cyan-700);
+  --cl-accent-glow: rgba(8, 145, 178, 0.14);
+  --cl-on-accent: #ffffff;
+  /* Darker cyan step for text on a light canvas (~5.4:1). */
+  --cl-accent-text: var(--cl-cyan-700);
+
+  --cl-secondary: var(--cl-purple-500);
+
+  --cl-success: #059669;
+  --cl-warning: #c2820c;
+  --cl-danger: #dc2f36;
+  /* Darker status steps for label text over their own tint on white (~5.1–5.4:1). */
+  --cl-success-text: #046c4e;
+  --cl-warning-text: #8a5a06;
+  --cl-danger-text: #b3202a;
+
+  --cl-grid: rgba(20, 20, 40, 0.05);
+
+  /* App accent text on a light canvas — the darker shades. Reps amber needs its
+     own step: the amber fill is only 2.2:1 as text on white, so it darkens. */
+  --cl-app-boxcar-text: var(--cl-app-boxcar-btn);
+  --cl-app-specter-text:    var(--cl-app-specter-btn);
+  --cl-app-singular-text:   var(--cl-primary-text);
+  --cl-app-reps-text:       #8a5a06;
+  --cl-app-touchdown-text:  var(--cl-app-touchdown-btn);
+  --cl-app-dossier-text:    var(--cl-app-dossier-btn);
+  --cl-app-conflagration-text: #a80f43;
+}

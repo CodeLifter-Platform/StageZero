@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using MudBlazor.Services;
-using StageZero.Application.Layout;
+using StageZero.Api;
 using StageZero.Data;
 using StageZero.DataAdapters.AccessServiceTokens;
 using StageZero.DataAdapters.DnsProviders;
@@ -101,14 +100,11 @@ try
     // SERVICES CONFIGURATION
     // ═══════════════════════════════════════════════════════════════
 
-    // MudBlazor
-    builder.Services.AddMudServices();
+    // The JSON API the React app (web/, built into wwwroot) talks to, and its cookie session.
+    builder.Services.AddStageZeroApi();
+    builder.Services.AddStageZeroSession();
 
-    // Razor Components
-    builder.Services.AddRazorComponents()
-        .AddInteractiveServerComponents();
-
-    // Entity Framework with DbContextFactory (required for Blazor Server)
+    // Entity Framework with DbContextFactory
     // Use platform-specific database path, or fall back to connection string from config
     var databasePath = DataPathService.GetDatabasePath();
     var connectionString = $"Data Source={databasePath}";
@@ -181,12 +177,12 @@ try
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<IAuthService, AuthService>();
 
-    // Brute-force limits (AuthThrottle): per-address, so the address of whoever is on the
-    // circuit is captured when it opens. Behind a proxy, UseForwardedHeaders makes it real.
+    // Brute-force limits (AuthThrottle): per-address. Each API call is its own request, so
+    // ClientAddress reads the request's address; behind a proxy, UseForwardedHeaders makes
+    // it the real one.
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<IAuthThrottle, AuthThrottle>();
     builder.Services.AddScoped<ClientAddress>();
-    builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, ClientAddressCircuitHandler>();
 
     // StageZero does not send email. The auth library's one-time codes (password reset,
     // re-verifying a changed address) go to the server log as an unmissable banner:
@@ -218,6 +214,9 @@ try
     builder.Services.AddScoped<ICloudflareTokenProtector, CloudflareTokenProtector>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
+    builder.Services.AddScoped<ITunnelSetupService, TunnelSetupService>();
+    builder.Services.AddScoped<ITunnelRouteService, TunnelRouteService>();
+    builder.Services.AddScoped<IDnsConfigService, DnsConfigService>();
 
     // ═══════════════════════════════════════════════════════════════
     // CLOUDFLARE ACCESS SERVICES
@@ -233,16 +232,6 @@ try
     // BACKGROUND SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddHostedService<IpMonitorBackgroundService>();
-
-    // ═══════════════════════════════════════════════════════════════
-    // VIEWMODELS REGISTRATION
-    // ═══════════════════════════════════════════════════════════════
-    builder.Services.AddScoped<IAppVM, AppVM>();
-    builder.Services.AddScoped<StageZero.Application.Areas.Home.IHomeViewModel, StageZero.Application.Areas.Home.HomeViewModel>();
-    builder.Services.AddScoped<StageZero.Application.Areas.IpMonitor.IIpMonitorViewModel, StageZero.Application.Areas.IpMonitor.IpMonitorViewModel>();
-    builder.Services.AddScoped<StageZero.Application.Areas.DnsConfig.IDnsConfigViewModel, StageZero.Application.Areas.DnsConfig.DnsConfigViewModel>();
-    builder.Services.AddScoped<StageZero.Application.Areas.TunnelManagement.ITunnelManagementViewModel, StageZero.Application.Areas.TunnelManagement.TunnelManagementViewModel>();
-    builder.Services.AddScoped<StageZero.Application.Areas.TunnelManagement.ITunnelSettingsViewModel, StageZero.Application.Areas.TunnelManagement.TunnelSettingsViewModel>();
 
     // ═══════════════════════════════════════════════════════════════
     // BUILD APPLICATION
@@ -262,15 +251,15 @@ try
         await using var db = await dbFactory.CreateDbContextAsync();
         if (!await db.Users.AnyAsync())
         {
-            Log.Information("No users found. Please visit /setup to create your admin account");
+            Log.Information("No users found. Open the app in a browser to create your admin account");
         }
     }
 
     // Said once at startup so an operator reading `docker logs` knows where a reset code
     // will land before they ever need one.
     Log.Information(
-        "Password reset: StageZero does not send email. A reset code requested on /forgot-password "
-        + "is written to this log as a banner headed \"{Heading}\"; grep for it, then enter it on /reset-password",
+        "Password reset: StageZero does not send email. A reset code requested on the Forgot Password page "
+        + "is written to this log as a banner headed \"{Heading}\"; grep for it, then enter it on the Reset Password page",
         ServerLogCodeService.PasswordResetHeading);
 
     // Must run before anything that inspects the scheme or client IP, so the app
@@ -279,8 +268,8 @@ try
 
     if (!app.Environment.IsDevelopment())
     {
-        // Re-executes /Error (Application/Areas/Errors) in a fresh scope.
-        app.UseExceptionHandler("/Error", createScopeForErrors: true);
+        // Problem details with a reference (the trace ID) and nothing from the exception.
+        app.UseExceptionHandler();
         app.UseHsts();
     }
 
@@ -292,17 +281,21 @@ try
         app.UseHttpsRedirection();
     }
 
-    app.UseStaticFiles();
-    app.UseAntiforgery();
+    app.UseApiRequestGuard();
+    app.UseSpaStaticFiles();
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapHealthChecks(HealthCheckCommand.Path);
 
-    // The auth library's pages (/login, /setup, /forgot-password, /reset-password) live in
-    // another assembly. Routes.razor already lists it for in-app navigation; without this
-    // the server does not know those routes, and typing the URL or reloading returns 404.
-    app.MapRazorComponents<StageZero.Application.App>()
-        .AddInteractiveServerRenderMode()
-        .AddAdditionalAssemblies(typeof(Lifted.BlazorAuth.Basic.Components.Login).Assembly);
+    var api = app.MapGroup(ApiPipeline.Prefix);
+    api.MapAuthEndpoints();
+    api.MapIpEndpoints();
+    api.MapDnsEndpoints();
+    api.MapTunnelEndpoints();
+
+    // Everything else is the React app's: deep links and reloads get index.html.
+    app.MapSpaFallback();
 
     app.Run();
 }

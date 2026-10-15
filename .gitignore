@@ -72,3 +72,13 @@ docker-compose.override.yml
 TestResults/
 coverage/
 *.coverage
+
+# ═══════════════════════════════════════════════════════════════
+# WEB APP (web/) — the build lands in the API host's wwwroot
+# ═══════════════════════════════════════════════════════════════
+node_modules/
+StageZero/wwwroot/
+web/*.tsbuildinfo
+
+# Agent worktrees are full checkouts (Platform-Standards/process/repo-scaffolding.md)
+.claude/worktrees/

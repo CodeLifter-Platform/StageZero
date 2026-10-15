@@ -1,0 +1,36 @@
+/* ============================================================
+   CodeLifter — Typography tokens
+   Inter for interface + headlines; JetBrains Mono for code, labels, metadata.
+   ============================================================ */
+:root {
+  --cl-font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cl-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Type scale (rem) */
+  --cl-text-display: 3.4rem;   /* hero */
+  --cl-text-h1: 2.5rem;
+  --cl-text-h2: 1.9rem;
+  --cl-text-h3: 1.4rem;
+  --cl-text-lg: 1.2rem;
+  --cl-text-base: 1rem;
+  --cl-text-sm: 0.875rem;
+  --cl-text-xs: 0.75rem;
+
+  /* Weights */
+  --cl-weight-regular: 400;
+  --cl-weight-medium: 500;
+  --cl-weight-semibold: 600;
+  --cl-weight-bold: 700;
+  --cl-weight-black: 800;
+
+  /* Line heights */
+  --cl-leading-tight: 1.05;
+  --cl-leading-snug: 1.25;
+  --cl-leading-normal: 1.6;
+
+  /* Tracking */
+  --cl-tracking-tight: -0.03em;
+  --cl-tracking-normal: 0;
+  --cl-tracking-wide: 0.06em;
+  --cl-tracking-mono: 0.12em;  /* uppercase mono kickers */
+}
