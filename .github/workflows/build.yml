@@ -103,6 +103,14 @@ jobs:
       - name: Build the release image
         run: docker build -f StageZero/Dockerfile --target release -t stagezero:ci .
 
+      # The debug stage and both compose files are a contract with each other; a rename
+      # on one side should fail here, not on someone's machine.
+      - name: Build the debug image and validate the compose files
+        run: |
+          docker build -f StageZero/Dockerfile --target debug -t stagezero:debug-ci .
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.debug.yml config -q
+
       - name: Start it and check health and the web app
         run: |
           docker run -d --name stagezero -p 8080:8080 -e STAGEZERO_LOG_LEVEL=Information stagezero:ci

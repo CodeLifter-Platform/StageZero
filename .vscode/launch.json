@@ -2,6 +2,8 @@
   "version": "0.2.0",
   "configurations": [
     {
+      // The API under the debugger on https://localhost:5001. Paired with the Vite config
+      // in the compound below, which is what opens the browser (on :5173).
       "name": "StageZero API (.NET)",
       "type": "coreclr",
       "request": "launch",
@@ -10,11 +12,6 @@
       "args": [],
       "cwd": "${workspaceFolder}/StageZero",
       "stopAtEntry": false,
-      "serverReadyAction": {
-        "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-        "uriFormat": "http://localhost:5173"
-      },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "https://localhost:5001;http://localhost:5000"
@@ -22,30 +19,35 @@
       "envFile": "${workspaceFolder}/.env"
     },
     {
+      // The web app with hot reload, proxying /api to the API above.
       "name": "StageZero web (Vite)",
       "type": "node",
       "request": "launch",
       "cwd": "${workspaceFolder}/web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",
-      "preLaunchTask": "web: install"
+      "preLaunchTask": "web: install",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Local:\\s+(https?://\\S+)",
+        "uriFormat": "http://localhost:5173"
+      }
     },
     {
-      "name": "StageZero (Https)",
+      // The API alone, serving the web app it built: what the release container does,
+      // but on the host, under the debugger. No hot reload for the UI.
+      "name": "StageZero API only (serves built web app)",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build",
+      "preLaunchTask": "build + web",
       "program": "${workspaceFolder}/StageZero/bin/Debug/net10.0/StageZero.dll",
       "args": [],
       "cwd": "${workspaceFolder}/StageZero",
       "stopAtEntry": false,
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+        "pattern": "\\bNow listening on:\\s+(https://\\S+)"
       },
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
@@ -54,89 +56,66 @@
       "envFile": "${workspaceFolder}/.env"
     },
     {
-      "name": ".NET Core Attach",
-      "type": "coreclr",
-      "request": "attach"
+      // docker-compose.debug.yml in the terminal: API with dotnet watch on :5200, web app
+      // with hot reload on :5173. Attach the debugger with the config below.
+      "name": "StageZero container (debug)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "docker-compose.debug.yml", "up", "--build"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Local:\\s+http://localhost:5173",
+        "uriFormat": "http://localhost:5173"
+      },
+      "postDebugTask": "container: debug down"
     },
     {
-      "name": "Docker Compose",
+      // Breakpoints inside the debug container. Pick the process named StageZero; after
+      // dotnet watch restarts the app, attach again.
+      "name": "StageZero container: attach (debug)",
       "type": "coreclr",
       "request": "attach",
       "processId": "${command:pickRemoteProcess}",
       "pipeTransport": {
         "pipeCwd": "${workspaceFolder}",
         "pipeProgram": "docker",
-        "pipeArgs": [
-          "exec",
-          "-i",
-          "stagezero"
-        ],
+        "pipeArgs": ["exec", "-i", "stagezero-debug"],
         "debuggerPath": "/vsdbg/vsdbg",
         "quoteArgs": false
       },
       "sourceFileMap": {
         "/src": "${workspaceFolder}"
-      },
-      "preLaunchTask": "docker-compose-up",
-      "postDebugTask": "docker-compose-logs"
-    },
-    {
-      "name": "Docker Compose (Simple)",
-      "type": "node",
-      "request": "launch",
-      "runtimeExecutable": "docker-compose",
-      "runtimeArgs": [
-        "-f",
-        "debug.docker-compose.yml",
-        "up",
-        "--build"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "serverReadyAction": {
-        "pattern": "Now listening on: (https?://[^\\s]+)",
-        "uriFormat": "http://localhost:5000",
-        "action": "openExternally"
-      },
-      "preLaunchTask": "docker-compose-down"
-    },
-    {
-      "name": "StageZero (Docker Compose)",
-      "type": "docker",
-      "request": "launch",
-      "preLaunchTask": "docker-run: debug",
-      "netCore": {
-        "appProject": "${workspaceFolder}/StageZero/StageZero.csproj"
       }
     },
     {
-      "name": "StageZero (Docker)",
+      // docker-compose.yml in the terminal: the release image on :5100.
+      "name": "StageZero container (release)",
       "type": "node",
       "request": "launch",
-      "runtimeExecutable": "docker-compose",
-      "runtimeArgs": [
-        "-f",
-        "debug.docker-compose.yml",
-        "up",
-        "--build"
-      ],
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "--build"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "serverReadyAction": {
-        "pattern": "Now listening on: (https?://[^\\s]+)",
-        "uriFormat": "http://localhost:5000",
-        "action": "openExternally"
+        "action": "openExternally",
+        "pattern": "Now listening on:\\s+(https?://\\S+)",
+        "uriFormat": "http://localhost:5100"
       },
-      "preLaunchTask": "docker-compose-down"
+      "postDebugTask": "container: release down"
+    },
+    {
+      "name": ".NET Core Attach",
+      "type": "coreclr",
+      "request": "attach"
     }
   ],
   "compounds": [
     {
       "name": "StageZero (API + web)",
-      "configurations": [
-        "StageZero API (.NET)",
-        "StageZero web (Vite)"
-      ],
+      "configurations": ["StageZero API (.NET)", "StageZero web (Vite)"],
       "stopAll": true
     }
   ]

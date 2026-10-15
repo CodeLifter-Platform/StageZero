@@ -1,0 +1,66 @@
+# StageZero, release: the instance you keep running.
+#
+#   docker compose up -d --build        then open http://localhost:5100
+#   docker compose logs -f stagezero
+#   docker compose down
+#
+# Plain HTTP on purpose. The app is meant to sit behind a Cloudflare Tunnel, where Cloudflare
+# terminates TLS and cloudflared forwards to this container over the local network; the app
+# reads X-Forwarded-Proto to know the original request was https. Opened directly at
+# localhost it is just http://localhost:5100 — no certificate to manage.
+#
+# Variables (set them in .env, which compose reads for interpolation, or in the shell):
+#   STAGEZERO_DATA_DIR   host directory for the database, logs and data-protection keys.
+#                        Default ./.volumes/stagezero-data; docker-run.sh picks the
+#                        platform's app-data directory instead.
+#   TUNNEL_TOKEN         only for the optional cloudflared sidecar below.
+name: stagezero
+
+services:
+  stagezero:
+    container_name: stagezero
+    image: stagezero:release
+    build:
+      context: .
+      dockerfile: StageZero/Dockerfile
+      target: release
+    ports:
+      # Reachable from the LAN by default (a cloudflared on another box, a phone on the
+      # wifi). STAGEZERO_BIND=127.0.0.1 keeps it to this machine — but not on a Docker
+      # engine that runs in a VM with gvproxy port forwarding (Lima/Colima), where a
+      # guest-loopback port is unreachable from the host.
+      - "${STAGEZERO_BIND:-0.0.0.0}:5100:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+    volumes:
+      # /app-data holds the database AND the data-protection keys that decrypt the stored
+      # Cloudflare tokens. It must persist across restarts.
+      - ${STAGEZERO_DATA_DIR:-./.volumes/stagezero-data}:/app-data
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── cloudflared connector (optional sidecar) ───────────────────────
+  # Only starts with: docker compose --profile tunnel up -d
+  #
+  # Prefer installing cloudflared as a host service (launchd / Windows service / systemd) so
+  # the connector survives this stack going down, and so routes can point at other machines
+  # on the LAN. Use this sidecar when you'd rather have a single `docker compose up`. Get
+  # TUNNEL_TOKEN from the Tunnel Setup page and put it in .env.
+  #
+  # With the sidecar, tunnel routes should forward to http://stagezero:8080 (the compose
+  # network) rather than localhost.
+  cloudflared:
+    container_name: stagezero-cloudflared
+    image: cloudflare/cloudflared:latest
+    profiles:
+      - tunnel
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - stagezero
+    restart: unless-stopped

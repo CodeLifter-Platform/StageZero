@@ -3,115 +3,112 @@
 # ═══════════════════════════════════════════════════════════════
 # StageZero Docker Run Script
 # ═══════════════════════════════════════════════════════════════
-# This script sets up platform-specific data directories and runs
-# Docker Compose with the correct volume mounts.
-#
-# Usage:
-#   ./docker-run.sh [up|down|logs|restart|build] [debug|prod]
-#
-# debug (default) — hot-reload container on https://localhost:5000
-# prod            — release build on http://127.0.0.1:5100, meant to sit behind
-#                   a Cloudflare Tunnel. See ..Documentation/CLOUDFLARE_TUNNEL_SETUP.md.
-#
-# The application data (database, logs, data-protection keys) will be stored in:
+# Wraps `docker compose` and, for the release instance, puts the data where the
+# host-run app would keep it:
 #   macOS: ~/Library/Application Support/StageZero/
 #   Linux: ~/.config/stagezero/
+#
+# Usage:
+#   ./docker-run.sh [up|down|logs|restart|build] [release|debug]
+#
+# release (default) — docker-compose.yml, the instance you keep running, on
+#                     http://localhost:5100
+# debug             — docker-compose.debug.yml, hot reload for the API and the web
+#                     app, on http://localhost:5173 (web) and :5200 (API); its data
+#                     stays in ./.volumes/stagezero-debug, apart from the real instance
 # ═══════════════════════════════════════════════════════════════
 
 set -e
 
-# Detect platform
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS
-    STAGEZERO_DATA_DIR="$HOME/Library/Application Support/StageZero"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux
-    STAGEZERO_DATA_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/stagezero"
-else
-    echo "Unsupported platform: $OSTYPE"
-    echo "Using default data directory: ./.volumes/stagezero-data"
-    STAGEZERO_DATA_DIR="./.volumes/stagezero-data"
-fi
-
-# Create data directory if it doesn't exist
-mkdir -p "$STAGEZERO_DATA_DIR"
-
-# Default command is 'up', default target is 'debug'
 COMMAND="${1:-up}"
-TARGET="${2:-debug}"
+TARGET="${2:-release}"
 
 case "$TARGET" in
-    debug)
-        COMPOSE_FILE="debug.docker-compose.yml"
-        SERVICE="debug-stagezero"
-        APP_URL="https://localhost:5000"
+    release)
+        COMPOSE_FILE="docker-compose.yml"
+        SERVICE="stagezero"
+        APP_URL="http://localhost:5100"
+        if [[ -z "$STAGEZERO_DATA_DIR" ]]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                STAGEZERO_DATA_DIR="$HOME/Library/Application Support/StageZero"
+            elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+                STAGEZERO_DATA_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/stagezero"
+            else
+                echo "Unsupported platform: $OSTYPE — using ./.volumes/stagezero-data"
+                STAGEZERO_DATA_DIR="./.volumes/stagezero-data"
+            fi
+        fi
+        mkdir -p "$STAGEZERO_DATA_DIR"
+        export STAGEZERO_DATA_DIR
+        DATA_DIR="$STAGEZERO_DATA_DIR"
         ;;
-    prod)
-        COMPOSE_FILE="prod.docker-compose.yml"
-        SERVICE="prod-stagezero"
-        APP_URL="http://127.0.0.1:5100"
+    debug)
+        COMPOSE_FILE="docker-compose.debug.yml"
+        SERVICE="stagezero"
+        APP_URL="http://localhost:5173 (web app) · http://localhost:5200 (API)"
+        DATA_DIR="${STAGEZERO_DEBUG_DATA_DIR:-./.volumes/stagezero-debug}"
         ;;
     *)
-        echo "Unknown target: $TARGET (expected 'debug' or 'prod')"
+        echo "Unknown target: $TARGET (expected 'release' or 'debug')"
         exit 1
         ;;
 esac
 
+compose() {
+    docker compose -f "$COMPOSE_FILE" "$@"
+}
+
 echo "═══════════════════════════════════════════════════════════════"
 echo "StageZero Docker Compose"
 echo "═══════════════════════════════════════════════════════════════"
-echo "Platform: $OSTYPE"
-echo "Target:   $TARGET ($COMPOSE_FILE)"
-echo "Data Directory: $STAGEZERO_DATA_DIR"
+echo "Target: $TARGET ($COMPOSE_FILE)"
+echo "Data:   $DATA_DIR"
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
-
-# Export the environment variable for docker-compose
-export STAGEZERO_DATA_DIR
 
 case "$COMMAND" in
     up)
         echo "Starting StageZero..."
-        docker-compose -f "$COMPOSE_FILE" up --build -d
+        compose up --build -d
         echo ""
         echo "✅ StageZero is running!"
-        echo "   Web UI: $APP_URL"
-        echo "   Data:   $STAGEZERO_DATA_DIR"
+        echo "   Open:   $APP_URL"
+        echo "   Data:   $DATA_DIR"
         echo ""
         echo "To view logs: ./docker-run.sh logs $TARGET"
         echo "To stop:      ./docker-run.sh down $TARGET"
         ;;
     down)
         echo "Stopping StageZero..."
-        docker-compose -f "$COMPOSE_FILE" down
+        compose down
         echo "✅ StageZero stopped"
         ;;
     logs)
-        docker-compose -f "$COMPOSE_FILE" logs -f "$SERVICE"
+        compose logs -f
         ;;
     restart)
         echo "Restarting StageZero..."
-        docker-compose -f "$COMPOSE_FILE" restart "$SERVICE"
+        compose restart "$SERVICE"
         echo "✅ StageZero restarted"
         ;;
     build)
         echo "Building StageZero..."
-        docker-compose -f "$COMPOSE_FILE" build
+        compose build
         echo "✅ Build complete"
         ;;
     *)
-        echo "Usage: $0 [up|down|logs|restart|build] [debug|prod]"
+        echo "Usage: $0 [up|down|logs|restart|build] [release|debug]"
         echo ""
         echo "Commands:"
         echo "  up       - Start StageZero (default)"
         echo "  down     - Stop StageZero"
-        echo "  logs     - View logs"
-        echo "  restart  - Restart StageZero"
-        echo "  build    - Rebuild Docker image"
+        echo "  logs     - Follow the logs"
+        echo "  restart  - Restart the app container"
+        echo "  build    - Rebuild the image"
         echo ""
         echo "Targets:"
-        echo "  debug    - Hot-reload development container (default)"
-        echo "  prod     - Release build for use behind a Cloudflare Tunnel"
+        echo "  release  - The instance you keep running (default)"
+        echo "  debug    - Hot-reload API + web app, debugger attachable"
         exit 1
         ;;
 esac

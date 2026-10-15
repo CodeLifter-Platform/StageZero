@@ -59,30 +59,24 @@ To have the API serve the web app itself (as it does in production), build it on
 `npm run build` in `web/`; the output lands in `StageZero/wwwroot`, and
 https://localhost:5001 then serves the app directly.
 
-### Docker Development
+### In a container
 
-1. **Copy environment file:**
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Start everything:**
-   ```bash
-   docker-compose -f debug.docker-compose.yml up
-   ```
-
-3. **Access the app:** http://localhost:5000
-
-### Production (behind a Cloudflare Tunnel)
+Nothing but Docker is needed on the host. Two compose files:
 
 ```bash
-./docker-run.sh up prod        # macOS / Linux
-.\docker-run.ps1 up prod       # Windows
+docker compose up -d --build                        # release: http://localhost:5100
+docker compose -f docker-compose.debug.yml up       # debug:   http://localhost:5173 (web, hot reload)
+                                                    #          http://localhost:5200 (API, dotnet watch)
 ```
 
-Runs the release image on plain HTTP at `127.0.0.1:5100`; Cloudflare terminates
-TLS at the edge. Follow [..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md)
-to install the connector and publish it.
+Release is the instance you keep running; its data goes to `STAGEZERO_DATA_DIR` (default
+`./.volumes/stagezero-data`, or the platform's app-data directory via `./docker-run.sh up`
+/ `.\docker-run.ps1 up`). Debug mounts the source into the containers, restarts the API
+on a `.cs` save and hot-reloads the UI on a `.tsx` save, keeps its own data apart from the
+release instance's, and carries the VS Code debugger. Both run plain HTTP; Cloudflare
+terminates TLS when the release instance sits behind a tunnel
+([..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md)).
+Details, VS Code configurations and gotchas: [..Documentation/OnboardDocker.md](..Documentation/OnboardDocker.md).
 
 ## Project Structure
 
@@ -106,8 +100,8 @@ StageZero/
 │   └── src/pages/             # Screens
 ├── Lifted.BlazorAuth.Basic/   # Auth library, published to NuGet
 ├── tests/StageZero.Tests/     # xUnit: API, services, persistence, auth
-├── debug.docker-compose.yml   # Hot-reload development
-├── prod.docker-compose.yml    # Release build + optional cloudflared sidecar
+├── docker-compose.yml         # Release: the instance you keep running (+ optional cloudflared sidecar)
+├── docker-compose.debug.yml   # Debug: dotnet watch + Vite dev server in containers
 ├── .env.example
 └── StageZero.sln
 ```
@@ -151,7 +145,7 @@ Jenkins or Vaultwarden do it. Three steps:
    server log.
 2. Read the code from the log:
    ```bash
-   docker logs stagezero-local 2>&1 | grep -A6 "PASSWORD RESET CODE"     # Docker
+   docker logs stagezero 2>&1 | grep -A6 "PASSWORD RESET CODE"           # Docker
    grep -rA6 "PASSWORD RESET CODE" ~/.config/stagezero/logs/               # Linux host
    ```
 3. Enter it on `/reset-password` with the new password. Codes expire after 15 minutes;
@@ -162,7 +156,7 @@ any lockout, and makes the next sign-in choose a new password:
 
 ```bash
 dotnet StageZero.dll reset-password you@example.com                                # published app
-docker exec -it stagezero-local dotnet StageZero.dll reset-password you@example.com   # Docker
+docker exec -it stagezero dotnet StageZero.dll reset-password you@example.com   # Docker
 ```
 
 **Sign-in limits:** 5 wrong passwords lock the account for 15 minutes, a reset code is void
@@ -282,10 +276,9 @@ folder — `ls -a`):
 |---|---|
 | [LivingSpec.md](..Documentation/LivingSpec.md) | What StageZero does today, how it is built, and its known gaps |
 | [OnboardWeb.md](..Documentation/OnboardWeb.md) | Build, run, and test on a machine with the .NET SDK |
-| [OnboardDocker.md](..Documentation/OnboardDocker.md) | Run it in Docker |
+| [OnboardDocker.md](..Documentation/OnboardDocker.md) | Run it in Docker: the release and debug containers, VS Code, data persistence |
 | [CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md) | Publishing hostnames through a Cloudflare Tunnel |
 | [CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md) | Access modes, permissions, service tokens |
-| [DOCKER_SETUP.md](..Documentation/DOCKER_SETUP.md) | Compose files, VS Code debugging, data persistence |
 | [NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md) | How `Lifted.BlazorAuth.Basic` is versioned and published |
 
 ## Tests
@@ -298,7 +291,7 @@ cd web && npm run lint && npm run typecheck
 
 Cloudflare is faked at the service interfaces and the API is faked with MSW in the web
 tests, so neither suite makes network calls. CI (`.github/workflows/build.yml`) also builds
-the container and checks it comes up healthy.
+both container images and checks the release one comes up healthy.
 
 ## License
 

@@ -101,16 +101,16 @@ Verify: `systemctl status cloudflared`
 
 ### Docker (alternative)
 
-`prod.docker-compose.yml` ships a `cloudflared` sidecar behind a compose profile:
+`docker-compose.yml` ships a `cloudflared` sidecar behind a compose profile:
 
 ```bash
 echo "TUNNEL_TOKEN=<token>" >> .env
-docker compose -f prod.docker-compose.yml --profile tunnel up -d
+docker compose --profile tunnel up -d
 ```
 
 Simpler to start, but the connector stops whenever the stack does, and routes can
 only reach services on the compose network — point them at
-`http://prod-stagezero:80` rather than `localhost`. A host service is the more
+`http://stagezero:8080` rather than `localhost`. A host service is the more
 resilient choice.
 
 ---
@@ -136,11 +136,10 @@ takes effect immediately. Deleting removes both.
 ## Running StageZero itself behind the tunnel
 
 ```bash
-./docker-run.sh up prod        # macOS / Linux
-.\docker-run.ps1 up prod       # Windows
+docker compose up -d --build   # or ./docker-run.sh up / .\docker-run.ps1 up
 ```
 
-This runs the release image on plain HTTP at `127.0.0.1:5100`. The app reads
+This runs the release image on plain HTTP at `localhost:5100`. The app reads
 `X-Forwarded-Proto` so it still generates `https://` links, and HTTPS redirection
 is disabled outside Development — the container has no TLS listener to redirect to.
 
@@ -181,7 +180,8 @@ keyring was lost — usually a container restart without a persistent `/app-data
 mount. Re-run Tunnel Setup, then fix the volume mount.
 
 **Login redirects to localhost.** Forwarded headers aren't being honored. Confirm
-you're running the `prod` compose target, which sets `ASPNETCORE_ENVIRONMENT=Production`.
+you're running the release compose file (`docker-compose.yml`), which sets
+`ASPNETCORE_ENVIRONMENT=Production`.
 
 **Route saved but nothing happens.** Check the app logs. A failed Cloudflare push
 leaves the route saved locally so you can retry by re-saving it — the ingress sync

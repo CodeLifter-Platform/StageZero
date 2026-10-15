@@ -7,7 +7,10 @@ describe('connector instructions', () => {
   });
 
   it('docker passes the token to the compose tunnel profile', () => {
-    expect(connectorInstructions('docker', 'TOKEN123').commands).toContain('TUNNEL_TOKEN=TOKEN123');
+    const { commands } = connectorInstructions('docker', 'TOKEN123');
+    expect(commands).toContain('TUNNEL_TOKEN=TOKEN123');
+    // The release compose file is the default one, so the command names no file.
+    expect(commands).toContain('docker compose --profile tunnel up -d');
   });
 
   it.each([
