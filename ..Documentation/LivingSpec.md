@@ -213,7 +213,10 @@ an older install's `keys/` ring is copied in on first start, `Services/DataProte
 
 The schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
-and then migrated like any other. The Cloudflare DNS token and tunnel token are encrypted
+and then migrated like any other. So is one migrated by the retired pre-#18 migration set
+(a history naming none of today's migrations): it is adopted at the latest schema, since its
+data already went through every current migration. Either way the original is kept beside it
+as `stagezero.db.pre-migrations-<ts>.bak`. The Cloudflare DNS token and tunnel token are encrypted
 with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
 SQLite — a plaintext token from an older install is encrypted on first start — and losing
 the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
