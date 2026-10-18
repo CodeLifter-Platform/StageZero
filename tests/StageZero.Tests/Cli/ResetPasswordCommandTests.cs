@@ -21,7 +21,7 @@ public sealed partial class ResetPasswordCommandTests : IDisposable
         using var output = new StringWriter();
 
         var exitCode = await ResetPasswordCommand.RunAsync(
-            DatabasePath, [ResetPasswordCommand.Name, "owner@example.com"], output);
+            DatabaseSettings.Sqlite(DatabasePath), [ResetPasswordCommand.Name, "owner@example.com"], output);
 
         Assert.Equal(0, exitCode);
         var password = PrintedPassword().Match(output.ToString()).Groups[1].Value;
@@ -42,7 +42,7 @@ public sealed partial class ResetPasswordCommandTests : IDisposable
         using var output = new StringWriter();
 
         var exitCode = await ResetPasswordCommand.RunAsync(
-            DatabasePath, [ResetPasswordCommand.Name, "someone@example.com"], output);
+            DatabaseSettings.Sqlite(DatabasePath), [ResetPasswordCommand.Name, "someone@example.com"], output);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Accounts: owner@example.com", output.ToString());
@@ -55,7 +55,7 @@ public sealed partial class ResetPasswordCommandTests : IDisposable
     {
         using var output = new StringWriter();
 
-        var exitCode = await ResetPasswordCommand.RunAsync(DatabasePath, [ResetPasswordCommand.Name], output);
+        var exitCode = await ResetPasswordCommand.RunAsync(DatabaseSettings.Sqlite(DatabasePath), [ResetPasswordCommand.Name], output);
 
         Assert.Equal(2, exitCode);
         Assert.Contains("Usage:", output.ToString());

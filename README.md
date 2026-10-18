@@ -18,7 +18,8 @@ Three features, one Cloudflare API token:
 
 ## Tech Stack
 
-- **API:** .NET 10 / ASP.NET Core minimal APIs, SQLite with Entity Framework Core, Serilog,
+- **API:** .NET 10 / ASP.NET Core minimal APIs, Entity Framework Core on SQLite (default) or
+  PostgreSQL, Serilog,
   a cookie session over the in-repo `Lifted.BlazorAuth.Basic` services
 - **Web app:** React 18 + TypeScript (strict), built with Vite, served by the API from
   `wwwroot`; UI from the CodeLifter Design System (`Platform-Design`), vendored in
@@ -264,8 +265,25 @@ The `.env` file will be automatically loaded when debugging.
   `web/src/theme/stagezero.css`.
 
 ### Database
-SQLite, created automatically as `stagezero.db` in the app data directory (`/app-data` in
-a container, the per-user config directory otherwise).
+**SQLite** by default, created automatically as `stagezero.db` in the app data directory
+(`/app-data` in a container, the per-user config directory otherwise). Nothing to set up.
+
+**PostgreSQL** instead, with two variables (in `.env` or the environment):
+
+```bash
+STAGEZERO_DB_PROVIDER=postgres
+STAGEZERO_DB_CONNECTION="Host=db;Database=stagezero;Username=stagezero;Password=..."
+```
+
+The database is created and migrated at startup. Or let compose run one beside the app:
+`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` (needs
+`POSTGRES_PASSWORD` in `.env`). Either way the data directory is still needed: it holds the
+logs and the keys that decrypt the stored Cloudflare tokens, so back it up with the database.
+
+Moving an existing install from SQLite to PostgreSQL: set the two variables, run
+`dotnet StageZero.dll copy-to-postgres` once (in Docker: `docker compose run --rm stagezero
+copy-to-postgres`), then restart. It copies every row into an empty PostgreSQL database and
+only reads the SQLite file, so going back is unsetting `STAGEZERO_DB_PROVIDER`.
 
 ## Documentation
 
@@ -301,18 +319,31 @@ both container images and checks the release one comes up healthy.
 
 | Platform | Formats | Get it |
 |---|---|---|
-| **Container** | `Dockerfile` (`debug` / `release` stages) | [build from source](..Documentation/OnboardDocker.md) |
+| **Container** | `linux/amd64`, `linux/arm64`, signed (cosign) | `docker pull ghcr.io/codelifter-platform/stagezero` (Docker Hub mirror once configured) · [build from source](..Documentation/OnboardDocker.md) |
 | **Any .NET 10 host** | `dotnet run` / published output | [Releases](https://github.com/CodeLifter-Platform/StageZero/releases) |
 | **NuGet** | `Lifted.BlazorAuth.Basic` | [nuget.org](https://www.nuget.org/packages/Lifted.BlazorAuth.Basic) |
 
 > StageZero is a server application — there is nothing to install on a desktop. The repo also
 > publishes the `Lifted.BlazorAuth.Basic` package; see `..Documentation/NUGET_PUBLISHING.md`.
 
-## Release history
+## Releases
 
-Versions come from `BASE_VERSION` + the CI run number, with `RELEASE_LEVEL` adding the
-prerelease suffix. Releases happen on push to `main` — there are no hand-pushed tags, and
-reintroducing a `tags:` trigger is exactly what the platform versioning contract rules out.
+Cut deliberately with the **RELEASE MINOR** / **RELEASE MAJOR** buttons in Actions. Each one
+rebuilds a tested pre-release's commit with the release version compiled in, and moves the
+image's `X.Y`, `X` and `latest` tags.
 
-| Version | Date | Package | Notes |
-|---|---|---|---|
+<!-- releases:insert -->
+| Version | Date | Downloads | Rebuilt from | Notes |
+|---|---|---|---|---|
+
+## Pre-releases
+
+Produced automatically by every merge into `main`: patch + 1 from the git tags, published as
+`ghcr.io/codelifter-platform/stagezero:<version>` and `:pre`, marked as a prerelease on
+GitHub. Versions come from the tags alone (`.github/scripts/next-version.sh`); nothing is
+kept in a repo variable. The NuGet library is versioned separately
+(`..Documentation/NUGET_PUBLISHING.md`).
+
+<!-- prereleases:insert -->
+| Version | Date | Downloads | Commit | Notes |
+|---|---|---|---|---|

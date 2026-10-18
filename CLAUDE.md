@@ -65,6 +65,15 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
 - **Docs live in `..Documentation/`** (`LivingSpec.md`, `OnboardWeb.md`,
   `OnboardDocker.md`, runbooks). A change to what the app does updates `LivingSpec.md` in
   the same commit.
-- **NuGet publish is keyed to the computed version, not a manual tag.** The package
-  version comes from the `version` job (`BASE_VERSION` + run number), same as the app
-  release. Do not reintroduce a `tags:` trigger.
+- **The app is versioned from git tags; the NuGet library is not (yet).** `build.yml`
+  follows the platform contract: `next-version.sh` from the tags, `X.Y.Z-pre` on every
+  merge into `main`, RELEASE MINOR / RELEASE MAJOR via `promote.yml`. Its artifact is the
+  container image (amd64 + arm64) on `ghcr.io/codelifter-platform/stagezero`, mirrored to
+  Docker Hub when `DOCKERHUB_*` are set. `basic-auth-nuget-publish.yml` still computes
+  `BASE_VERSION` + run number for the package; do not reintroduce a `tags:` trigger there.
+- **Two databases.** SQLite (default) or PostgreSQL via `STAGEZERO_DB_PROVIDER` /
+  `STAGEZERO_DB_CONNECTION`. A model change needs a migration for **each**:
+  `dotnet ef migrations add <Name> --project StageZero --context ApplicationDbContext` and
+  `... --context PostgresApplicationDbContext --output-dir Data/Migrations/Postgres`
+  (move the Postgres snapshot if EF drops it in a nested `StageZero/StageZero/`). Run the
+  suite on Postgres with `STAGEZERO_TEST_POSTGRES=<server connection string>`.

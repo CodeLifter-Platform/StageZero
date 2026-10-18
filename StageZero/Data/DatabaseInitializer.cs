@@ -19,17 +19,46 @@ namespace StageZero.Data;
 /// it as a <c>.bak</c>. After that every install has exactly the schema the migrations
 /// describe, and each later change is an ordinary migration.
 /// </para>
+/// <para>
+/// The migrations were regenerated once (September 2026), so an install migrated by the
+/// earlier set has a history naming none of today's migrations. It is adopted the same way,
+/// but at the <b>latest</b> migration: its schema and data already went through every change
+/// the current migrations describe, and replaying them would undo some (a renamed column
+/// would come back empty).
+/// </para>
 /// </summary>
 public static class DatabaseInitializer
 {
     /// <summary>The migration that matches the last pre-migrations schema.</summary>
     public const string BaselineMigration = "20260927204016_InitialCreate";
 
+    /// <summary>
+    /// Brings whichever database <paramref name="settings"/> names to its latest migration.
+    /// Only a SQLite file can be a legacy one; a PostgreSQL database has only ever been built
+    /// by its own migrations.
+    /// </summary>
+    public static async Task InitializeAsync(DatabaseSettings settings, ILogger logger, CancellationToken cancellationToken = default)
+    {
+        if (settings.SqlitePath is { } path)
+        {
+            await InitializeAsync(path, logger, cancellationToken);
+            return;
+        }
+
+        await using var db = settings.CreateContext();
+        await MigrateAsync(db, logger, cancellationToken);
+    }
+
     public static async Task InitializeAsync(string databasePath, ILogger logger, CancellationToken cancellationToken = default)
     {
         await LegacyDatabaseAdopter.AdoptAsync(databasePath, logger, cancellationToken);
 
         await using var db = CreateContext(databasePath);
+        await MigrateAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task MigrateAsync(ApplicationDbContext db, ILogger logger, CancellationToken cancellationToken)
+    {
         var pending = (await db.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
         if (pending.Count > 0)
         {
@@ -52,13 +81,15 @@ public static class DatabaseInitializer
 // ═══════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Converts a pre-migrations database into one at <see cref="DatabaseInitializer.BaselineMigration"/>.
+/// Converts a pre-migrations database into one at <see cref="DatabaseInitializer.BaselineMigration"/>,
+/// or one migrated by the retired migration set into one at the latest migration.
 /// Nothing is changed in place: the legacy file is only renamed once its copy is complete,
 /// so a failure leaves it exactly as it was.
 /// </summary>
 internal static class LegacyDatabaseAdopter
 {
     private const string HistoryTable = "__EFMigrationsHistory";
+    private const string LockTable = "__EFMigrationsLock";
 
     public static async Task<string?> AdoptAsync(string databasePath, ILogger logger, CancellationToken cancellationToken)
     {
@@ -67,28 +98,49 @@ internal static class LegacyDatabaseAdopter
             return null;
         }
 
+        string? targetMigration = DatabaseInitializer.BaselineMigration;
+
         await using (var legacy = Open(databasePath))
         {
             await legacy.OpenAsync(cancellationToken);
             var tables = await GetTablesAsync(legacy, "main", cancellationToken);
-            if (tables.Count == 0 || tables.Contains(HistoryTable))
+            if (tables.Count == 0)
             {
                 return null;
+            }
+
+            if (tables.Contains(HistoryTable))
+            {
+                if (await HasCurrentHistoryAsync(legacy, cancellationToken))
+                {
+                    return null;
+                }
+
+                targetMigration = null; // the retired set: already at today's schema
             }
 
             // Fold the WAL into the main file so the copy and the backup are complete.
             await ExecuteAsync(legacy, "PRAGMA wal_checkpoint(TRUNCATE);", cancellationToken);
         }
 
-        logger.LogWarning(
-            "Database {DatabasePath} predates migrations; adopting it at the baseline schema", databasePath);
+        if (targetMigration is null)
+        {
+            logger.LogWarning(
+                "Database {DatabasePath} was migrated by a retired migration set; adopting it at the latest schema",
+                databasePath);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Database {DatabasePath} predates migrations; adopting it at the baseline schema", databasePath);
+        }
 
         var adoptingPath = databasePath + ".adopting";
         DeleteDatabaseFiles(adoptingPath);
 
         try
         {
-            var columnTypes = await CreateBaselineAsync(adoptingPath, cancellationToken);
+            var columnTypes = await CreateBaselineAsync(adoptingPath, targetMigration, cancellationToken);
             await CopyDataAsync(adoptingPath, databasePath, columnTypes, logger, cancellationToken);
         }
         catch
@@ -108,14 +160,15 @@ internal static class LegacyDatabaseAdopter
     }
 
     /// <summary>
-    /// Builds the baseline schema and returns each column's CLR type, which decides what a
-    /// required column the legacy database lacks gets filled with.
+    /// Builds the schema at <paramref name="targetMigration"/> (null: the latest) and returns
+    /// each column's CLR type, which decides what a required column the legacy database lacks
+    /// gets filled with.
     /// </summary>
     private static async Task<Dictionary<(string Table, string Column), Type>> CreateBaselineAsync(
-        string path, CancellationToken cancellationToken)
+        string path, string? targetMigration, CancellationToken cancellationToken)
     {
         await using var fresh = DatabaseInitializer.CreateContext(path);
-        await fresh.GetService<IMigrator>().MigrateAsync(DatabaseInitializer.BaselineMigration, cancellationToken);
+        await fresh.GetService<IMigrator>().MigrateAsync(targetMigration, cancellationToken);
 
         var columnTypes = new Dictionary<(string, string), Type>();
         foreach (var entity in fresh.Model.GetEntityTypes())
@@ -155,7 +208,7 @@ internal static class LegacyDatabaseAdopter
 
         await using (var transaction = connection.BeginTransaction())
         {
-            foreach (var table in baselineTables.Where(t => t != HistoryTable))
+            foreach (var table in baselineTables.Where(t => t is not (HistoryTable or LockTable)))
             {
                 if (!legacyTables.Contains(table))
                 {
@@ -186,7 +239,7 @@ internal static class LegacyDatabaseAdopter
                 logger.LogInformation("Adopted {Rows} row(s) of {Table}", copied, table);
             }
 
-            foreach (var dropped in legacyTables.Except(baselineTables))
+            foreach (var dropped in legacyTables.Except(baselineTables).Where(t => t != LockTable))
             {
                 logger.LogInformation("Not carried forward: retired table {Table}", dropped);
             }
@@ -250,6 +303,29 @@ internal static class LegacyDatabaseAdopter
             "INTEGER" or "REAL" or "NUMERIC" => "0",
             _ => "''"
         };
+    }
+
+    /// <summary>Whether the history names any migration this build knows.</summary>
+    private static async Task<bool> HasCurrentHistoryAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using var db = DatabaseInitializer.CreateContext(":memory:");
+        var known = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT MigrationId FROM {Identifier(HistoryTable)};";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var empty = true;
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            empty = false;
+            if (known.Contains(reader.GetString(0)))
+            {
+                return true;
+            }
+        }
+
+        // An empty history is a migration that never finished its first step; let it retry.
+        return empty;
     }
 
     // ───────────────────────────────────────────────────────────

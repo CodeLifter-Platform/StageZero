@@ -18,7 +18,7 @@ public static class ResetPasswordCommand
     // No look-alikes (0/O, 1/l/I), so it survives being read off a terminal and retyped.
     private const string Alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
-    public static async Task<int> RunAsync(string databasePath, string[] args, TextWriter output)
+    public static async Task<int> RunAsync(DatabaseSettings database, string[] args, TextWriter output)
     {
         if (args.Length != 2)
         {
@@ -27,8 +27,8 @@ public static class ResetPasswordCommand
         }
 
         var email = args[1];
-        await DatabaseInitializer.InitializeAsync(databasePath, NullLogger.Instance);
-        await using var db = DatabaseInitializer.CreateContext(databasePath);
+        await DatabaseInitializer.InitializeAsync(database, NullLogger.Instance);
+        await using var db = database.CreateContext();
 
         var user = await db.Users.SingleOrDefaultAsync(u => u.Email == email);
         if (user is null)

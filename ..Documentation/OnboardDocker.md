@@ -29,7 +29,22 @@ cd StageZero
 docker compose up -d --build
 ```
 
-Then open http://localhost:5100. `docker compose logs -f` follows the log, `docker compose
+Then open http://localhost:5100.
+
+**Or run the published image** — no checkout to build, linux/amd64 and linux/arm64 (a
+Raspberry Pi or an ARM NAS works). Put `STAGEZERO_IMAGE` in `.env` next to the compose file
+and pull instead of building:
+
+```bash
+echo "STAGEZERO_IMAGE=ghcr.io/codelifter-platform/stagezero:latest" >> .env   # or :pre
+docker compose pull && docker compose up -d
+```
+
+`latest` is the newest release someone cut with RELEASE MINOR/MAJOR; `pre` is the newest
+merge into `main`; `0.1.0`-style tags never move. Verify a signature with
+`cosign verify ghcr.io/codelifter-platform/stagezero:<tag> --certificate-identity-regexp
+'^https://github.com/CodeLifter-Platform/StageZero/' --certificate-oidc-issuer
+https://token.actions.githubusercontent.com`. `docker compose logs -f` follows the log, `docker compose
 down` stops it; the data survives in the mounted directory.
 
 **Where the data goes.** `/app-data` in the container holds the database, the logs and
@@ -80,6 +95,29 @@ docker run -d -p 5100:8080 --env-file .env -v stagezero-data:/app-data stagezero
 
 The build context is the **repo root**, not `StageZero/`: the API project references
 `../Lifted.BlazorAuth.Basic` and the web app lives in `../web`.
+
+### On PostgreSQL
+
+`docker-compose.postgres.yml` adds a PostgreSQL 18 container (named volume
+`stagezero-postgres`, no published port) and points the app at it:
+
+```bash
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+The app's `/app-data` mount is still required: the Data Protection keys and the logs stay
+there. To move an install that has been on SQLite, bring up the database alone, copy, then
+start the app (the SQLite file is only read):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d postgres
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml run --rm stagezero copy-to-postgres
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+```
+
+For a PostgreSQL server you already run, skip the add-on and set `STAGEZERO_DB_PROVIDER=postgres`
+and `STAGEZERO_DB_CONNECTION` in `.env`.
 
 ## Debug
 

@@ -64,10 +64,21 @@ for (int i = 0; loadDotEnv && i <= 5; i++)
 }
 
 // Account recovery from the server: `StageZero reset-password <email>`. After .env, so a
-// STAGEZERO_HOME set there finds the same database the app uses.
+// STAGEZERO_HOME or STAGEZERO_DB_* set there finds the same database the app uses.
 if (args is [ResetPasswordCommand.Name, ..])
 {
-    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DataPathService.GetDatabasePath(), args, Console.Out);
+    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DatabaseSettings.FromEnvironment(), args, Console.Out);
+    return;
+}
+
+// Moving an install from its SQLite file to PostgreSQL: `StageZero copy-to-postgres`, with the
+// target in STAGEZERO_DB_CONNECTION.
+if (args is [CopyToPostgresCommand.Name])
+{
+    Environment.ExitCode = await CopyToPostgresCommand.RunAsync(
+        DataPathService.GetDatabasePath(),
+        Environment.GetEnvironmentVariable(DatabaseSettings.ConnectionVariable),
+        Console.Out);
     return;
 }
 
@@ -104,15 +115,11 @@ try
     builder.Services.AddStageZeroApi();
     builder.Services.AddStageZeroSession();
 
-    // Entity Framework with DbContextFactory
-    // Use platform-specific database path, or fall back to connection string from config
-    var databasePath = DataPathService.GetDatabasePath();
-    var connectionString = $"Data Source={databasePath}";
-
-    Log.Information("Database path: {DatabasePath}", databasePath);
-
-    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-        options.UseSqlite(connectionString));
+    // Entity Framework with DbContextFactory: SQLite in the data directory by default, or
+    // PostgreSQL when STAGEZERO_DB_PROVIDER says so (DatabaseSettings).
+    var database = DatabaseSettings.FromEnvironment();
+    Log.Information("Database: {Database}", database.Describe());
+    database.AddDbContextFactory(builder.Services);
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
@@ -240,7 +247,7 @@ try
 
     // Bring the database to the latest migration. A database from before migrations is
     // adopted once, with the original kept beside it as a .bak (DatabaseInitializer).
-    await DatabaseInitializer.InitializeAsync(databasePath, app.Logger);
+    await DatabaseInitializer.InitializeAsync(database, app.Logger);
 
     // Tokens saved before they were encrypted are encrypted now (idempotent).
     await CloudflareTokenStore.ProtectLegacyTokensAsync(app.Services, app.Logger);

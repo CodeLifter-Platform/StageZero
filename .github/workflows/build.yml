@@ -1,16 +1,28 @@
-# StageZero — build and test on every push and PR.
+# StageZero — build, test and release.
 #
-# Three legs, all Linux on GitHub-hosted runners (this repo is public; see
+# Every push and PR, all Linux on GitHub-hosted runners (this repo is public; see
 # Platform-Standards/process/versioning-ci.md):
-#   web    the React app in web/: design-system drift, lint, strict typecheck, Vitest with
-#          coverage, production build
-#   api    the ASP.NET Core API and the auth library: warnings-as-errors build, xUnit with
-#          coverage (the suite hosts the real app in memory as its integration canary)
-#   image  builds the container the app ships as, starts it, and checks it is healthy and
-#          serves the web app (Platform-Standards/process/testing.md: smoke-test the image)
+#   version  the version, from git tags (the platform contract, copied verbatim)
+#   web      the React app in web/: design-system drift, lint, strict typecheck, Vitest with
+#            coverage, production build
+#   api      the ASP.NET Core API and the auth library: warnings-as-errors build, xUnit with
+#            coverage, once on SQLite and once on PostgreSQL (the suite hosts the real app in
+#            memory as its integration canary)
+#   image    builds the container the app ships as, starts it on SQLite and on PostgreSQL,
+#            and checks it is healthy and serves the web app
 #
-# Versioning and releases are not here yet: the app is not released (LivingSpec, Known
-# gaps). The NuGet library keeps its own workflow (basic-auth-nuget-publish.yml).
+# A merge into main, and the RELEASE MINOR / RELEASE MAJOR buttons (promote.yml), also:
+#   publish  builds the image for linux/amd64 and linux/arm64 and pushes it to
+#            ghcr.io/codelifter-platform/stagezero, and to Docker Hub when DOCKERHUB_TOKEN,
+#            DOCKERHUB_USERNAME and the DOCKERHUB_IMAGE variable are set (a warning, never a
+#            failure, when they are not); signs it with cosign (keyless) and attests its
+#            provenance
+#   release  README row, tag, GitHub release; release-notes pushes the shipped PRs
+#
+# Image tags: a pre-release is X.Y.Z-pre plus the moving `pre`; a release is X.Y.Z, X.Y, X
+# and `latest`. Branch and PR builds are never pushed.
+#
+# The NuGet library keeps its own workflow (basic-auth-nuget-publish.yml).
 
 name: Build
 
@@ -21,15 +33,95 @@ on:
     branches: [main]
   workflow_dispatch:
 
+  # ── Called by the RELEASE MINOR / RELEASE MAJOR buttons ──────────
+  # The buttons REBUILD at the pre-release's commit with the release version compiled in,
+  # rather than re-uploading the pre-release's binaries. Same source, correct version.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit/tag to build. Empty = the triggering commit.
+        type: string
+        default: ''
+      version:
+        description: Exact version to build. Empty = derive from tags.
+        type: string
+        default: ''
+      is_prerelease:
+        type: boolean
+        default: true
+      promoted_from:
+        description: The pre-release tag this release was rebuilt from.
+        type: string
+        default: ''
+
 permissions:
   contents: read
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel main: a second merge must not stop a release halfway through its tag push.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # ── Compute version (copy verbatim — the platform contract) ────
+  # Derived from git tags, so it can never drift from what was actually published.
+  # fetch-depth: 0 is REQUIRED — a shallow clone has no tags and the version silently
+  # restarts at 0.0.1-pre.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semver.outputs.version }}
+      version_tag: ${{ steps.semver.outputs.version_tag }}
+      is_release: ${{ steps.semver.outputs.is_release }}
+      is_prerelease: ${{ steps.semver.outputs.is_prerelease }}
+      # The commit every build job checks out, and the commit the tag will point at.
+      build_sha: ${{ steps.semver.outputs.build_sha }}
+      promoted_from: ${{ inputs.promoted_from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}     # empty on push/dispatch = the triggering commit
+
+      - name: Generate semantic version
+        id: semver
+        env:
+          MAJOR_PIN: ${{ vars.MAJOR_PIN }}     # only for repos tracking an upstream major
+        run: |
+          git fetch --tags --force --quiet
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+          # A release button passes the version in — it has already been computed against
+          # the tags, and the whole point is to compile THAT version into these binaries.
+          if [ -n "${{ inputs.version }}" ]; then
+            {
+              echo "version=${{ inputs.version }}"
+              echo "version_tag=v${{ inputs.version }}"
+              echo "is_release=true"
+              echo "is_prerelease=${{ inputs.is_prerelease }}"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IS_MAIN="${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}"
+          if [ "$IS_MAIN" = "true" ]; then
+            # A merge into main publishes the next patch as a signed pre-release.
+            ./.github/scripts/next-version.sh prerelease
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            # Branch and PR builds are artifact-only and never released.
+            NEXT="$(./.github/scripts/next-version.sh prerelease)"
+            SHORT_SHA="${GITHUB_SHA:0:7}"
+            {
+              echo "version=${NEXT}.${GITHUB_RUN_NUMBER}+${SHORT_SHA}"
+              echo "version_tag=v${NEXT}.${GITHUB_RUN_NUMBER}+${SHORT_SHA}"
+              echo "is_release=false"
+              echo "is_prerelease=true"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
   web:
+    needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -37,6 +129,8 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
 
       # The design system is a sibling repo; the drift check compares the vendored copy in
       # web/src/design against it. If this repo's token can't read it, the check reports
@@ -75,11 +169,36 @@ jobs:
 
       - run: npm run build
 
+  # The same suite on each database StageZero supports: SQLite (the default) and PostgreSQL,
+  # where every in-process app test gets its own throwaway database (StageZeroApp).
   api:
+    name: api (${{ matrix.database }})
+    needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: stagezero
+          POSTGRES_PASSWORD: stagezero-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stagezero"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      STAGEZERO_TEST_POSTGRES: ${{ matrix.database == 'postgres' && 'Host=localhost;Port=5432;Username=stagezero;Password=stagezero-ci;Database=postgres' || '' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -96,12 +215,16 @@ jobs:
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [web, api]
+    needs: [version, web, api]
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
 
       - name: Build the release image
-        run: docker build -f StageZero/Dockerfile --target release -t stagezero:ci .
+        run: >-
+          docker build -f StageZero/Dockerfile --target release
+          --build-arg APP_VERSION="${{ needs.version.outputs.version }}" -t stagezero:ci .
 
       # The debug stage and both compose files are a contract with each other; a rename
       # on one side should fail here, not on someone's machine.
@@ -110,6 +233,7 @@ jobs:
           docker build -f StageZero/Dockerfile --target debug -t stagezero:debug-ci .
           docker compose -f docker-compose.yml config -q
           docker compose -f docker-compose.debug.yml config -q
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
 
       - name: Start it and check health and the web app
         run: |
@@ -125,6 +249,270 @@ jobs:
           curl -fsS http://localhost:8080/api/auth/session | grep -q '"setupRequired":true'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/dns/providers)" = 401
 
+      # The same image on PostgreSQL, through the compose add-on people will use.
+      - name: Start it on PostgreSQL and check it migrates and serves
+        env:
+          POSTGRES_PASSWORD: stagezero-ci
+          STAGEZERO_DATA_DIR: ${{ runner.temp }}/stagezero-pg-data
+        run: |
+          # Out of the way of the compose stack's fixed container name, logs kept.
+          docker stop stagezero && docker rename stagezero stagezero-sqlite
+          mkdir -p "$STAGEZERO_DATA_DIR" && sudo chown 1654 "$STAGEZERO_DATA_DIR"
+          docker tag stagezero:ci stagezero:release
+          compose="docker compose -p stagezero-pg -f docker-compose.yml -f docker-compose.postgres.yml"
+          $compose up -d --no-build
+          for i in $(seq 1 45); do
+            curl -fsS http://localhost:5100/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://localhost:5100/api/auth/session | grep -q '"setupRequired":true'
+          $compose logs stagezero | grep -q 'Database: PostgreSQL stagezero on postgres'
+
       - name: Container log
         if: always()
-        run: docker logs stagezero || true
+        run: |
+          docker logs stagezero-sqlite || docker logs stagezero || true
+          docker compose -p stagezero-pg -f docker-compose.yml -f docker-compose.postgres.yml logs || true
+
+  # ── Publish the image (main merges and the release buttons only) ──
+  # Multi-arch, from the commit that was built and tested. GHCR needs no secret beyond
+  # GITHUB_TOKEN; Docker Hub is a mirror, skipped with a warning when unconfigured.
+  publish:
+    needs: [version, image]
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write          # push to ghcr.io
+      id-token: write          # cosign keyless signing, provenance attestation
+      attestations: write
+    env:
+      GHCR_IMAGE: ghcr.io/codelifter-platform/stagezero
+      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_USERNAME != '' && vars.DOCKERHUB_IMAGE != '' }}
+      APP_VERSION: ${{ needs.version.outputs.version }}
+      IS_PRERELEASE: ${{ needs.version.outputs.is_prerelease }}
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      images: ${{ steps.tags.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: ${{ env.HAS_DOCKERHUB == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: No Docker Hub mirror
+        if: ${{ env.HAS_DOCKERHUB != 'true' }}
+        run: echo "::warning::DOCKERHUB_TOKEN, DOCKERHUB_USERNAME or the DOCKERHUB_IMAGE variable is not set — publishing to GHCR only."
+
+      # A pre-release moves `pre`; a release moves X.Y, X and `latest`. Nothing else ever
+      # points at a pre-release, so `latest` is always a release someone chose to cut.
+      - name: Image tags
+        id: tags
+        run: |
+          images="$GHCR_IMAGE"
+          [ "$HAS_DOCKERHUB" = true ] && images="$images $DOCKERHUB_IMAGE"
+          tags=""
+          for image in $images; do
+            tags="$tags,$image:$APP_VERSION"
+            if [ "$IS_PRERELEASE" = true ]; then
+              tags="$tags,$image:pre"
+            else
+              IFS=. read -r major minor _ <<<"$APP_VERSION"
+              tags="$tags,$image:$major.$minor,$image:$major,$image:latest"
+            fi
+          done
+          {
+            echo "tags=${tags#,}"
+            echo "images=$images"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: StageZero/Dockerfile
+          target: release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          labels: |
+            org.opencontainers.image.title=StageZero
+            org.opencontainers.image.description=Dynamic DNS, Cloudflare Tunnels and Access for services on your own network
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.APP_VERSION }}
+            org.opencontainers.image.revision=${{ needs.version.outputs.build_sha }}
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.vendor=CodeLifter
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Sign the image (keyless)
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGES: ${{ steps.tags.outputs.images }}
+        run: |
+          for image in $IMAGES; do
+            cosign sign --yes "$image@$DIGEST"
+          done
+
+      - name: Attest build provenance (GHCR)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.GHCR_IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Summary
+        run: |
+          {
+            echo "### Published \`${APP_VERSION}\`"
+            echo '```'
+            echo "${{ steps.tags.outputs.tags }}" | tr ',' '\n'
+            echo '```'
+            echo "Digest: \`${{ steps.push.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Release: README row, tag, GitHub release ─────────────────────
+  release:
+    needs: [version, publish]
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      APP_VERSION: ${{ needs.version.outputs.version }}
+      VERSION_TAG: ${{ needs.version.outputs.version_tag }}
+      BUILD_SHA: ${{ needs.version.outputs.build_sha }}
+      PROMOTED_FROM: ${{ needs.version.outputs.promoted_from }}
+      IS_PRERELEASE: ${{ needs.version.outputs.is_prerelease }}
+      DIGEST: ${{ needs.publish.outputs.digest }}
+      IMAGES: ${{ needs.publish.outputs.images }}
+    steps:
+      # NOTE: main, deliberately — NOT build_sha. The README row and the commit belong on
+      # main even when the image was rebuilt from an older commit. The tag is what points
+      # at build_sha.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Record it in the right table
+        run: |
+          RELEASE_DATE=$(date -u +"%Y-%m-%d")
+          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+          SHORT_SHA="${BUILD_SHA:0:7}"
+
+          # Pre-releases record the commit; releases record the pre-release they came from.
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            ANCHOR="<!-- prereleases:insert -->"
+            PROVENANCE="[\`${SHORT_SHA}\`](${REPO_URL}/commit/${BUILD_SHA})"
+          else
+            ANCHOR="<!-- releases:insert -->"
+            PROVENANCE="rebuilt from ${PROMOTED_FROM} ([\`${SHORT_SHA}\`](${REPO_URL}/commit/${BUILD_SHA}))"
+          fi
+          ROW="| ${VERSION_TAG} | ${RELEASE_DATE} | [Image](${REPO_URL}/releases/tag/${VERSION_TAG}) | ${PROVENANCE} | [Release notes](${REPO_URL}/releases/tag/${VERSION_TAG}) |"
+
+          if ! grep -qF "$ANCHOR" README.md; then
+            echo "::error::README.md has no ${ANCHOR} anchor. Copy both tables from"
+            echo "::error::Platform-Standards/templates/README-tables.md."
+            exit 1
+          fi
+
+          # Match the anchor line EXACTLY. "releases:insert" is a substring of
+          # "prereleases:insert", so a loose regex writes the row into both tables. And
+          # never key off a dash separator: two tables with the same column count are
+          # indistinguishable that way.
+          awk -v row="$ROW" -v anchor="$ANCHOR" '
+            $0 == anchor        { print; inblock=1; next }
+            inblock && /^\|---/ { print; print row; inblock=0; next }
+            { print }
+          ' README.md > README.tmp && mv README.tmp README.md
+
+      - name: Commit release bump and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git diff --cached --quiet || git commit -m "chore: release ${APP_VERSION} [skip ci]"
+          # Tag the commit that was BUILT, not main's HEAD — on a release rebuild those
+          # differ, and a tag pointing at unbuilt code is a lie about what shipped.
+          git tag "$VERSION_TAG" "$BUILD_SHA"
+          git push origin main --tags
+
+      - name: Write the pull instructions
+        run: |
+          {
+            echo "## Container image"
+            echo ""
+            echo "linux/amd64 and linux/arm64, signed with cosign (keyless), digest \`${DIGEST}\`."
+            echo ""
+            echo '```bash'
+            for image in $IMAGES; do
+              echo "docker pull ${image}:${APP_VERSION}"
+            done
+            echo '```'
+            echo ""
+            echo "Verify the signature:"
+            echo ""
+            echo '```bash'
+            echo "cosign verify ghcr.io/codelifter-platform/stagezero@${DIGEST} \\"
+            echo "  --certificate-identity-regexp '^https://github.com/${{ github.repository }}/' \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com"
+            echo '```'
+          } > release-body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          target_commitish: ${{ env.BUILD_SHA }}
+          name: "${{ github.event.repository.name }} ${{ env.VERSION_TAG }}"
+          draft: false
+          prerelease: ${{ needs.version.outputs.is_prerelease == 'true' }}
+          body_path: release-body.md
+          generate_release_notes: true
+
+  # Pushes the pull requests this version shipped to codelifter.net, which curates them and
+  # posts the note into StageZero's Release Notes thread. No RELEASE_NOTES_TOKEN means a
+  # warning, never a failed release. Spec: Platform-Standards/process/release-notes.md
+  release-notes:
+    # Job-level, deliberately: a called workflow may only downgrade what the caller grants,
+    # so reading pull requests has to be granted here.
+    permissions:
+      contents: read
+      pull-requests: read
+    needs: [version, release]
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    uses: ./.github/workflows/release-notes.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      tag: ${{ needs.version.outputs.version_tag }}
+      prerelease: ${{ needs.version.outputs.is_prerelease == 'true' }}
+      commit: ${{ needs.version.outputs.build_sha }}
+      promoted_from: ${{ needs.version.outputs.promoted_from }}
+    secrets: inherit

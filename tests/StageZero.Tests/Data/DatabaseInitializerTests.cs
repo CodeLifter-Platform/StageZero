@@ -81,6 +81,46 @@ public sealed class DatabaseInitializerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_database_migrated_by_the_retired_migration_set_is_adopted_at_the_latest_schema()
+    {
+        // What a build from before the September 2026 regeneration left behind: today's
+        // shape, plus the two-factor columns since removed, under migration IDs that no
+        // longer exist.
+        await InitializeAsync();
+        await using (var connection = new SqliteConnection($"Data Source={DatabasePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                DELETE FROM __EFMigrationsHistory;
+                INSERT INTO __EFMigrationsHistory VALUES ('20260921182220_InitialCreate', '10.0.12');
+                INSERT INTO __EFMigrationsHistory VALUES ('20260921190518_CollapseIpHistoryIntoRuns', '10.0.12');
+                ALTER TABLE Users ADD COLUMN "SecurityStamp" TEXT NOT NULL DEFAULT '';
+                ALTER TABLE Users ADD COLUMN "TotpSecret" TEXT NULL;
+                INSERT INTO DnsProviders (Id, Name, ProviderType, ProtectedApiToken, ZoneId, IsActive, CreatedAt)
+                    VALUES (1, 'Cloudflare', 'Cloudflare', 'protected-token', 'zone', 1, '2026-09-21 00:00:00');
+                INSERT INTO Users (Id, Email, PasswordHash, EmailVerified, CreatedAt, IsActive,
+                    RequiresPasswordChange, EmailVerificationAttempts, FailedLoginCount, PasswordResetAttempts,
+                    SecurityStamp)
+                    VALUES (1, 'owner@example.com', 'hash', 1, '2026-09-21 00:00:00', 1, 0, 0, 0, 0, 'stamp');
+                INSERT INTO IpChecks (IpAddress, CheckedAt, IsChanged, Confirmations, LastConfirmedAt)
+                    VALUES ('203.0.113.7', '2026-09-21 00:00:00', 1, 42, '2026-10-01 00:00:00');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await InitializeAsync();
+
+        await using var db = DatabaseInitializer.CreateContext(DatabasePath);
+        Assert.Empty(await db.Database.GetPendingMigrationsAsync());
+        Assert.DoesNotContain("20260921182220_InitialCreate", await AppliedMigrationsAsync());
+        Assert.Equal("protected-token", (await db.DnsProviders.SingleAsync()).ProtectedApiToken);
+        Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
+        Assert.Equal(42, (await db.IpChecks.SingleAsync()).Confirmations); // not collapsed again
+        Assert.Single(Backups());
+    }
+
+    [Fact]
     public async Task A_database_that_cannot_be_adopted_is_left_exactly_as_it_was()
     {
         // Two usernames sharing an email cannot both survive the unique Email index.

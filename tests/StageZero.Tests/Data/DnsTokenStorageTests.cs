@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using StageZero.Data;
@@ -45,17 +46,15 @@ public class DnsTokenStorageTests
     public async Task A_token_stored_in_the_clear_before_this_is_encrypted_at_startup()
     {
         await using var app = new StageZeroApp();
-        var databasePath = Path.Combine(app.DataDirectory, "stagezero.db");
-        await DatabaseInitializer.InitializeAsync(databasePath, NullLogger.Instance);
-        await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+        await DatabaseInitializer.InitializeAsync(app.Database, NullLogger.Instance);
+        await using (var db = app.Database.CreateContext())
         {
-            await connection.OpenAsync();
-            await using var insert = connection.CreateCommand();
-            insert.CommandText = $"""
-                INSERT INTO DnsProviders (Name, ProviderType, ProtectedApiToken, ZoneId, IsActive, CreatedAt)
-                VALUES ('Home', 'Cloudflare', '{Token}', 'zone-1', 1, '2026-01-02 03:04:05');
-                """;
-            await insert.ExecuteNonQueryAsync();
+            // Straight into the column, the way an install from before encryption stored it.
+            db.DnsProviders.Add(new DnsProvider
+            {
+                Name = "Home", ProviderType = "Cloudflare", ProtectedApiToken = Token, ZoneId = "zone-1", IsActive = true
+            });
+            await db.SaveChangesAsync();
         }
 
         using var scope = app.Services.CreateScope(); // starts the app
@@ -64,9 +63,21 @@ public class DnsTokenStorageTests
         Assert.Equal(Token, (await scope.ServiceProvider.GetRequiredService<IDnsProviderReader>().GetAllAsync()).Single().ApiToken);
     }
 
-    /// <summary>The whole database file (WAL folded in) as text, to search for a secret.</summary>
+    /// <summary>
+    /// What a copy of the database would hold, as text to search for a secret: the whole SQLite
+    /// file (WAL folded in), or on PostgreSQL every stored provider token.
+    /// </summary>
     private static async Task<string> DatabaseTextAsync(StageZeroApp app)
     {
+        if (app.IsPostgres)
+        {
+            await using var db = app.Database.CreateContext();
+            var stored = await db.Database
+                .SqlQueryRaw<string>("SELECT \"ProtectedApiToken\" AS \"Value\" FROM \"DnsProviders\"")
+                .ToListAsync();
+            return string.Join("\n", stored);
+        }
+
         var databasePath = Path.Combine(app.DataDirectory, "stagezero.db");
         await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
         {

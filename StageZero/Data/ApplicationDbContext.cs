@@ -5,11 +5,18 @@ using Lifted.BlazorAuth.Basic.Data;
 namespace StageZero.Data;
 
 /// <summary>
-/// Application database context for SQLite.
+/// Application database context. This type carries the SQLite migrations
+/// (<c>Data/Migrations/</c>); <see cref="PostgresApplicationDbContext"/> carries PostgreSQL's.
 /// </summary>
 public class ApplicationDbContext : BasicAuthDbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        : base(options)
+    {
+    }
+
+    /// <summary>For a provider-specific subclass, so EF finds that provider's migrations.</summary>
+    protected ApplicationDbContext(DbContextOptions options)
         : base(options)
     {
     }

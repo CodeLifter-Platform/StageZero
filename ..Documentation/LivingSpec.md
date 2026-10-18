@@ -16,9 +16,14 @@ authentication the app itself uses (its Blazor components are no longer used by 
 
 ## Status
 
-**Beta, in development.** Versions are `BASE_VERSION` (0.9) + CI run number with
-`RELEASE_LEVEL=beta`, so every merge into `main` is a pre-release — see *Known gaps* for the
-versioning migration.
+**Beta, in development.** The app follows the platform versioning contract: the version comes
+from the git tags (`.github/scripts/next-version.sh`), every merge into `main` publishes the
+next patch as `X.Y.Z-pre`, and RELEASE MINOR / RELEASE MAJOR (`promote.yml`) rebuild the
+newest pre-release's commit as a release. What ships is the container image: linux/amd64 and
+linux/arm64, pushed to `ghcr.io/codelifter-platform/stagezero` and mirrored to Docker Hub
+when configured, signed with cosign (keyless) with a provenance attestation and SBOM. A
+pre-release moves the `pre` tag; a release moves `X.Y`, `X` and `latest`. The NuGet library
+is still on the retired scheme (*Known gaps*).
 
 ## Features
 
@@ -178,8 +183,9 @@ Three projects and a web app:
 Files worth opening first:
 
 - `StageZero/Program.cs` — DI registrations, the pipeline, data directory, the
-  `healthcheck` and `reset-password` commands; `Data/DatabaseInitializer.cs` applies the
-  EF Core migrations (and adopts a pre-migration database once).
+  `healthcheck`, `reset-password` and `copy-to-postgres` commands;
+  `Data/DatabaseSettings.cs` picks SQLite or PostgreSQL; `Data/DatabaseInitializer.cs`
+  applies the EF Core migrations (and adopts a pre-migration database once).
 - `StageZero/Api/Session.cs` and `StageZero/Api/ApiPipeline.cs` — the trust boundary.
 - `web/src/App.tsx`, `web/src/app/guards.tsx`, `web/src/app/Shell.tsx` — routes, who may
   see what, and the signed-in frame.
@@ -211,9 +217,27 @@ on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/Stage
 macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
 an older install's `keys/` ring is copied in on first start, `Services/DataProtectionKeys.cs`).
 
-The schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
+The database is SQLite (`stagezero.db` in the data directory) unless
+`STAGEZERO_DB_PROVIDER=postgres` and `STAGEZERO_DB_CONNECTION` name a PostgreSQL database
+(`Data/DatabaseSettings.cs`); a misspelt provider or a missing connection string stops
+startup. Each provider has its own migrations: SQLite's in `Data/Migrations/`, PostgreSQL's
+in `Data/Migrations/Postgres/`, carried by `PostgresApplicationDbContext` so EF keeps them
+apart, and the app still resolves `ApplicationDbContext` everywhere. On PostgreSQL every
+`DateTime` is written as UTC (timestamptz refuses an unmarked one), and the data directory
+is still required: it holds the logs and the Data Protection keys. `StageZero
+copy-to-postgres` (`Services/Cli/CopyToPostgresCommand.cs`) moves an install: it migrates
+the SQLite file, refuses a PostgreSQL database that already has data, copies every table
+with its ids in one transaction, and moves the identity sequences past them; the SQLite
+file is only read. The test suite runs on both: `STAGEZERO_TEST_POSTGRES` gives each
+in-process app test its own throwaway PostgreSQL database, and CI's `api` job runs once per
+provider.
+
+The SQLite schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
-and then migrated like any other. The Cloudflare DNS token and tunnel token are encrypted
+and then migrated like any other. So is one migrated by the retired pre-#18 migration set
+(a history naming none of today's migrations): it is adopted at the latest schema, since its
+data already went through every current migration. Either way the original is kept beside it
+as `stagezero.db.pre-migrations-<ts>.bak`. The Cloudflare DNS token and tunnel token are encrypted
 with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
 SQLite — a plaintext token from an older install is encrypted on first start — and losing
 the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
@@ -241,10 +265,13 @@ GitHub-hosted runners.
 
 ## Known gaps
 
-- **Versioning is on the retired scheme.** `basic-auth-nuget-publish.yml` still computes
-  `BASE_VERSION` + run number from repo variables; the platform contract is tag-derived
-  versioning with `release-minor.yml` / `release-major.yml` / `promote.yml`
-  (`Platform-Standards/process/versioning-ci.md`). The conformance `version` check fails.
+- **The NuGet library is versioned on the retired scheme.** The app moved to tag-derived
+  versions (`build.yml`, `promote.yml`), but `basic-auth-nuget-publish.yml` still computes
+  `BASE_VERSION` + run number from repo variables, as this repo's `CLAUDE.md` records. Two
+  schemes in one repo until the library moves too (`Platform-Standards/process/versioning-ci.md`).
+- **The Docker Hub mirror is not configured yet.** Until `DOCKERHUB_USERNAME`,
+  `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are set, images go to GHCR only, with a warning.
+  The GHCR package also has to be made public once, after its first push.
 - **`NUGET_API_KEY` is not set.** The NuGet.org push is skipped with a warning; the package
   still reaches GitHub Packages. See [NUGET_PUBLISHING.md](NUGET_PUBLISHING.md).
 - **The brand marks are still the pre-accent green.** `Assets/svg/*` draw the mark in
