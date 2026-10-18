@@ -47,8 +47,12 @@ fi
 PREV="${PREVIOUS_TAG:-$PROMOTED_FROM}"
 if [ -z "$PREV" ]; then
   # The nearest tag reachable from the built commit's first parent: the
-  # previous release point on this history, whatever it was called.
-  PREV="$(git describe --tags --abbrev=0 "${COMMIT}^" 2>/dev/null || true)"
+  # previous release point on this history. Only tags in the same namespace
+  # count — StageZero tags the app `v*` and its NuGet library `basicauth-v*`,
+  # and the other product's tag must not cut this range short.
+  MATCH='*'
+  case "$TAG" in *"$VERSION") MATCH="${TAG%"$VERSION"}[0-9]*" ;; esac
+  PREV="$(git describe --tags --abbrev=0 --match "$MATCH" "${COMMIT}^" 2>/dev/null || true)"
 fi
 if [ -z "$PREV" ]; then
   # No tags at all (a repo that publishes packages rather than tagging, like
