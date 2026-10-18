@@ -30,8 +30,8 @@
       "preLaunchTask": "web: install",
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "Local:\\s+(https?://\\S+)",
-        "uriFormat": "http://localhost:5173"
+        "pattern": "Local:\\s+(https?://localhost:5173)",
+        "uriFormat": "%s"
       }
     },
     {
@@ -67,8 +67,8 @@
       "console": "integratedTerminal",
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "Local:\\s+http://localhost:5173",
-        "uriFormat": "http://localhost:5173"
+        "pattern": "Local:\\s+(http://localhost:5173)",
+        "uriFormat": "%s"
       },
       "postDebugTask": "container: debug down"
     },
@@ -99,10 +99,12 @@
       "runtimeArgs": ["compose", "up", "--build"],
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
+      // The log names the container-side port (8080), not the published one, so the
+      // pattern's capture group is deliberately empty: uriFormat needs exactly one %s.
       "serverReadyAction": {
         "action": "openExternally",
-        "pattern": "Now listening on:\\s+(https?://\\S+)",
-        "uriFormat": "http://localhost:5100"
+        "pattern": "Now listening on:\\s+https?://\\S+()",
+        "uriFormat": "http://localhost:5100%s"
       },
       "postDebugTask": "container: release down"
     },
