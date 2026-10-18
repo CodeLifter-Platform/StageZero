@@ -32,11 +32,33 @@ public static class DatabaseInitializer
     /// <summary>The migration that matches the last pre-migrations schema.</summary>
     public const string BaselineMigration = "20260927204016_InitialCreate";
 
+    /// <summary>
+    /// Brings whichever database <paramref name="settings"/> names to its latest migration.
+    /// Only a SQLite file can be a legacy one; a PostgreSQL database has only ever been built
+    /// by its own migrations.
+    /// </summary>
+    public static async Task InitializeAsync(DatabaseSettings settings, ILogger logger, CancellationToken cancellationToken = default)
+    {
+        if (settings.SqlitePath is { } path)
+        {
+            await InitializeAsync(path, logger, cancellationToken);
+            return;
+        }
+
+        await using var db = settings.CreateContext();
+        await MigrateAsync(db, logger, cancellationToken);
+    }
+
     public static async Task InitializeAsync(string databasePath, ILogger logger, CancellationToken cancellationToken = default)
     {
         await LegacyDatabaseAdopter.AdoptAsync(databasePath, logger, cancellationToken);
 
         await using var db = CreateContext(databasePath);
+        await MigrateAsync(db, logger, cancellationToken);
+    }
+
+    private static async Task MigrateAsync(ApplicationDbContext db, ILogger logger, CancellationToken cancellationToken)
+    {
         var pending = (await db.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
         if (pending.Count > 0)
         {

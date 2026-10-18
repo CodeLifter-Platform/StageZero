@@ -6,6 +6,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using StageZero.Data;
 using StageZero.Services;
 
@@ -15,6 +16,11 @@ namespace StageZero.Tests.Infrastructure;
 /// The real app, hosted in memory against a throwaway data directory. One instance per test:
 /// the data directory travels through a process-wide environment variable, so every test
 /// that hosts the app belongs to the <see cref="AppCollection"/>, which runs sequentially.
+/// <para>
+/// With <c>STAGEZERO_TEST_POSTGRES</c> set to a server's connection string (CI's PostgreSQL
+/// leg), each instance gets its own throwaway PostgreSQL database instead of the SQLite file,
+/// so the same tests prove the app on both providers.
+/// </para>
 /// </summary>
 public sealed class StageZeroApp : WebApplicationFactory<Program>
 {
@@ -24,12 +30,37 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
     /// <summary>What every outbound HTTP request gets instead of the internet.</summary>
     public FakeHttp Http { get; } = new();
 
+    public const string PostgresServerVariable = "STAGEZERO_TEST_POSTGRES";
+
+    /// <summary>The database this instance runs on.</summary>
+    public DatabaseSettings Database { get; }
+
+    public bool IsPostgres => Database.Provider == DatabaseProvider.Postgres;
+
     private readonly string _environment;
 
     public StageZeroApp(string environment = "Development")
     {
         _environment = environment;
         Environment.SetEnvironmentVariable(DataPathService.HomeVariable, DataDirectory);
+
+        var server = Environment.GetEnvironmentVariable(PostgresServerVariable);
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            Database = DatabaseSettings.Sqlite(Path.Combine(DataDirectory, "stagezero.db"));
+            Environment.SetEnvironmentVariable(DatabaseSettings.ProviderVariable, null);
+            Environment.SetEnvironmentVariable(DatabaseSettings.ConnectionVariable, null);
+        }
+        else
+        {
+            var connection = new NpgsqlConnectionStringBuilder(server)
+            {
+                Database = $"stagezero_test_{Guid.NewGuid():N}"
+            }.ToString();
+            Database = DatabaseSettings.Postgres(connection);
+            Environment.SetEnvironmentVariable(DatabaseSettings.ProviderVariable, "postgres");
+            Environment.SetEnvironmentVariable(DatabaseSettings.ConnectionVariable, connection);
+        }
     }
 
     /// <summary>Replaces registrations after the app's own (fakes for Cloudflare, a failing store).</summary>
@@ -81,6 +112,11 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
     {
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
+        if (IsPostgres)
+        {
+            await DropPostgresDatabaseAsync();
+        }
+
         try
         {
             Directory.Delete(DataDirectory, recursive: true);
@@ -89,6 +125,22 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
         {
             // A log file still being flushed; the OS temp cleaner will have it.
         }
+    }
+
+    private async Task DropPostgresDatabaseAsync()
+    {
+        NpgsqlConnection.ClearAllPools();
+        var target = new NpgsqlConnectionStringBuilder(Database.ConnectionString);
+        var maintenance = new NpgsqlConnectionStringBuilder(target.ConnectionString)
+        {
+            Database = "postgres",
+            Pooling = false
+        };
+        await using var connection = new NpgsqlConnection(maintenance.ConnectionString);
+        await connection.OpenAsync();
+        await using var drop = connection.CreateCommand();
+        drop.CommandText = $"DROP DATABASE IF EXISTS \"{target.Database}\" WITH (FORCE);";
+        await drop.ExecuteNonQueryAsync();
     }
 }
 
