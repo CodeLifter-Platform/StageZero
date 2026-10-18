@@ -81,6 +81,29 @@ docker run -d -p 5100:8080 --env-file .env -v stagezero-data:/app-data stagezero
 The build context is the **repo root**, not `StageZero/`: the API project references
 `../Lifted.BlazorAuth.Basic` and the web app lives in `../web`.
 
+### On PostgreSQL
+
+`docker-compose.postgres.yml` adds a PostgreSQL 18 container (named volume
+`stagezero-postgres`, no published port) and points the app at it:
+
+```bash
+echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+```
+
+The app's `/app-data` mount is still required: the Data Protection keys and the logs stay
+there. To move an install that has been on SQLite, bring up the database alone, copy, then
+start the app (the SQLite file is only read):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d postgres
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml run --rm stagezero copy-to-postgres
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+```
+
+For a PostgreSQL server you already run, skip the add-on and set `STAGEZERO_DB_PROVIDER=postgres`
+and `STAGEZERO_DB_CONNECTION` in `.env`.
+
 ## Debug
 
 ```bash

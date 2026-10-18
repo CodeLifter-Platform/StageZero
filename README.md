@@ -18,7 +18,8 @@ Three features, one Cloudflare API token:
 
 ## Tech Stack
 
-- **API:** .NET 10 / ASP.NET Core minimal APIs, SQLite with Entity Framework Core, Serilog,
+- **API:** .NET 10 / ASP.NET Core minimal APIs, Entity Framework Core on SQLite (default) or
+  PostgreSQL, Serilog,
   a cookie session over the in-repo `Lifted.BlazorAuth.Basic` services
 - **Web app:** React 18 + TypeScript (strict), built with Vite, served by the API from
   `wwwroot`; UI from the CodeLifter Design System (`Platform-Design`), vendored in
@@ -264,8 +265,25 @@ The `.env` file will be automatically loaded when debugging.
   `web/src/theme/stagezero.css`.
 
 ### Database
-SQLite, created automatically as `stagezero.db` in the app data directory (`/app-data` in
-a container, the per-user config directory otherwise).
+**SQLite** by default, created automatically as `stagezero.db` in the app data directory
+(`/app-data` in a container, the per-user config directory otherwise). Nothing to set up.
+
+**PostgreSQL** instead, with two variables (in `.env` or the environment):
+
+```bash
+STAGEZERO_DB_PROVIDER=postgres
+STAGEZERO_DB_CONNECTION="Host=db;Database=stagezero;Username=stagezero;Password=..."
+```
+
+The database is created and migrated at startup. Or let compose run one beside the app:
+`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` (needs
+`POSTGRES_PASSWORD` in `.env`). Either way the data directory is still needed: it holds the
+logs and the keys that decrypt the stored Cloudflare tokens, so back it up with the database.
+
+Moving an existing install from SQLite to PostgreSQL: set the two variables, run
+`dotnet StageZero.dll copy-to-postgres` once (in Docker: `docker compose run --rm stagezero
+copy-to-postgres`), then restart. It copies every row into an empty PostgreSQL database and
+only reads the SQLite file, so going back is unsetting `STAGEZERO_DB_PROVIDER`.
 
 ## Documentation
 

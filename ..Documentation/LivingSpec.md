@@ -178,8 +178,9 @@ Three projects and a web app:
 Files worth opening first:
 
 - `StageZero/Program.cs` — DI registrations, the pipeline, data directory, the
-  `healthcheck` and `reset-password` commands; `Data/DatabaseInitializer.cs` applies the
-  EF Core migrations (and adopts a pre-migration database once).
+  `healthcheck`, `reset-password` and `copy-to-postgres` commands;
+  `Data/DatabaseSettings.cs` picks SQLite or PostgreSQL; `Data/DatabaseInitializer.cs`
+  applies the EF Core migrations (and adopts a pre-migration database once).
 - `StageZero/Api/Session.cs` and `StageZero/Api/ApiPipeline.cs` — the trust boundary.
 - `web/src/App.tsx`, `web/src/app/guards.tsx`, `web/src/app/Shell.tsx` — routes, who may
   see what, and the signed-in frame.
@@ -211,7 +212,22 @@ on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/Stage
 macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
 an older install's `keys/` ring is copied in on first start, `Services/DataProtectionKeys.cs`).
 
-The schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
+The database is SQLite (`stagezero.db` in the data directory) unless
+`STAGEZERO_DB_PROVIDER=postgres` and `STAGEZERO_DB_CONNECTION` name a PostgreSQL database
+(`Data/DatabaseSettings.cs`); a misspelt provider or a missing connection string stops
+startup. Each provider has its own migrations: SQLite's in `Data/Migrations/`, PostgreSQL's
+in `Data/Migrations/Postgres/`, carried by `PostgresApplicationDbContext` so EF keeps them
+apart, and the app still resolves `ApplicationDbContext` everywhere. On PostgreSQL every
+`DateTime` is written as UTC (timestamptz refuses an unmarked one), and the data directory
+is still required: it holds the logs and the Data Protection keys. `StageZero
+copy-to-postgres` (`Services/Cli/CopyToPostgresCommand.cs`) moves an install: it migrates
+the SQLite file, refuses a PostgreSQL database that already has data, copies every table
+with its ids in one transaction, and moves the identity sequences past them; the SQLite
+file is only read. The test suite runs on both: `STAGEZERO_TEST_POSTGRES` gives each
+in-process app test its own throwaway PostgreSQL database, and CI's `api` job runs once per
+provider.
+
+The SQLite schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
 and then migrated like any other. So is one migrated by the retired pre-#18 migration set
 (a history naming none of today's migrations): it is adopted at the latest schema, since its

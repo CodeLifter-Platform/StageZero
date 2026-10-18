@@ -7,6 +7,15 @@ github.com/CodeLifter-Platform/Platform-Standards).
 
 Last reviewed: 2026-09-27.
 
+## PostgreSQL (optional database)
+
+- **Usage:** Where the data goes instead of the SQLite file when
+  `STAGEZERO_DB_PROVIDER=postgres` (`StageZero/Data/DatabaseSettings.cs`; migrations in
+  `StageZero/Data/Migrations/Postgres/`). SQLite stays the default.
+- **Managed at:** The operator's own server, or the `postgres:18-alpine` container that
+  `docker-compose.postgres.yml` runs beside the app. The connection string, password
+  included, is supplied at runtime in `STAGEZERO_DB_CONNECTION` and never logged.
+
 ## Cloudflare (DNS provider)
 
 - **Usage:** The DNS provider StageZero drives for dynamic DNS updates

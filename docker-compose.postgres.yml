@@ -1,0 +1,49 @@
+# StageZero on PostgreSQL: an add-on to docker-compose.yml that runs a PostgreSQL 18 beside
+# the app and keeps the data there instead of the SQLite file.
+#
+#   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
+#
+# Already have a PostgreSQL server? Skip this file and set two variables in .env instead:
+#   STAGEZERO_DB_PROVIDER=postgres
+#   STAGEZERO_DB_CONNECTION=Host=...;Database=stagezero;Username=...;Password=...
+#
+# Moving an existing SQLite install over: start this stack's database, copy, then start the
+# app (the SQLite file is only read, and stays where it was):
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d postgres
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml run --rm stagezero copy-to-postgres
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
+#
+# The app still needs its /app-data volume on PostgreSQL: the Data Protection keys that
+# decrypt the stored Cloudflare tokens, and the logs, live there. Back it up with the database.
+
+services:
+  stagezero:
+    environment:
+      STAGEZERO_DB_PROVIDER: postgres
+      # No ';' in the password: it would end the connection string's Password field.
+      STAGEZERO_DB_CONNECTION: Host=postgres;Database=stagezero;Username=stagezero;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    container_name: stagezero-postgres
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: stagezero
+      POSTGRES_USER: stagezero
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql/<major>/.
+      - stagezero-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stagezero -d stagezero"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # No published port: only the app talks to it, over the compose network.
+
+volumes:
+  stagezero-postgres:

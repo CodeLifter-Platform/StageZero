@@ -75,9 +75,31 @@ jobs:
 
       - run: npm run build
 
+  # The same suite on each database StageZero supports: SQLite (the default) and PostgreSQL,
+  # where every in-process app test gets its own throwaway database (StageZeroApp).
   api:
+    name: api (${{ matrix.database }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: stagezero
+          POSTGRES_PASSWORD: stagezero-ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stagezero"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      STAGEZERO_TEST_POSTGRES: ${{ matrix.database == 'postgres' && 'Host=localhost;Port=5432;Username=stagezero;Password=stagezero-ci;Database=postgres' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +132,7 @@ jobs:
           docker build -f StageZero/Dockerfile --target debug -t stagezero:debug-ci .
           docker compose -f docker-compose.yml config -q
           docker compose -f docker-compose.debug.yml config -q
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.yml -f docker-compose.postgres.yml config -q
 
       - name: Start it and check health and the web app
         run: |
@@ -125,6 +148,27 @@ jobs:
           curl -fsS http://localhost:8080/api/auth/session | grep -q '"setupRequired":true'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/dns/providers)" = 401
 
+      # The same image on PostgreSQL, through the compose add-on people will use.
+      - name: Start it on PostgreSQL and check it migrates and serves
+        env:
+          POSTGRES_PASSWORD: stagezero-ci
+          STAGEZERO_DATA_DIR: ${{ runner.temp }}/stagezero-pg-data
+        run: |
+          # Out of the way of the compose stack's fixed container name, logs kept.
+          docker stop stagezero && docker rename stagezero stagezero-sqlite
+          mkdir -p "$STAGEZERO_DATA_DIR" && sudo chown 1654 "$STAGEZERO_DATA_DIR"
+          docker tag stagezero:ci stagezero:release
+          compose="docker compose -p stagezero-pg -f docker-compose.yml -f docker-compose.postgres.yml"
+          $compose up -d --no-build
+          for i in $(seq 1 45); do
+            curl -fsS http://localhost:5100/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://localhost:5100/api/auth/session | grep -q '"setupRequired":true'
+          $compose logs stagezero | grep -q 'Database: PostgreSQL stagezero on postgres'
+
       - name: Container log
         if: always()
-        run: docker logs stagezero || true
+        run: |
+          docker logs stagezero-sqlite || docker logs stagezero || true
+          docker compose -p stagezero-pg -f docker-compose.yml -f docker-compose.postgres.yml logs || true

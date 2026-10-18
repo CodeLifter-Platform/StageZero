@@ -25,8 +25,18 @@ public sealed record DatabaseSettings(DatabaseProvider Provider, string Connecti
     public static DatabaseSettings Sqlite(string databasePath) =>
         new(DatabaseProvider.Sqlite, new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString());
 
-    public static DatabaseSettings Postgres(string connectionString) =>
-        new(DatabaseProvider.Postgres, connectionString);
+    public static DatabaseSettings Postgres(string connectionString)
+    {
+        // Npgsql tries Kerberos (GSS) encryption first by default, which on the slim runtime
+        // image logs a missing libgssapi on every connection. Off unless asked for.
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        if (!connectionString.Contains("gss", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.GssEncryptionMode = GssEncryptionMode.Disable;
+        }
+
+        return new DatabaseSettings(DatabaseProvider.Postgres, builder.ConnectionString);
+    }
 
     /// <summary>
     /// Reads the two variables. A misspelt provider, or postgres without a connection string,
