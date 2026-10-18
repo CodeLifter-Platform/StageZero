@@ -35,7 +35,11 @@ VOLUME /app-data
 
 # ── Web app ─────────────────────────────────────────────────────────
 # Builds web/ (Vite + React) into /web/wwwroot. Lint and tests run in CI, not here.
-FROM node:22-alpine AS web
+# This stage and the SDK stages run on the BUILD machine's platform: their output is the
+# same on every architecture (static files, and framework-dependent IL with SQLite's native
+# library for every RID), so an arm64 image is built without emulating the compiler. Only
+# `base` is the target platform.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /src/web
 COPY ["web/package.json", "web/package-lock.json", "./"]
 RUN npm ci --no-audit --no-fund
@@ -43,7 +47,7 @@ COPY web/ ./
 RUN npx tsc -b && npx vite build --outDir /web/wwwroot --emptyOutDir
 
 # ── Build ───────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
@@ -61,7 +65,10 @@ RUN dotnet build "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/
 # ── Publish ─────────────────────────────────────────────────────────
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false
+# The release version, compiled in (CI passes the one computed from the git tags).
+ARG APP_VERSION=0.0.0-dev
+RUN dotnet publish "StageZero/StageZero.csproj" -c "$BUILD_CONFIGURATION" -o /app/publish /p:UseAppHost=false \
+    /p:Version="$APP_VERSION" /p:InformationalVersion="$APP_VERSION"
 COPY --from=web /web/wwwroot /app/publish/wwwroot
 
 # ── debug: what docker-compose.debug.yml runs ───────────────────────

@@ -319,18 +319,31 @@ both container images and checks the release one comes up healthy.
 
 | Platform | Formats | Get it |
 |---|---|---|
-| **Container** | `Dockerfile` (`debug` / `release` stages) | [build from source](..Documentation/OnboardDocker.md) |
+| **Container** | `linux/amd64`, `linux/arm64`, signed (cosign) | `docker pull ghcr.io/codelifter-platform/stagezero` (Docker Hub mirror once configured) · [build from source](..Documentation/OnboardDocker.md) |
 | **Any .NET 10 host** | `dotnet run` / published output | [Releases](https://github.com/CodeLifter-Platform/StageZero/releases) |
 | **NuGet** | `Lifted.BlazorAuth.Basic` | [nuget.org](https://www.nuget.org/packages/Lifted.BlazorAuth.Basic) |
 
 > StageZero is a server application — there is nothing to install on a desktop. The repo also
 > publishes the `Lifted.BlazorAuth.Basic` package; see `..Documentation/NUGET_PUBLISHING.md`.
 
-## Release history
+## Releases
 
-Versions come from `BASE_VERSION` + the CI run number, with `RELEASE_LEVEL` adding the
-prerelease suffix. Releases happen on push to `main` — there are no hand-pushed tags, and
-reintroducing a `tags:` trigger is exactly what the platform versioning contract rules out.
+Cut deliberately with the **RELEASE MINOR** / **RELEASE MAJOR** buttons in Actions. Each one
+rebuilds a tested pre-release's commit with the release version compiled in, and moves the
+image's `X.Y`, `X` and `latest` tags.
 
-| Version | Date | Package | Notes |
-|---|---|---|---|
+<!-- releases:insert -->
+| Version | Date | Downloads | Rebuilt from | Notes |
+|---|---|---|---|---|
+
+## Pre-releases
+
+Produced automatically by every merge into `main`: patch + 1 from the git tags, published as
+`ghcr.io/codelifter-platform/stagezero:<version>` and `:pre`, marked as a prerelease on
+GitHub. Versions come from the tags alone (`.github/scripts/next-version.sh`); nothing is
+kept in a repo variable. The NuGet library is versioned separately
+(`..Documentation/NUGET_PUBLISHING.md`).
+
+<!-- prereleases:insert -->
+| Version | Date | Downloads | Commit | Notes |
+|---|---|---|---|---|

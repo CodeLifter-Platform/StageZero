@@ -16,6 +16,25 @@ Last reviewed: 2026-09-27.
   `docker-compose.postgres.yml` runs beside the app. The connection string, password
   included, is supplied at runtime in `STAGEZERO_DB_CONNECTION` and never logged.
 
+## GitHub Container Registry (image publishing)
+
+- **Usage:** Every merge into `main` and every release button pushes the multi-arch image to
+  `ghcr.io/codelifter-platform/stagezero` (`.github/workflows/build.yml`, `publish`), signed
+  with cosign (keyless, Sigstore) and with a provenance attestation.
+- **Managed at:** The CodeLifter-Platform GitHub org's Packages. Authenticates with the
+  workflow's own `GITHUB_TOKEN`; no secret to keep. The package must be public (set once,
+  after the first push, in the package's settings).
+
+## Docker Hub (image mirror)
+
+- **Usage:** The same image and tags, mirrored for people who look on Docker Hub. Skipped
+  with a warning until configured.
+- **Managed at:** A Docker Hub organisation. Repo secrets `DOCKERHUB_USERNAME` and
+  `DOCKERHUB_TOKEN` (an access token with read/write, never the account password) and the
+  repo variable `DOCKERHUB_IMAGE` (e.g. `codelifter/stagezero`). 1Password items:
+  `StageZero — DOCKERHUB_USERNAME`, `StageZero — DOCKERHUB_TOKEN`. Docker's Sponsored Open
+  Source program lifts the anonymous pull limit.
+
 ## Cloudflare (DNS provider)
 
 - **Usage:** The DNS provider StageZero drives for dynamic DNS updates

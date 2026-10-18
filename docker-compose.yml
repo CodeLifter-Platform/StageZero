@@ -1,6 +1,10 @@
 # StageZero, release: the instance you keep running.
 #
 #   docker compose up -d --build        then open http://localhost:5100
+#
+# Or run the published image instead of building one (STAGEZERO_IMAGE in .env):
+#   STAGEZERO_IMAGE=ghcr.io/codelifter-platform/stagezero:latest   (or :pre, or :0.1.0)
+#   docker compose pull && docker compose up -d
 #   docker compose logs -f stagezero
 #   docker compose down
 #
@@ -13,13 +17,14 @@
 #   STAGEZERO_DATA_DIR   host directory for the database, logs and data-protection keys.
 #                        Default ./.volumes/stagezero-data; docker-run.sh picks the
 #                        platform's app-data directory instead.
+#   STAGEZERO_IMAGE      the image to run. Default stagezero:release, built from this checkout.
 #   TUNNEL_TOKEN         only for the optional cloudflared sidecar below.
 name: stagezero
 
 services:
   stagezero:
     container_name: stagezero
-    image: stagezero:release
+    image: ${STAGEZERO_IMAGE:-stagezero:release}
     build:
       context: .
       dockerfile: StageZero/Dockerfile

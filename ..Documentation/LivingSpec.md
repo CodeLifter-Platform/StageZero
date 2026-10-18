@@ -16,9 +16,14 @@ authentication the app itself uses (its Blazor components are no longer used by 
 
 ## Status
 
-**Beta, in development.** Versions are `BASE_VERSION` (0.9) + CI run number with
-`RELEASE_LEVEL=beta`, so every merge into `main` is a pre-release — see *Known gaps* for the
-versioning migration.
+**Beta, in development.** The app follows the platform versioning contract: the version comes
+from the git tags (`.github/scripts/next-version.sh`), every merge into `main` publishes the
+next patch as `X.Y.Z-pre`, and RELEASE MINOR / RELEASE MAJOR (`promote.yml`) rebuild the
+newest pre-release's commit as a release. What ships is the container image: linux/amd64 and
+linux/arm64, pushed to `ghcr.io/codelifter-platform/stagezero` and mirrored to Docker Hub
+when configured, signed with cosign (keyless) with a provenance attestation and SBOM. A
+pre-release moves the `pre` tag; a release moves `X.Y`, `X` and `latest`. The NuGet library
+is still on the retired scheme (*Known gaps*).
 
 ## Features
 
@@ -260,10 +265,13 @@ GitHub-hosted runners.
 
 ## Known gaps
 
-- **Versioning is on the retired scheme.** `basic-auth-nuget-publish.yml` still computes
-  `BASE_VERSION` + run number from repo variables; the platform contract is tag-derived
-  versioning with `release-minor.yml` / `release-major.yml` / `promote.yml`
-  (`Platform-Standards/process/versioning-ci.md`). The conformance `version` check fails.
+- **The NuGet library is versioned on the retired scheme.** The app moved to tag-derived
+  versions (`build.yml`, `promote.yml`), but `basic-auth-nuget-publish.yml` still computes
+  `BASE_VERSION` + run number from repo variables, as this repo's `CLAUDE.md` records. Two
+  schemes in one repo until the library moves too (`Platform-Standards/process/versioning-ci.md`).
+- **The Docker Hub mirror is not configured yet.** Until `DOCKERHUB_USERNAME`,
+  `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are set, images go to GHCR only, with a warning.
+  The GHCR package also has to be made public once, after its first push.
 - **`NUGET_API_KEY` is not set.** The NuGet.org push is skipped with a warning; the package
   still reaches GitHub Packages. See [NUGET_PUBLISHING.md](NUGET_PUBLISHING.md).
 - **The brand marks are still the pre-accent green.** `Assets/svg/*` draw the mark in
