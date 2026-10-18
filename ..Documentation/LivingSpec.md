@@ -23,7 +23,9 @@ newest pre-release's commit as a release. What ships is the container image: lin
 linux/arm64, pushed to `ghcr.io/codelifter-platform/stagezero` and mirrored to Docker Hub
 when configured, signed with cosign (keyless) with a provenance attestation and SBOM. A
 pre-release moves the `pre` tag; a release moves `X.Y`, `X` and `latest`. The NuGet library
-is still on the retired scheme (*Known gaps*).
+is versioned the same way in its own tag namespace, `basicauth-vX.Y.Z[-pre]`: a merge that
+changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE BASICAUTH
+(`release-basicauth.yml`) promotes one ([NUGET_PUBLISHING.md](NUGET_PUBLISHING.md)).
 
 ## Features
 
@@ -257,7 +259,7 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 |---|---|---|---|
 | Container | ✅ | `StageZero/Dockerfile` (`web` → `build` → `release` stages, plus `debug`: `dotnet watch` + `vsdbg`; release non-root with `HEALTHCHECK`; plain HTTP on 8080), `docker-compose.yml` (release, :5100, optional `cloudflared` sidecar) and `docker-compose.debug.yml` (debug: API with hot reload on :5200 and the Vite dev server on :5173, source mounted, data kept apart from the release instance's) | ✅ macOS, 2026-10-15: both images built from clean; release came up healthy, served the app on a deep link, refused an anonymous API call, completed setup and sign-in over plain HTTP with the cookie honoured; debug served the app on :5200 and the Vite proxy on :5173, a `.cs` edit on the host was picked up by `dotnet watch` and a `.tsx` edit hot-reloaded in Vite, and the 57 web tests pass inside the web container. CI builds both images and validates both compose files on every push |
 | Any .NET 10 host | ✅ | `dotnet run` + `npm run build` / published output | ✅ Linux, 2026-10-15: build (0 warnings), 222 xUnit + 57 Vitest tests, lint and strict typecheck clean, and a Chromium walkthrough of the built app: fresh install → setup (validation) → wrong password → sign in → reload keeps the session → IP Monitor, DNS (add-provider dialog), Tunnel Routes, route editor (owner-email default, mode switching), save refused before tunnel setup, Tunnel Setup, light theme persists across reload, sign out → deep link → sign in returns to it, phone width without horizontal scroll. Cloudflare itself was not reachable from the test machine, so no live DNS or tunnel write was made |
-| NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from CI | ✅ local pack, 2026-09-26 |
+| NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from `basicauth-v*` tags | ✅ local pack, 2026-09-26; tag-version script exercised against a scratch repo, 2026-10-17 (no CI run of the new workflow yet) |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (build and run from source) and
 [OnboardDocker.md](OnboardDocker.md). This repo is **public**, so its CI stays on
@@ -265,10 +267,12 @@ GitHub-hosted runners.
 
 ## Known gaps
 
-- **The NuGet library is versioned on the retired scheme.** The app moved to tag-derived
-  versions (`build.yml`, `promote.yml`), but `basic-auth-nuget-publish.yml` still computes
-  `BASE_VERSION` + run number from repo variables, as this repo's `CLAUDE.md` records. Two
-  schemes in one repo until the library moves too (`Platform-Standards/process/versioning-ci.md`).
+- **The library's release notes share StageZero's thread.** Both products push to the
+  site as app `stagezero`, so library versions (`0.9.74-pre` onwards) and app versions land
+  in one Release Notes thread, and a PR that touches both appears in both notes. Separating
+  them needs a second app id on codelifter.net and its own token.
+- **The library has no test project.** Its services are exercised through the app's suite
+  (`build.yml`, `api`), but nothing tests the package on its own before it publishes.
 - **The Docker Hub mirror is not configured yet.** Until `DOCKERHUB_USERNAME`,
   `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are set, images go to GHCR only, with a warning.
   The GHCR package also has to be made public once, after its first push.
