@@ -1,0 +1,97 @@
+# RELEASE BASICAUTH — the Lifted.BlazorAuth.Basic library's release button.
+#
+# The library's counterpart to RELEASE MINOR / RELEASE MAJOR (which release the app). It
+# promotes the newest library pre-release to a full release, in the library's own tag
+# namespace:
+#   minor  basicauth-v0.9.80-pre  ->  basicauth-v0.10.0
+#   major  basicauth-v0.9.80-pre  ->  basicauth-v1.0.0
+#
+# It REBUILDS that pre-release's commit with the release version packed in, rather than
+# re-pushing the pre-release's .nupkg, so the package NuGet resolves as 0.10.0 was built as
+# 0.10.0. Same source, correct version; see promote.yml for what that costs.
+#
+# workflow_dispatch requires write access, so this button is not available to forks or
+# read-only collaborators.
+
+name: RELEASE BASICAUTH
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: minor (0.9.x -> 0.10.0) or major (0.9.x -> 1.0.0)
+        required: true
+        type: choice
+        options: [minor, major]
+        default: minor
+
+permissions:
+  contents: write
+  # The rebuild pushes to GitHub Packages; a called workflow can only use what its caller
+  # grants.
+  packages: write
+  pull-requests: read
+
+jobs:
+  # ── Work out what to build, and from which commit ───────────────
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      promoted_from: ${{ steps.v.outputs.promoted_from }}
+    env:
+      TAG_PREFIX: 'basicauth-v'
+      VERSION_FLOOR: '0.9.73'   # keep in step with basic-auth-nuget-publish.yml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # tags are the source of truth; a shallow clone has none
+
+      - name: Resolve the pre-release to promote
+        id: v
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git fetch --tags --force --quiet
+
+          PRE_TAG="$(./.github/scripts/next-prefixed-version.sh latest-pre)"
+          if [ -z "$PRE_TAG" ]; then
+            echo "::error::no ${TAG_PREFIX}*-pre tag to promote. Merge a PR that changes" \
+                 "Lifted.BlazorAuth.Basic/ into main first — the button promotes a tested" \
+                 "build, it does not create one."
+            exit 1
+          fi
+
+          # Pressing the button twice must not re-release the same commit under a new number.
+          PRE_SHA="$(git rev-parse "${PRE_TAG}^{commit}")"
+          for t in $(git tag --points-at "$PRE_SHA" --list "${TAG_PREFIX}*"); do
+            case "$t" in
+              *-pre) ;;
+              *) echo "::error::${PRE_TAG} was already released as ${t}. Merge a library change first."; exit 1 ;;
+            esac
+          done
+
+          NEXT="$(./.github/scripts/next-prefixed-version.sh "$BUMP")"
+
+          {
+            echo "version=${NEXT}"
+            echo "promoted_from=${PRE_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Promoting \`${PRE_TAG}\` → \`${TAG_PREFIX}${NEXT}\`"
+            echo ""
+            echo "Rebuilding commit \`$(git rev-parse --short "${PRE_TAG}^{commit}")\` with"
+            echo "\`${NEXT}\` packed in."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Rebuild that commit, at the release version, and publish ────
+  build:
+    needs: resolve
+    uses: ./.github/workflows/basic-auth-nuget-publish.yml
+    with:
+      ref: ${{ needs.resolve.outputs.promoted_from }}
+      version: ${{ needs.resolve.outputs.version }}
+      is_prerelease: false
+      promoted_from: ${{ needs.resolve.outputs.promoted_from }}
+    secrets: inherit

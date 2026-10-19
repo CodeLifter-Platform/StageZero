@@ -1,27 +1,87 @@
 # Lifted.BlazorAuth.Basic — build, pack, publish.
 #
-# Versioning follows the CodeLifter platform contract: BASE_VERSION + run number,
-# RELEASE_LEVEL for prerelease suffixes, NO manual tags. The package version is the
-# computed version, and a push to main publishes it. Pushing a v*.*.* tag by hand used
-# to be the publish trigger; it isn't any more.
-# See Platform-Standards/process/versioning-ci.md.
+# Versioned from git tags like the app (Platform-Standards/process/versioning-ci.md), but in
+# its own tag namespace, `basicauth-vX.Y.Z[-pre]`, so the library and the app never read
+# each other's tags (the app is `vX.Y.Z[-pre]`, build.yml). The version comes from
+# .github/scripts/next-prefixed-version.sh, the platform's next-version.sh with the prefix
+# as a parameter.
+#
+#   push / PR touching the library   build + pack; artifact only, never published
+#   merge into main that changed     next patch as a pre-release: NuGet.org (when
+#     Lifted.BlazorAuth.Basic/         NUGET_API_KEY is set), GitHub Packages, tag,
+#                                      GitHub pre-release, release notes
+#   RELEASE BASICAUTH button          rebuilds the newest basicauth-v*-pre commit at
+#     (release-basicauth.yml)          minor + 1 or major + 1 and publishes it as a release
+#
+# A merge into main that only touched this workflow (or the shared build files) builds the
+# package but publishes nothing: there is no library change to version. Tags are created by
+# this workflow only — never by hand, and nothing here triggers on a tag push.
 
 name: Build and Publish NuGet Package
 
 on:
   push:
     branches: ['**']
+    paths:
+      - 'Lifted.BlazorAuth.Basic/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/basic-auth-nuget-publish.yml'
+      - '.github/scripts/next-prefixed-version.sh'
   pull_request:
     branches: [main]
+    paths:
+      - 'Lifted.BlazorAuth.Basic/**'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - 'global.json'
+      - '.github/workflows/basic-auth-nuget-publish.yml'
+      - '.github/scripts/next-prefixed-version.sh'
   workflow_dispatch:
+
+  # ── Called by the RELEASE BASICAUTH button (release-basicauth.yml) ──
+  # Rebuilds the pre-release's commit with the release version packed in.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit/tag to build. Empty = the triggering commit.
+        type: string
+        default: ''
+      version:
+        description: Exact version to build. Empty = derive from the basicauth-v* tags.
+        type: string
+        default: ''
+      is_prerelease:
+        type: boolean
+        default: true
+      promoted_from:
+        description: The pre-release tag this release was rebuilt from.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: basicauth-${{ github.ref }}
+  # Never cancel main: a second merge must not stop a release halfway through its tag push.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   DOTNET_VERSION: '10.0.x'
   PROJECT_PATH: 'Lifted.BlazorAuth.Basic/Lifted.BlazorAuth.Basic.csproj'
   PACKAGE_OUTPUT_DIR: './nupkgs'
+  TAG_PREFIX: 'basicauth-v'
+  # The highest version the retired BASE_VERSION + run-number scheme published (0.9.73-beta,
+  # to GitHub Packages). Used only until the first basicauth-v* tag exists, so the first
+  # tag-derived version, 0.9.74-pre, sorts above everything already out there.
+  VERSION_FLOOR: '0.9.73'
 
 jobs:
-  # ── Compute version (platform contract — copied verbatim) ──────
+  # ── Compute version (the platform contract, in the basicauth-v namespace) ──
+  # fetch-depth: 0 is REQUIRED — a shallow clone has no tags and the version silently
+  # restarts at the floor.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -29,52 +89,87 @@ jobs:
       version_tag: ${{ steps.semver.outputs.version_tag }}
       is_release: ${{ steps.semver.outputs.is_release }}
       is_prerelease: ${{ steps.semver.outputs.is_prerelease }}
+      # The commit every job checks out, and the commit the tag will point at.
+      build_sha: ${{ steps.semver.outputs.build_sha }}
+      promoted_from: ${{ inputs.promoted_from }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}     # empty on push/dispatch = the triggering commit
+
       - name: Generate semantic version
         id: semver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_IS_PRERELEASE: ${{ inputs.is_prerelease }}
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          BASE="${{ vars.BASE_VERSION || '0.9' }}"
-          LEVEL="${{ vars.RELEASE_LEVEL || '' }}"
-          PATCH="${{ github.run_number }}"
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          IS_MAIN="${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}"
+          git fetch --tags --force --quiet
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-          if [ "$IS_MAIN" = "true" ]; then
-            if [ -n "$LEVEL" ]; then
-              VERSION="${BASE}.${PATCH}-${LEVEL}"
-              IS_PRERELEASE="true"
-            else
-              VERSION="${BASE}.${PATCH}"
-              IS_PRERELEASE="false"
-            fi
-            IS_RELEASE="true"
-          else
-            VERSION="${BASE}.${PATCH}-pre.${GITHUB_RUN_NUMBER}+${SHORT_SHA}"
-            IS_RELEASE="false"
-            IS_PRERELEASE="true"
+          # The release button passes the version in — it has already been computed against
+          # the tags, and the whole point is to pack THAT version.
+          if [ -n "$INPUT_VERSION" ]; then
+            {
+              echo "version=${INPUT_VERSION}"
+              echo "version_tag=${TAG_PREFIX}${INPUT_VERSION}"
+              echo "is_release=true"
+              echo "is_prerelease=${INPUT_IS_PRERELEASE}"
+            } >> "$GITHUB_OUTPUT"
+            echo "### Version: \`${INPUT_VERSION}\` (release)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
 
-          {
-            echo "version=$VERSION"
-            echo "version_tag=v${VERSION}"
-            echo "is_release=$IS_RELEASE"
-            echo "is_prerelease=$IS_PRERELEASE"
-          } >> "$GITHUB_OUTPUT"
-          {
-            echo "### Version: \`${VERSION}\`"
-            echo "Release: ${IS_RELEASE} · Prerelease: ${IS_PRERELEASE}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          # Did this push change the library? Measured from the newest library tag, so a
+          # push of several commits is judged as a whole; before the first tag, from the
+          # commit the push started at.
+          changed=true
+          last_tag="$(git tag --list "${TAG_PREFIX}*" --sort=-v:refname | head -1)"
+          since="${last_tag:-$BEFORE}"
+          if [ -n "$since" ] && [ "$since" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "${since}^{commit}" 2>/dev/null \
+             && git diff --quiet "$since" HEAD -- Lifted.BlazorAuth.Basic/; then
+            changed=false
+          fi
+
+          NEXT="$(./.github/scripts/next-prefixed-version.sh prerelease)"
+          if [ "$IS_MAIN" = "true" ] && [ "$changed" = "true" ]; then
+            # A merge into main that changed the library publishes the next patch as a
+            # pre-release.
+            ./.github/scripts/next-prefixed-version.sh prerelease >/dev/null
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "### Version: \`${NEXT}\` (pre-release)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            # Branch and PR builds, and main pushes that left the library alone, are
+            # artifact-only and never published.
+            SHORT_SHA="${GITHUB_SHA:0:7}"
+            {
+              echo "version=${NEXT}.${GITHUB_RUN_NUMBER}+${SHORT_SHA}"
+              echo "version_tag=${TAG_PREFIX}${NEXT}.${GITHUB_RUN_NUMBER}+${SHORT_SHA}"
+              echo "is_release=false"
+              echo "is_prerelease=true"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "### Version: \`${NEXT}.${GITHUB_RUN_NUMBER}+${SHORT_SHA}\` (not published)"
+              if [ "$IS_MAIN" = "true" ]; then
+                echo "No change under Lifted.BlazorAuth.Basic/ since ${since}, so nothing to release."
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   build:
-    name: Build and Test
+    name: Build and Pack
     needs: version
     runs-on: ubuntu-latest
     env:
-      # NuGet rejects build metadata (+sha), so strip it for the package version.
       APP_VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -90,12 +185,12 @@ jobs:
         # packaging, and it is the only step that knows the computed version.
         run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore -p:GeneratePackageOnBuild=false
 
-      - name: Run tests (if any)
-        run: dotnet test --configuration Release --verbosity normal
-        continue-on-error: true # Continue if no test projects exist
+      # The library has no test project of its own; StageZero's suite exercises its services
+      # through the app on every push (build.yml, api). See LivingSpec, Known gaps.
 
       - name: Pack NuGet package
         run: |
+          # NuGet rejects build metadata (+sha), so strip it for the package version.
           PKG_VERSION="${APP_VERSION%%+*}"
           echo "Packing $PKG_VERSION"
           dotnet pack ${{ env.PROJECT_PATH }} \
@@ -111,7 +206,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ── Publish (main pushes only, same gate as every other repo's release) ──
+  # ── Publish (library-changing main merges and the release button only) ──
   publish-nuget:
     name: Publish to NuGet.org
     needs: [version, build]
@@ -138,8 +233,7 @@ jobs:
         run: echo "::warning::NUGET_API_KEY secret not set — skipping the NuGet.org push. The package is still built, attached as an artifact, and published to GitHub Packages."
 
       # Publish when the key is present, never fail the build when it is absent — the
-      # platform rule that already governs code signing. Without this the whole pipeline
-      # went red on main for a missing credential, after a build that succeeded.
+      # platform rule that already governs code signing.
       - name: Publish to NuGet.org
         if: ${{ env.HAS_NUGET_KEY == 'true' }}
         run: |
@@ -179,32 +273,89 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ── Tag and GitHub release ─────────────────────────────────────────
+  # After both pushes, so a tag only ever names a version that was published. No README row:
+  # the README's two tables are the app's releases, and the package's own README ships inside
+  # the .nupkg. The GitHub release is never marked latest — that belongs to the app.
+  release:
+    needs: [version, publish-nuget, publish-github]
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PKG_VERSION: ${{ needs.version.outputs.version }}
+      VERSION_TAG: ${{ needs.version.outputs.version_tag }}
+      BUILD_SHA: ${{ needs.version.outputs.build_sha }}
+      PROMOTED_FROM: ${{ needs.version.outputs.promoted_from }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.build_sha }}
+          fetch-depth: 0
+
+      - name: Download NuGet package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: ${{ env.PACKAGE_OUTPUT_DIR }}
+
+      - name: Tag the built commit
+        run: |
+          # The commit that was BUILT, not main's HEAD — on a release rebuild those differ,
+          # and a tag pointing at unbuilt code is a lie about what shipped.
+          git tag "$VERSION_TAG" "$BUILD_SHA"
+          git push origin "refs/tags/${VERSION_TAG}"
+
+      - name: Write the install instructions
+        run: |
+          {
+            echo "## Lifted.BlazorAuth.Basic ${PKG_VERSION}"
+            echo ""
+            if [ -n "$PROMOTED_FROM" ]; then
+              echo "Rebuilt from \`${PROMOTED_FROM}\` (\`${BUILD_SHA:0:7}\`)."
+            else
+              echo "Built from \`${BUILD_SHA:0:7}\`."
+            fi
+            echo ""
+            echo '```bash'
+            echo "dotnet add package Lifted.BlazorAuth.Basic --version ${PKG_VERSION}"
+            echo '```'
+            echo ""
+            echo "This is the NuGet library published from the StageZero repo, not a StageZero release."
+          } > release-body.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          target_commitish: ${{ env.BUILD_SHA }}
+          name: "Lifted.BlazorAuth.Basic ${{ env.PKG_VERSION }}"
+          draft: false
+          prerelease: ${{ needs.version.outputs.is_prerelease == 'true' }}
+          make_latest: 'false'
+          body_path: release-body.md
+          files: ${{ env.PACKAGE_OUTPUT_DIR }}/*.nupkg
+
   # ── Release notes ─────────────────────────────────────────────────
-  # Pushes the pull requests this version shipped to codelifter.net, which
-  # curates them and posts the note into StageZero's Release Notes thread in
-  # the forum. No RELEASE_NOTES_TOKEN means a warning, never a failed publish.
-  #
-  # Two things are specific to this repo. It publishes packages and never
-  # pushes a tag, so `commit` is passed explicitly (there is no tag to check
-  # out) and the collector bounds its commit range by asking the site for the
-  # last commit it recorded. And RELEASE_LEVEL=beta makes every main build a
-  # pre-release, so notes accumulate and nothing reaches the forum until a
-  # full release is cut.
+  # Pushes the pull requests this version shipped to codelifter.net, which curates them and
+  # posts the note into StageZero's Release Notes thread. No RELEASE_NOTES_TOKEN means a
+  # warning, never a failed publish. The collector bounds the range by the previous tag in
+  # the same namespace as `tag`, so app tags never cut a library range short.
   # Spec: Platform-Standards/process/release-notes.md
   release-notes:
-    # Job-level, deliberately. This workflow's default is `contents: write` for
-    # the release job, which zeroes every other scope, and a called workflow may
-    # only downgrade what the caller grants — so reading pull requests has to be
-    # granted here or `gh api .../pulls/N` 403s on a private repo.
+    # Job-level, deliberately: a called workflow may only downgrade what the caller grants,
+    # so reading pull requests has to be granted here.
     permissions:
       contents: read
       pull-requests: read
-    needs: [version, publish-nuget]
+    needs: [version, release]
     if: ${{ needs.version.outputs.is_release == 'true' }}
     uses: ./.github/workflows/release-notes.yml
     with:
       version: ${{ needs.version.outputs.version }}
       tag: ${{ needs.version.outputs.version_tag }}
       prerelease: ${{ needs.version.outputs.is_prerelease == 'true' }}
-      commit: ${{ github.sha }}
+      commit: ${{ needs.version.outputs.build_sha }}
+      promoted_from: ${{ needs.version.outputs.promoted_from }}
     secrets: inherit

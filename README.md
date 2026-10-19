@@ -341,7 +341,8 @@ image's `X.Y`, `X` and `latest` tags.
 Produced automatically by every merge into `main`: patch + 1 from the git tags, published as
 `ghcr.io/codelifter-platform/stagezero:<version>` and `:pre`, marked as a prerelease on
 GitHub. Versions come from the tags alone (`.github/scripts/next-version.sh`); nothing is
-kept in a repo variable. The NuGet library is versioned separately
+kept in a repo variable. The NuGet library is versioned separately, in
+its own `basicauth-v*` tags, and its releases are not listed here
 (`..Documentation/NUGET_PUBLISHING.md`).
 
 <!-- prereleases:insert -->

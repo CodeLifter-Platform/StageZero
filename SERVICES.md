@@ -81,7 +81,9 @@ Last reviewed: 2026-09-27.
 
 ## NuGet.org and GitHub Packages (package publishing)
 
-- **Usage:** CI publishes the `Lifted.BlazorAuth.Basic` package to both on pushes to `main`.
+- **Usage:** CI publishes the `Lifted.BlazorAuth.Basic` package to both on merges into
+  `main` that change `Lifted.BlazorAuth.Basic/` (a pre-release), and from the RELEASE
+  BASICAUTH button (a release).
 - **Managed at:** nuget.org (`NUGET_API_KEY` GitHub secret, not yet set); GitHub Packages
   uses the workflow's `GITHUB_TOKEN`.
 - **Detail:** [..Documentation/NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md).
