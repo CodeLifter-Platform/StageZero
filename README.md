@@ -199,22 +199,21 @@ This is useful for:
 
 ### Cloudflare API Token
 
-One token drives all three features. Create it at **My Profile → API Tokens** with:
+One token can drive all three features. Create it at **My Profile → API Tokens** with:
 
 | Scope | Permission | Needed for |
 |---|---|---|
-| Account | Cloudflare Tunnel → Edit | Tunnel routes |
+| Zone | Zone → Read | Listing zones |
 | Zone | DNS → Edit | Dynamic DNS and tunnel CNAMEs |
-| Zone | Zone → Read | Listing zones during setup |
-| Account | Access: Apps → Edit | Access, any mode except `none` |
+| Account | Cloudflare Tunnel → Edit | Tunnel routes |
+| Account | Access: Apps and Policies → Edit | Access, any mode except `none` |
 | Account | Access: Service Tokens → Edit | Access, `service_token` and `both` modes |
-| Account | Access: Organizations, Identity Providers, and Groups → Read | Listing identity providers |
+| Account | Access: Organizations, Identity Providers, and Groups → Read | Optional: listing identity providers |
 
-The three Access permissions are **account-scoped**, unlike the zone-scoped DNS
-permissions — a token that writes DNS records fine may still have no Access rights
-at all. StageZero checks before provisioning and names any that are missing. Leave
-them off entirely if you only want DNS and tunnels; the rest of the app is
-unaffected.
+The Access permissions are **account-scoped**, unlike the zone-scoped DNS permissions — a
+token that writes DNS records fine may still have no Access rights at all. Step-by-step
+creation, one token versus two, rotation, and the errors each missing permission causes:
+[..Documentation/CLOUDFLARE_TOKENS.md](..Documentation/CLOUDFLARE_TOKENS.md).
 
 The tunnel token is encrypted with ASP.NET Data Protection before storage. The
 keyring lives in the app data directory (`/app-data/dp-keys` in Docker), which
@@ -293,6 +292,8 @@ folder — `ls -a`):
 | Doc | For |
 |---|---|
 | [LivingSpec.md](..Documentation/LivingSpec.md) | What StageZero does today, how it is built, and its known gaps |
+| [USAGE_GUIDE.md](..Documentation/USAGE_GUIDE.md) | Using the app end to end: first run, sign-in and reset, DNS, IP monitor, tunnel, routes and Access, theme, container |
+| [CLOUDFLARE_TOKENS.md](..Documentation/CLOUDFLARE_TOKENS.md) | Every Cloudflare credential: token permissions per feature, creating, entering and rotating it, the errors a missing permission causes |
 | [OnboardWeb.md](..Documentation/OnboardWeb.md) | Build, run, and test on a machine with the .NET SDK |
 | [OnboardDocker.md](..Documentation/OnboardDocker.md) | Run it in Docker: the release and debug containers, VS Code, data persistence |
 | [CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md) | Publishing hostnames through a Cloudflare Tunnel |
