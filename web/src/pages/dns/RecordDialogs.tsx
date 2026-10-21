@@ -1,82 +1,11 @@
 import { useState } from 'react';
 import { api } from '../../api/client';
-import type { CloudflareDnsRecord, CloudflareZone, DnsProvider, DnsRecord, DnsRecordInput } from '../../api/types';
+import type { CloudflareDnsRecord, DnsProvider, DnsRecord, DnsRecordInput } from '../../api/types';
 import { RECORD_TYPES, autoUpdateUnavailableReason, supportsAutoUpdate } from '../../app/dns';
 import { Notice } from '../../components/Notice';
-import { Button, Checkbox, Dialog, Input, Select, Switch } from '../../ui';
+import { Button, Checkbox, Dialog, Input, Select } from '../../ui';
 
 const WIDE = { maxWidth: 560 };
-
-// ── Add provider ────────────────────────────────────────────────
-
-export function AddProviderDialog({ open, onClose, onAdded }: {
-  open: boolean;
-  onClose: () => void;
-  onAdded: (provider: DnsProvider) => void;
-}) {
-  const [name, setName] = useState('');
-  const [token, setToken] = useState('');
-  const [zones, setZones] = useState<CloudflareZone[]>([]);
-  const [zoneId, setZoneId] = useState('');
-  const [enabled, setEnabled] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const reset = () => { setName(''); setToken(''); setZones([]); setZoneId(''); setEnabled(true); setError(null); };
-  const close = () => { reset(); onClose(); };
-
-  const loadZones = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const found = await api.dns.zones(token.trim());
-      setZones(found);
-      setZoneId(found[0]?.id ?? '');
-      if (found.length === 0) setError('No zones found for this API token.');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submit = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      onAdded(await api.dns.addProvider(name.trim(), token.trim(), zoneId, enabled));
-      reset();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={busy ? undefined : close} title="Add Cloudflare provider" style={WIDE}
-      footer={<>
-        <Button variant="ghost" onClick={close} disabled={busy}>Cancel</Button>
-        <Button onClick={() => void submit()} disabled={busy || !name.trim() || !token.trim() || !zoneId}>Add provider</Button>
-      </>}>
-      <div className="sz-stack">
-        <Input label="Provider name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
-        <Input label="Cloudflare API token" hint="Stored encrypted; never shown again" type="password" autoComplete="off"
-          value={token} onChange={(e) => { setToken(e.target.value); setZones([]); setZoneId(''); }} disabled={busy} />
-        {zones.length === 0
-          ? <Button variant="outline" size="sm" onClick={() => void loadZones()} disabled={busy || !token.trim()}>{busy ? 'Loading zones…' : 'Load zones'}</Button>
-          : <Select label="Zone" value={zoneId} onChange={(e) => setZoneId(e.target.value)} disabled={busy}>
-              {zones.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
-            </Select>}
-        <label className="sz-row">
-          <Switch checked={enabled} onChange={setEnabled} disabled={busy} />
-          <span className="sz-small">Update DNS automatically when the IP changes</span>
-        </label>
-        {error ? <Notice tone="danger">{error}</Notice> : null}
-      </div>
-    </Dialog>
-  );
-}
 
 // ── Add / edit record ───────────────────────────────────────────
 
