@@ -138,7 +138,7 @@ tunnel and Access settings are untouched.
 
 Signed in, every page has:
 
-- **The sidebar**: Home, IP Monitor, DNS Configuration, Tunnel Routes, Tunnel Setup.
+- **The sidebar**: Home, IP Monitor, DNS Configuration, Tunnel Setup, Tunnel Routes.
   Its collapse button shrinks it to an icon rail; the choice is remembered in this browser.
 - **The top bar**: the current public IP (it updates live when it changes), the theme
   toggle, the signed-in email and **Sign out**.
@@ -182,11 +182,12 @@ A *provider* is one Cloudflare zone plus the token StageZero uses for it.
 
 1. Create a Cloudflare API token with **Zone → Zone → Read** and **Zone → DNS → Edit**
    ([CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md)).
-2. Open **DNS Configuration** (`/dns-config`) and click **Add Cloudflare provider**.
-3. Name it, paste the **Cloudflare API token**, click **Load zones** and pick the **Zone**.
-4. Leave **Update DNS automatically when the IP changes** on, unless you want to stage
-   records without touching DNS yet.
-5. Click **Add provider**.
+2. Open **DNS Configuration** (`/dns-config`). In the **Cloudflare credentials** card,
+   paste the **API token** and click **Connect**.
+3. StageZero lists every zone the token can reach. Click **Add provider** next to the zone
+   you want; the provider is named after the zone. Zones you already manage read *Added*.
+4. A new provider starts with updates on. To stage records without touching DNS yet,
+   switch it to **Updates disabled** on its card before adding records.
 
 The token is encrypted before it is stored and is never shown again. To change it, see
 [rotating the token](CLOUDFLARE_TOKENS.md#rotating-the-token).

@@ -19,7 +19,7 @@ placeholders.
 
 | Credential | Secret? | Where it comes from | Where it goes in StageZero | Stored by StageZero |
 |---|---|---|---|---|
-| **API token** | Yes | You create it in the Cloudflare dashboard | **DNS Configuration → Add Cloudflare provider**, and **Tunnel Setup → API token** | Yes, encrypted with ASP.NET Data Protection |
+| **API token** | Yes | You create it in the Cloudflare dashboard | **DNS Configuration → Cloudflare credentials**, and **Tunnel Setup → API token** | Yes, encrypted with ASP.NET Data Protection |
 | **Account ID** | No | Cloudflare dashboard | **Tunnel Setup → Account ID** | Yes, plain |
 | **Connector token** | Yes | StageZero fetches it from Cloudflare after tunnel setup | Not entered. You pass it to `cloudflared service install` or `TUNNEL_TOKEN` | No. Fetched from Cloudflare each time it is shown |
 | **Access service token** (client ID + client secret) | The secret is | StageZero mints it when a route uses `service_token` or `both` | Not entered. Your clients send it as headers | Client ID only. **The secret never** |
@@ -52,7 +52,7 @@ is the most common setup mistake.
 
 | Feature | Scope | Permission | What StageZero does with it |
 |---|---|---|---|
-| **Dynamic DNS** | Zone | Zone → **Read** | Lists zones in the Add provider dialog (`GET /zones`) |
+| **Dynamic DNS** | Zone | Zone → **Read** | Lists zones on the DNS Configuration credentials card (`GET /zones`) |
 | | Zone | DNS → **Edit** | Lists records (import, "Load existing records") and rewrites an A record's address (`PATCH /zones/{zone}/dns_records/{id}`) |
 | **Cloudflare Tunnel** | Zone | Zone → **Read** | Lists zones during Tunnel Setup |
 | | Account | Cloudflare Tunnel → **Edit** | Lists, creates and adopts tunnels, fetches the connector token, pushes ingress rules (`/accounts/{account}/cfd_tunnel/...`) |
@@ -80,7 +80,7 @@ with Cloudflare's own error.
 The DNS provider and Tunnel Setup each keep their own copy of a token, so you choose:
 
 - **One token for everything.** Grant every permission in the table. Paste the same token
-  into Add provider and into Tunnel Setup. Simplest, and what the Tunnel Setup page
+  into DNS Configuration and into Tunnel Setup. Simplest, and what the Tunnel Setup page
   suggests.
 - **Least privilege.** A *dynamic DNS* token with only Zone → Read and DNS → Edit, limited
   to the zones you update, for each DNS provider. A *tunnel* token with everything else for
@@ -148,9 +148,11 @@ zone's **Overview** page.
 
 ## Where the token goes in StageZero
 
-**Dynamic DNS.** **DNS Configuration → Add Cloudflare provider**. Paste the token into
-*Cloudflare API token*, click **Load zones**, pick the zone, name the provider and click
-**Add provider**. One provider per zone. Each provider stores its own copy of the token.
+**Dynamic DNS.** **DNS Configuration → Cloudflare credentials**. Paste the token into
+*API token* and click **Connect**. StageZero lists every zone the token can reach; click
+**Add provider** next to each one you want (zones already added read *Added*). The provider
+is named after its zone. One provider per zone. Each provider stores its own copy of the
+token.
 
 **Tunnel and Access.** **Tunnel Setup → 1. Cloudflare credentials**. Paste the token and
 the Account ID and click **Connect**. StageZero lists the zones and tunnels the token can
@@ -184,7 +186,7 @@ schedule):
    running and nothing goes offline. Avoid **Disconnect** for this. It is not needed, and
    it leaves StageZero managing nothing until you connect again.
 3. **Each DNS provider.** A provider's token cannot be edited in place yet. Delete the
-   provider and add it again with the new token, then **Import all records**. Deleting a
+   provider, then add it again from **Cloudflare credentials** with the new token, then **Import all records**. Deleting a
    provider removes its records *from StageZero only*; Cloudflare keeps them, and the
    import brings them back. Records you added by hand need **Auto-update** ticked again if
    the import did not set it (it does for A records).
@@ -244,8 +246,8 @@ These messages do not carry Cloudflare's status code. The server log does: look 
 
 | Message | Missing |
 |---|---|
-| `Failed to load zones: Could not get zones` (Load zones) | The token is wrong, revoked or expired (Unauthorized in the log), or lacks Zone → Zone → Read (Forbidden) |
-| `No zones found for this API token.` | The token works but no zone is in its *Zone Resources* |
+| `Failed to load zones: Could not get zones` (Connect on DNS Configuration) | The token is wrong, revoked or expired (Unauthorized in the log), or lacks Zone → Zone → Read (Forbidden) |
+| `No zones found for this API token` | The token works but no zone is in its *Zone Resources* |
 | `Failed to load DNS records: Could not get DNS records` (Load existing records) | Zone → DNS (Read at least; grant Edit), or the token was revoked |
 | `Error importing records: Could not get DNS records` (Import all records) | Same |
 

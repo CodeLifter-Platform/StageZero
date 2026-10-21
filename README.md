@@ -184,8 +184,8 @@ Windows. Deleting `stagezero.db` itself also works but loses every DNS and tunne
 
 Each DNS provider (Cloudflare, etc.) can be individually enabled or disabled for updates:
 
-- **When adding a provider**: Toggle "Enable DNS Updates" in the add provider dialog
-- **After adding**: Use the toggle switch in the provider card header to enable/disable updates
+- **New providers** start with updates enabled
+- **Any time**: Use the toggle switch in the provider card header to enable/disable updates
 
 When a provider is disabled:
 - ✅ IP monitoring continues normally
