@@ -44,7 +44,7 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   off without stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`; `GET /api/ip/events` streams it to the
   browser as server-sent events (first event: the IP as it stands), which the top-bar chip
-  and the IP Monitor page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**.
+  and the IP Monitor page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**, whose **Cloudflare credentials** card takes an API token, lists the zones it can manage, and adds any of them as a provider in one click (the token is stored encrypted with each provider and never shown again).
 - **Public IP by consensus.** `PublicIpResolver` asks three independent services in
   parallel — Cloudflare's `1.1.1.1/cdn-cgi/trace`, ipify, and AWS `checkip` — with a 5-second
   timeout each. Only a public IPv4 address counts as an answer (an HTML captive-portal
@@ -59,7 +59,7 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
 - **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
   tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for
-  macOS, Windows, Linux, and Docker. UI: **Tunnel Setup** and **Tunnel Routes**.
+  macOS, Windows, Linux, and Docker. UI: **Tunnel Setup** and **Tunnel Routes**, in that order in the nav.
 - **Cloudflare Access** (`Services/Access/`). Every new route gets an Access application,
   default mode `identity` (owner email). Modes: `identity`, `service_token`, `both`, `none`.
   Minted service-token secrets are shown once in a dialog and never logged or stored;

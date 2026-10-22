@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { DnsProvider, DnsRecord } from '../../api/types';
+import type { CloudflareZone, DnsProvider, DnsRecord } from '../../api/types';
 import { groupRecords, importSummary, type GroupedRecord } from '../../app/dns';
 import { formatDateTime } from '../../app/format';
 import { useToast } from '../../app/toast';
@@ -10,8 +10,8 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, DataTable, Switch, type DataColumn } from '../../ui';
-import { AddProviderDialog, AddRecordDialog, EditRecordDialog } from './RecordDialogs';
+import { Badge, Button, Card, DataTable, Input, Switch, type DataColumn } from '../../ui';
+import { AddRecordDialog, EditRecordDialog } from './RecordDialogs';
 
 type Pending =
   | { kind: 'provider'; provider: DnsProvider }
@@ -26,7 +26,8 @@ export function DnsConfigPage() {
   const [providers, setProviders] = useState<DnsProvider[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllCnames, setShowAllCnames] = useState(false);
-  const [addingProvider, setAddingProvider] = useState(false);
+  const [apiToken, setApiToken] = useState('');
+  const [zones, setZones] = useState<CloudflareZone[] | null>(null);
   const [addingRecordTo, setAddingRecordTo] = useState<DnsProvider | null>(null);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -47,6 +48,18 @@ export function DnsConfigPage() {
     setBusy(key);
     try { await work(); } catch (err) { notify((err as Error).message, 'error'); } finally { setBusy(null); }
   };
+
+  const connect = () => act('connect', async () => {
+    const found = await api.dns.zones(apiToken.trim());
+    setZones(found);
+    notify(`Found ${found.length} zone(s)`, found.length > 0 ? 'success' : 'info');
+  });
+
+  const addProvider = (zone: CloudflareZone) => act(`add-${zone.id}`, async () => {
+    const p = await api.dns.addProvider(zone.name, apiToken.trim(), zone.id, true);
+    notify(`Provider '${p.name}' added`, 'success');
+    await load();
+  });
 
   const toggle = (p: DnsProvider) => act(`toggle-${p.id}`, async () => {
     const updated = await api.dns.toggleProvider(p.id);
@@ -116,6 +129,18 @@ export function DnsConfigPage() {
     },
   ];
 
+  const zoneColumns: DataColumn<CloudflareZone>[] = [
+    { key: 'name', label: 'Zone', render: (z) => <span>{z.name} <span className="sz-mono sz-muted sz-xs">{z.id}</span></span> },
+    {
+      key: 'add', label: '', width: 140,
+      render: (z) => (providers?.some((p) => p.zoneId === z.id)
+        ? <Badge tone="success">Added</Badge>
+        : <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => void addProvider(z)}>
+            {busy === `add-${z.id}` ? 'Adding…' : 'Add provider'}
+          </Button>),
+    },
+  ];
+
   if (!providers && !loadError) return <Loading />;
 
   return (
@@ -125,7 +150,6 @@ export function DnsConfigPage() {
           <Switch checked={showAllCnames} onChange={setShowAllCnames} />
           <span className="sz-small">Show all CNAMEs</span>
         </label>
-        <Button onClick={() => setAddingProvider(true)}>Add Cloudflare provider</Button>
       </>}>
         Each provider is a Cloudflare zone. Its A records follow your public IP; AAAA and CNAME records are tracked but left alone.
       </PageHeader>
@@ -133,7 +157,7 @@ export function DnsConfigPage() {
       {loadError ? <Notice tone="danger" title="Couldn't load DNS providers">{loadError}</Notice> : null}
 
       {providers && providers.length === 0 ? (
-        <Notice title="No DNS providers configured">Add a Cloudflare provider to start managing your DNS records automatically.</Notice>
+        <Notice title="No DNS providers configured">Connect your Cloudflare credentials below and add a zone to start managing its DNS records automatically.</Notice>
       ) : null}
 
       {providers?.map((p) => (
@@ -160,8 +184,26 @@ export function DnsConfigPage() {
         </Card>
       ))}
 
-      <AddProviderDialog open={addingProvider} onClose={() => setAddingProvider(false)}
-        onAdded={(p) => { setAddingProvider(false); notify(`Provider '${p.name}' added`, 'success'); void load(); }} />
+      <Card>
+        <div className="sz-stack">
+          <h2>Cloudflare credentials</h2>
+          <Notice title="Create an API token with these permissions">
+            Zone → DNS → Edit and Zone → Zone → Read, for every zone you want StageZero to manage.
+            The token from the Tunnel Setup page works here too.
+          </Notice>
+          <Input label="API token" type="password" autoComplete="off" value={apiToken} disabled={busy !== null}
+            hint="Stored encrypted with each provider you add; never shown again."
+            onChange={(e) => { setApiToken(e.target.value); setZones(null); }} />
+          <div className="sz-row">
+            <Button disabled={busy !== null || !apiToken.trim()} onClick={() => void connect()}>{busy === 'connect' ? 'Working…' : 'Connect'}</Button>
+          </div>
+          {zones ? (
+            <DataTable caption="Zones this token can manage" density="standard" columns={zoneColumns}
+              rows={zones} rowKey={(z) => z.id} empty="No zones found for this API token" />
+          ) : null}
+        </div>
+      </Card>
+
       <AddRecordDialog provider={addingRecordTo} onClose={() => setAddingRecordTo(null)}
         onSaved={(r) => { setAddingRecordTo(null); notify(`DNS record '${r.recordName}' added`, 'success'); void load(); }} />
       <EditRecordDialog record={editing} onClose={() => setEditing(null)}
