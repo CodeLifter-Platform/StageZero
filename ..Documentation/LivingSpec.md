@@ -262,7 +262,9 @@ notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 | NuGet | ✅ | `Lifted.BlazorAuth.Basic`, versioned from `basicauth-v*` tags | ✅ local pack, 2026-09-26; tag-version script exercised against a scratch repo, 2026-10-17 (no CI run of the new workflow yet) |
 
 Onboarding: [OnboardWeb.md](OnboardWeb.md) (build and run from source) and
-[OnboardDocker.md](OnboardDocker.md). This repo is **public**, so its CI stays on
+[OnboardDocker.md](OnboardDocker.md). Operating it: [USAGE_GUIDE.md](USAGE_GUIDE.md) (the app
+end to end) and [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md) (every Cloudflare credential and
+the token permissions each feature needs). This repo is **public**, so its CI stays on
 GitHub-hosted runners.
 
 ## Known gaps
@@ -301,6 +303,16 @@ GitHub-hosted runners.
   `Lifted.BlazorAuth.Basic` for its services only, which brings MudBlazor in transitively.
   Splitting the services into their own package is the clean fix; it changes the published
   package, so it is left for its own change.
+- **The Access permission name is not settled in the app.** StageZero writes Access
+  applications *and* account-level reusable policies, so the docs ask for Cloudflare's
+  *Access: Apps and Policies → Edit*. The Tunnel Setup page's notice and the pre-check's
+  error message still say "Access: Apps Edit", and the pre-check
+  (`CloudflareAccessService.CheckPermissionsAsync`) probes only `/access/apps` and
+  `/access/service_tokens`, never `/access/policies`. Whether *Access: Apps → Edit* alone
+  can write reusable policies has not been tested against a live account.
+- **A DNS provider's token can't be replaced in place.** Rotating it means deleting the
+  provider and adding it again, then re-importing its records
+  ([CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md#rotating-the-token)).
 - **The tunnel API token is typed on every setup step.** The wizard is stateless: the token
   travels in each request body (never a URL) until a tunnel is saved, then lives encrypted
   in the database. Same behaviour as before, now visible as API calls.

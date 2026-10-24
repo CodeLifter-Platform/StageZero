@@ -37,9 +37,9 @@ Restrict the zone permissions to the domain you're publishing. The same token al
 works for StageZero's DNS Configuration page, so one token covers both features.
 
 If you also want Cloudflare Access in front of the hostnames this tunnel publishes
-— which is StageZero's default for new routes — the token needs three more,
-account-scoped, permissions. See
-[CLOUDFLARE_ACCESS_SETUP.md](CLOUDFLARE_ACCESS_SETUP.md).
+— which is StageZero's default for new routes — the token needs more,
+account-scoped, permissions. The full list, step-by-step creation and rotation are in
+[CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md).
 
 You'll also need your **Account ID**, from **Workers & Pages → Account details** in
 the dashboard sidebar.

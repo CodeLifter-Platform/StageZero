@@ -70,37 +70,28 @@ Narrow the list only when a hostname should accept one specific provider.
 
 ## API token permissions
 
-This is the part that most often goes wrong. StageZero's DNS and tunnel work is
-**zone-scoped**; Access is **account-scoped**. A token that happily writes DNS
-records may have no Access permissions whatsoever.
-
-Add these to the token at **My Profile → API Tokens**:
+StageZero's DNS and tunnel work is **zone-scoped**; Access is **account-scoped**. A token
+that happily writes DNS records may have no Access permissions whatsoever. Access uses the
+token saved in **Tunnel Setup**, and needs, on top of the tunnel permissions:
 
 | Scope | Permission | Needed for |
 |---|---|---|
-| Account | Access: Apps → **Edit** | Every mode except `none` |
+| Account | Access: Apps and Policies → **Edit** | Every mode except `none` |
 | Account | Access: Service Tokens → **Edit** | `service_token` and `both` |
-| Account | Access: Organizations, Identity Providers, and Groups → **Read** | Listing identity providers in the route editor |
+| Account | Access: Organizations, Identity Providers, and Groups → **Read** | Optional: listing identity providers in the route editor |
 
-Alongside the permissions the tunnel already needs:
+The full list, how to create the token, how to rotate it and what each missing permission
+looks like are in [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md).
 
-| Scope | Permission |
-|---|---|
-| Account | Cloudflare Tunnel → **Edit** |
-| Zone | DNS → **Edit** |
-| Zone | Zone → **Read** |
+StageZero checks the token before it creates any Access object, and names the missing
+permissions. Two gaps in that check: it can only prove the token can *read* the
+application and service-token endpoints, so a Read-only token passes and then fails on the
+first write; and it does not probe the reusable-policy endpoint, which is why the
+permission to grant is *Apps and Policies* rather than *Apps* alone. Either way the route
+is rolled back (below). Grant Edit, not Read.
 
-StageZero checks the token before it changes anything. If a permission is missing
-it refuses to provision and names the ones to add, rather than creating an
-application it cannot attach a policy to.
-
-One gap worth knowing about: the check can only prove the token can *read* those
-endpoints. A token with Read but not Edit passes the check and then fails on the
-first write, with Cloudflare's own error. Grant Edit, not Read.
-
-The identity provider permission is optional. Without it the picker in the route
-editor is simply empty, which means "every provider on the account" — the same
-thing as leaving it unset.
+Without the identity-provider permission the picker in the route editor is simply empty,
+which means "every provider on the account" — the same thing as leaving it unset.
 
 ---
 
@@ -219,7 +210,7 @@ what needs cleaning up by hand.
 
 ## Checking what is actually there
 
-The shield icon on any route opens its **Access status** page. It reads Cloudflare
+The **Access** button on any route opens its **Access Status** page. It reads Cloudflare
 directly rather than trusting StageZero's own record, so drift shows up:
 
 - the application, its session duration, its audience tag and its identity providers,
@@ -234,8 +225,9 @@ token that no longer exists.
 
 ## Troubleshooting
 
-**"The Cloudflare API token is not allowed to …"** — the token is missing an
-account-scoped Access permission. The message names it. See the table above.
+**"The saved Cloudflare API token cannot manage Access …"** — the token is missing an
+account-scoped Access permission. The message names it. See the table above, and the
+errors table in [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md#errors-when-a-permission-is-missing).
 
 **Everyone is denied** — an application with no policies attached denies every
 request. The status page flags this. Save the route again to reattach.
