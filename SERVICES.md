@@ -25,6 +25,19 @@ Last reviewed: 2026-09-27.
   workflow's own `GITHUB_TOKEN`; no secret to keep. The package must be public (set once,
   after the first push, in the package's settings).
 
+## GitHub release deploy key (release commit to main)
+
+- **Usage:** The `release` job in `.github/workflows/build.yml` pushes the README row's
+  `chore: release` commit and the version tag to `main` over SSH, in one atomic push.
+  `main`'s ruleset requires a pull request, and the workflow's `GITHUB_TOKEN` can't bypass
+  it; the deploy key is the ruleset's bypass actor.
+- **Managed at:** Repo **Settings → Deploy keys** (`release (build.yml)`, write access), the
+  repo secret `RELEASE_DEPLOY_KEY` (the private half), and the `DeployKey` bypass actor on
+  the **Protect Main** ruleset. 1Password item: `StageZero — RELEASE_DEPLOY_KEY`.
+- **Fails soft:** no secret means a warning annotation and a tag-only release. The GitHub
+  Release is still published, without its README row. A key that is set but no longer works
+  fails the release, and the atomic push means the tag isn't pushed either.
+
 ## Docker Hub (image mirror)
 
 - **Usage:** The same image and tags, mirrored for people who look on Docker Hub. Skipped
