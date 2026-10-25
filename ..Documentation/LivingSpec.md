@@ -296,6 +296,10 @@ GitHub-hosted runners.
   them needs a second app id on codelifter.net and its own token.
 - **The library has no test project.** Its services are exercised through the app's suite
   (`build.yml`, `api`), but nothing tests the package on its own before it publishes.
+- **`RELEASE_DEPLOY_KEY` is not set yet.** `main`'s ruleset requires a pull request, so the
+  release job pushes its README commit with this deploy key ([SERVICES.md](../SERVICES.md)).
+  Until it is set, releases publish without their README row, with a warning. `v0.0.1-pre`
+  to `v0.0.4-pre` were tagged without a GitHub Release, before this was fixed.
 - **The Docker Hub mirror is not configured yet.** Until `DOCKERHUB_USERNAME`,
   `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are set, images go to GHCR only, with a warning.
   The GHCR package also has to be made public once, after its first push.

@@ -17,7 +17,10 @@
 #            DOCKERHUB_USERNAME and the DOCKERHUB_IMAGE variable are set (a warning, never a
 #            failure, when they are not); signs it with cosign (keyless) and attests its
 #            provenance
-#   release  README row, tag, GitHub release; release-notes pushes the shipped PRs
+#   release  README row, tag, GitHub release; release-notes pushes the shipped PRs. The
+#            README commit goes to main over SSH with the RELEASE_DEPLOY_KEY deploy key
+#            (main's ruleset requires a PR; the key is its bypass actor). Without the key,
+#            a warning and a release with no README row, never a failure
 #
 # Image tags: a pre-release is X.Y.Z-pre plus the moving `pre`; a release is X.Y.Z, X.Y, X
 # and `latest`. Branch and PR builds are never pushed.
@@ -453,16 +456,41 @@ jobs:
             { print }
           ' README.md > README.tmp && mv README.tmp README.md
 
+      # The main ruleset requires a pull request, so the workflow token can't push the README
+      # row. The push goes over SSH with the release deploy key, the ruleset's only bypass
+      # actor (the github-actions app can't be one on this org), as Singular does: people stay
+      # gated, this bot commit lands. --atomic, so a refused main takes the tag down with it
+      # and a tag never exists without its release. No key: a warning and a tag-only release,
+      # the README row skipped, never a failed release.
       - name: Commit release bump and tag
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          git diff --cached --quiet || git commit -m "chore: release ${APP_VERSION} [skip ci]"
           # Tag the commit that was BUILT, not main's HEAD — on a release rebuild those
           # differ, and a tag pointing at unbuilt code is a lie about what shipped.
           git tag "$VERSION_TAG" "$BUILD_SHA"
-          git push origin main --tags
+
+          if [ -z "$RELEASE_DEPLOY_KEY" ]; then
+            echo "::warning::RELEASE_DEPLOY_KEY is not set: the main ruleset refuses the workflow token, so ${VERSION_TAG} is released without its README row."
+            git checkout -- README.md
+            # Tags are outside the main ruleset, so the workflow token can push this one.
+            git push origin "refs/tags/${VERSION_TAG}"
+            exit 0
+          fi
+
+          # GitHub's host keys from its HTTPS API, not ssh-keyscan's trust-on-first-use.
+          mkdir -p ~/.ssh
+          curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          printf '%s\n' "$RELEASE_DEPLOY_KEY" > ~/.ssh/release_key
+          chmod 600 ~/.ssh/release_key
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/release_key -o IdentitiesOnly=yes"
+          git remote set-url origin "git@github.com:${{ github.repository }}.git"
+
+          git add README.md
+          git diff --cached --quiet || git commit -m "chore: release ${APP_VERSION} [skip ci]"
+          git push --atomic origin main "refs/tags/${VERSION_TAG}"
 
       - name: Write the pull instructions
         run: |
