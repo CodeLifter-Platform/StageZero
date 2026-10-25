@@ -202,7 +202,8 @@ Three projects and a web app:
 Files worth opening first:
 
 - `StageZero/Program.cs` — DI registrations, the pipeline, data directory, the
-  `healthcheck`, `reset-password` and `copy-to-postgres` commands;
+  `healthcheck`, `reset-password` and `copy-to-postgres` commands (all three on the database
+  `DatabaseChoice` resolves, the web app's saved choice included);
   `Data/DatabaseSettings.cs` picks SQLite or PostgreSQL; `Data/DatabaseInitializer.cs`
   applies the EF Core migrations (and adopts a pre-migration database once).
 - `StageZero/Api/Session.cs` and `StageZero/Api/ApiPipeline.cs` — the trust boundary.
@@ -236,10 +237,23 @@ on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/Stage
 macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
 an older install's `keys/` ring is copied in on first start, `Services/DataProtectionKeys.cs`).
 
-The database is SQLite (`stagezero.db` in the data directory) unless
-`STAGEZERO_DB_PROVIDER=postgres` and `STAGEZERO_DB_CONNECTION` name a PostgreSQL database
-(`Data/DatabaseSettings.cs`); a misspelt provider or a missing connection string stops
-startup. Each provider has its own migrations: SQLite's in `Data/Migrations/`, PostgreSQL's
+The database is SQLite (`stagezero.db` in the data directory) unless one is chosen
+(`Data/DatabaseChoice.cs`): `STAGEZERO_DB_PROVIDER=postgres` and `STAGEZERO_DB_CONNECTION`
+first (`Data/DatabaseSettings.cs`; a misspelt provider or a missing connection string stops
+startup), else a PostgreSQL database chosen in the web app and saved in `database.json` in the
+data directory, its connection string encrypted with the Data Protection ring. A saved choice
+that can't be read or decrypted stops startup rather than falling back to the stale SQLite
+file. The web app's choice is made on the first-run page (`/api/setup/database/*`, open only
+while no user exists) or in **Settings → Database** (`/api/settings/database/*`,
+`Services/Database/DatabaseSwitchService.cs`): *Test* connects and reports the version,
+whether the user can create tables, and whether any StageZero table already has a row;
+*Copy and switch* runs the same copy as `copy-to-postgres` into an empty database only, saves
+the choice after the copy commits, and stops the host (`IAppRestarter`) so the container's
+restart policy brings it back on PostgreSQL. One way: on PostgreSQL, or with the variables
+set, the card is read-only, and the SQLite file is kept untouched as the recovery path
+(delete `database.json`). The intended server is the platform Infra stack, outside
+StageZero's compose project; `docker-compose.postgres.yml`, which runs one inside it, is for
+CI and trials. Each provider has its own migrations: SQLite's in `Data/Migrations/`, PostgreSQL's
 in `Data/Migrations/Postgres/`, carried by `PostgresApplicationDbContext` so EF keeps them
 apart, and the app still resolves `ApplicationDbContext` everywhere. On PostgreSQL every
 `DateTime` is written as UTC (timestamptz refuses an unmarked one), and the data directory
@@ -290,6 +304,15 @@ GitHub-hosted runners.
 
 ## Known gaps
 
+- **The first-run database test reaches any host.** Until the admin exists, anyone who can
+  open the install can make it try a PostgreSQL connection to a host and port of their
+  choosing (`/api/setup/database/test`), and point it at a database. That is the same trust
+  the first-run page already extends (whoever arrives first becomes the admin); it closes
+  for good once a user exists. Expose a fresh install only on a network you trust.
+- **A switch drops what is written during its last second.** The copy runs while the app
+  keeps working, so an IP check recorded between the copy committing and the restart stays
+  in the SQLite file only. Nothing an operator enters is affected (they are on the page
+  that is waiting for the restart).
 - **The library's release notes share StageZero's thread.** Both products push to the
   site as app `stagezero`, so library versions (`0.9.74-pre` onwards) and app versions land
   in one Release Notes thread, and a PR that touches both appears in both notes. Separating

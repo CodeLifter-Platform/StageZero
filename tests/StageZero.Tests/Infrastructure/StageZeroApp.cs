@@ -39,13 +39,14 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
 
     private readonly string _environment;
 
-    public StageZeroApp(string environment = "Development")
+    /// <param name="sqlite">Run on SQLite even on the PostgreSQL leg, for tests that move an install off it.</param>
+    public StageZeroApp(string environment = "Development", bool sqlite = false)
     {
         _environment = environment;
         Environment.SetEnvironmentVariable(DataPathService.HomeVariable, DataDirectory);
 
         var server = Environment.GetEnvironmentVariable(PostgresServerVariable);
-        if (string.IsNullOrWhiteSpace(server))
+        if (sqlite || string.IsNullOrWhiteSpace(server))
         {
             Database = DatabaseSettings.Sqlite(Path.Combine(DataDirectory, "stagezero.db"));
             Environment.SetEnvironmentVariable(DatabaseSettings.ProviderVariable, null);

@@ -9,12 +9,16 @@ Last reviewed: 2026-09-27.
 
 ## PostgreSQL (optional database)
 
-- **Usage:** Where the data goes instead of the SQLite file when
-  `STAGEZERO_DB_PROVIDER=postgres` (`StageZero/Data/DatabaseSettings.cs`; migrations in
-  `StageZero/Data/Migrations/Postgres/`). SQLite stays the default.
-- **Managed at:** The operator's own server, or the `postgres:18-alpine` container that
-  `docker-compose.postgres.yml` runs beside the app. The connection string, password
-  included, is supplied at runtime in `STAGEZERO_DB_CONNECTION` and never logged.
+- **Usage:** Where the data goes instead of the SQLite file, when chosen in the web app
+  (Settings → Database, or the first-run page; saved encrypted in `database.json` in the data
+  directory) or by `STAGEZERO_DB_PROVIDER=postgres` (`StageZero/Data/DatabaseChoice.cs`,
+  `DatabaseSettings.cs`; migrations in `StageZero/Data/Migrations/Postgres/`). SQLite stays
+  the default.
+- **Managed at:** The operator's own server outside StageZero's stack: for a CodeLifter
+  install, the platform Infra stack, with a `stagezero` role and database from
+  `Infra/tools/create-app-db.sh prod stagezero` and the password in 1Password as
+  `stagezero — INFRA_POSTGRES_PASSWORD`. `docker-compose.postgres.yml` runs one inside the
+  stack for CI and trials only. The password is never logged or returned by the API.
 
 ## GitHub Container Registry (image publishing)
 

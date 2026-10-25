@@ -98,26 +98,43 @@ The build context is the **repo root**, not `StageZero/`: the API project refere
 
 ### On PostgreSQL
 
-`docker-compose.postgres.yml` adds a PostgreSQL 18 container (named volume
-`stagezero-postgres`, no published port) and points the app at it:
+Keep the database **outside** StageZero's stack, so nothing done to this compose project
+(`down -v`, a recreate, an upgrade) can touch it. On a server with the platform Infra stack:
+
+```bash
+# in the Infra checkout: a role and database of StageZero's own, password in 1Password
+tools/create-app-db.sh prod stagezero
+```
+
+Then, in StageZero, either tick **Keep StageZero's data in PostgreSQL** on the first-run page,
+or open **Settings → Database** on an install that already has data. Fill in host
+`host.docker.internal` (the Infra server on this machine, as the container sees it; the
+compose file maps it), port `5432`, database and user `stagezero`, and the password, then
+**Test connection** and **Copy and switch**. StageZero copies every row into the database,
+refusing one that already holds StageZero data, saves the choice encrypted in
+`/app-data/database.json`, and stops; `restart: unless-stopped` starts it again on
+PostgreSQL. The log then says `Database: PostgreSQL stagezero on host.docker.internal:5432
+as stagezero (chosen in the web app)`.
+
+- **One way.** The SQLite file stays as it was at the switch. To go back (recovery only: it
+  holds nothing written since), stop the stack, delete `database.json` from the data
+  directory, and start it.
+- **`STAGEZERO_DB_PROVIDER` / `STAGEZERO_DB_CONNECTION` in `.env` win** over the saved
+  choice, and the Settings card then shows the database read-only.
+- **The `/app-data` mount is still required:** the Data Protection keys that decrypt the
+  saved connection and the Cloudflare token, and the logs, stay there. Back up both it and
+  the database (`docker exec infra-postgres pg_dump -U stagezero stagezero`).
+- **A saved choice that can't be read stops startup** rather than quietly falling back to
+  the old SQLite file; the log says how to recover.
+
+`docker-compose.postgres.yml` runs a PostgreSQL 18 *inside* this stack (named volume
+`stagezero-postgres`). CI uses it, and it is handy for trying PostgreSQL out, but its data
+goes with `docker compose down -v`, so don't keep data there:
 
 ```bash
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 ```
-
-The app's `/app-data` mount is still required: the Data Protection keys and the logs stay
-there. To move an install that has been on SQLite, bring up the database alone, copy, then
-start the app (the SQLite file is only read):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d postgres
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml run --rm stagezero copy-to-postgres
-docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
-```
-
-For a PostgreSQL server you already run, skip the add-on and set `STAGEZERO_DB_PROVIDER=postgres`
-and `STAGEZERO_DB_CONNECTION` in `.env`.
 
 ## Debug
 

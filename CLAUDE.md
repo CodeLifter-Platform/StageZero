@@ -79,8 +79,11 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
   merges that change `Lifted.BlazorAuth.Basic/`, and RELEASE BASICAUTH
   (`release-basicauth.yml`) promotes it. Neither script may read the other's tags. Never
   create tags by hand and never add a `tags:` trigger.
-- **Two databases.** SQLite (default) or PostgreSQL via `STAGEZERO_DB_PROVIDER` /
-  `STAGEZERO_DB_CONNECTION`. A model change needs a migration for **each**:
+- **Two databases.** SQLite (default) or PostgreSQL, chosen in the web app (Settings →
+  Database, or the first-run page; saved in `database.json`, `Data/DatabaseChoice.cs`) or by
+  `STAGEZERO_DB_PROVIDER` / `STAGEZERO_DB_CONNECTION`, which win. Switching runs one way and
+  only into an empty database; never add a path that writes into one holding data. A model
+  change needs a migration for **each**:
   `dotnet ef migrations add <Name> --project StageZero --context ApplicationDbContext` and
   `... --context PostgresApplicationDbContext --output-dir Data/Migrations/Postgres`
   (move the Postgres snapshot if EF drops it in a nested `StageZero/StageZero/`). Run the

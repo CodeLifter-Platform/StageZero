@@ -46,9 +46,10 @@ What the compose file sets up:
   once the database is reachable.
 - **Optional connector.** A `cloudflared` sidecar starts only with
   `docker compose --profile tunnel up -d` (see [section 6](#6-set-up-the-tunnel)).
-- **Optional PostgreSQL.** `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
-  runs a database beside the app (needs `POSTGRES_PASSWORD` in `.env`). SQLite is the
-  default and needs no setup.
+- **Optional PostgreSQL.** SQLite is the default and needs no setup. To keep the data in a
+  PostgreSQL server outside StageZero (the platform Infra stack), tick *Keep StageZero's data
+  in PostgreSQL* on the first-run page, or use **Settings → Database** later: test, then
+  **Copy and switch**. One way; [OnboardDocker.md](OnboardDocker.md#on-postgresql).
 
 Useful commands:
 

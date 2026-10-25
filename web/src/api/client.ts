@@ -3,7 +3,8 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CurrentIp, DeleteRouteResult,
+  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, DatabaseStatus, DatabaseSwitchResult,
+  PostgresTarget, PostgresTestResult, CloudflareZone, CurrentIp, DeleteRouteResult,
   DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
   RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView,
   TunnelConfig, TunnelRoute, TunnelRouteInput,
@@ -149,7 +150,20 @@ export const api = {
     checkCloudflare: () => post<CloudflareCredential>('/api/settings/cloudflare/check'),
     removeCloudflare: () => del<undefined>('/api/settings/cloudflare'),
   },
+  database: databaseApi('/api/settings/database'),
+  /** The same calls on the first-run page, open only while no user exists. */
+  setupDatabase: databaseApi('/api/setup/database'),
 };
+
+export type DatabaseApi = ReturnType<typeof databaseApi>;
+
+function databaseApi(base: string) {
+  return {
+    status: () => get<DatabaseStatus>(base),
+    test: (target: PostgresTarget) => post<PostgresTestResult>(`${base}/test`, target),
+    switchTo: (target: PostgresTarget) => post<DatabaseSwitchResult>(`${base}/switch`, target),
+  };
+}
 
 /** Live IP changes over server-sent events. Returns a function that closes the stream. */
 export function subscribeToIp(onIp: (ip: CurrentIp) => void): () => void {

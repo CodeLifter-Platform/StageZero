@@ -4,6 +4,7 @@ import type { CloudflareCredential, CloudflarePermission, CloudflarePermissionCh
 import { formatDateTime } from '../../app/format';
 import { useToast } from '../../app/toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { DatabaseSwitch } from '../../components/DatabaseSwitch';
 import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
@@ -96,7 +97,7 @@ export function SettingsPage() {
 
   return (
     <div className="sz-page sz-page-narrow">
-      <PageHeader title="Settings">Your StageZero account's connection to Cloudflare.</PageHeader>
+      <PageHeader title="Settings">Your StageZero install's connection to Cloudflare, and where it keeps its data.</PageHeader>
 
       {loadError ? <Notice tone="danger" title="Couldn't load settings">{loadError}</Notice> : null}
 
@@ -195,6 +196,13 @@ export function SettingsPage() {
           </div>
         </Card>
       ) : null}
+
+      <Card>
+        <div className="sz-stack">
+          <h2>Database</h2>
+          <DatabaseSwitch databases={api.database} onSwitched={() => notify('StageZero is now on PostgreSQL', 'success')} />
+        </div>
+      </Card>
 
       <ConfirmDialog open={confirmingRemove} busy={busy === 'remove'} title="Remove the Cloudflare token" confirmLabel="Remove"
         message={'Remove the token from StageZero? DNS updates, tunnel route changes and Access stop until you add one again; '
