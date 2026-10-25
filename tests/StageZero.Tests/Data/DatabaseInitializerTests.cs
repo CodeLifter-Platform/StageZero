@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 using StageZero.Data;
 
@@ -62,6 +63,26 @@ public sealed class DatabaseInitializerTests : IDisposable
 
         await using var db = DatabaseInitializer.CreateContext(DatabasePath);
         Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
+    }
+
+    [Fact]
+    public async Task Accounts_whose_addresses_differ_only_in_case_stop_startup_by_name()
+    {
+        await using (var db = DatabaseInitializer.CreateContext(DatabasePath))
+        {
+            var migrations = db.Database.GetMigrations().ToList();
+            var before = migrations[migrations.FindIndex(m => m.EndsWith("_" + DatabaseInitializer.CaseInsensitiveEmailMigration, StringComparison.Ordinal)) - 1];
+            await db.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync(before);
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO "Users" ("Email", "PasswordHash", "EmailVerified", "CreatedAt", "IsActive", "RequiresPasswordChange")
+                VALUES ('ada@example.com', 'h', 1, '2026-01-01', 1, 0), ('Ada@Example.com', 'h', 1, '2026-01-01', 1, 0)
+                """);
+        }
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(InitializeAsync);
+
+        Assert.Contains("ada@example.com", error.Message);
+        Assert.DoesNotContain(await AppliedMigrationsAsync(), m => m.EndsWith("_" + DatabaseInitializer.CaseInsensitiveEmailMigration, StringComparison.Ordinal));
     }
 
     [Fact]

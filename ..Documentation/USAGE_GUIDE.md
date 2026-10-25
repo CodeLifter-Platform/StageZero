@@ -46,9 +46,10 @@ What the compose file sets up:
   once the database is reachable.
 - **Optional connector.** A `cloudflared` sidecar starts only with
   `docker compose --profile tunnel up -d` (see [section 6](#6-set-up-the-tunnel)).
-- **Optional PostgreSQL.** `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d`
-  runs a database beside the app (needs `POSTGRES_PASSWORD` in `.env`). SQLite is the
-  default and needs no setup.
+- **Optional PostgreSQL.** SQLite is the default and needs no setup. To keep the data in a
+  PostgreSQL server outside StageZero (the platform Infra stack), tick *Keep StageZero's data
+  in PostgreSQL* on the first-run page, or use **Settings → Database** later: test, then
+  **Copy and switch**. One way; [OnboardDocker.md](OnboardDocker.md#on-postgresql).
 
 Useful commands:
 
@@ -70,10 +71,14 @@ docker compose down
 A fresh install has no users, so every page redirects to **`/setup`**.
 
 1. Enter the **Admin email** (your login) and a **Password** of at least 8 characters, twice.
-2. Two optional boxes offer the CodeLifter newsletter and StageZero update news. Left
-   unticked, nothing is sent anywhere. Ticked, StageZero posts once to codelifter.net,
-   which sends one confirmation email. Set `CodeLifter__SubscriptionsUrl=` (blank) in
-   `.env` to hide them.
+2. **Register this install with codelifter.net** is ticked: StageZero sends the admin
+   email and its version to codelifter.net, so CodeLifter knows who runs StageZero. It
+   signs you up for nothing and sends you no email. Untick it to send nothing. The
+   CodeLifter newsletter and StageZero update emails are separate, optional choices on
+   **Settings → Email from CodeLifter**, each with its own confirmation email. To change
+   them later, **Manage email preferences** there emails you a link (good for an hour)
+   to a codelifter.net page with a switch for each list. Set
+   `CodeLifter__SubscriptionsUrl=` (blank) in `.env` to switch all of it off.
 3. Click **Create admin account**, then sign in.
 
 There is no email verification here. StageZero never sends email.

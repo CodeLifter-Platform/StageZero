@@ -20,6 +20,7 @@ namespace StageZero.Data.Migrations.Postgres
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Lifted.BlazorAuth.Basic.Models.User", b =>
@@ -36,7 +37,7 @@ namespace StageZero.Data.Migrations.Postgres
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("citext");
 
                     b.Property<int>("EmailVerificationAttempts")
                         .HasColumnType("integer");

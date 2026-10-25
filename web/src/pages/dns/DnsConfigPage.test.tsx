@@ -35,6 +35,9 @@ function signedIn(providers: DnsProvider[], hasToken = true) {
     http.get('/api/ip/current', () => HttpResponse.json({ ipAddress: null, lastChecked: null })),
     http.get('/api/dns/providers', () => HttpResponse.json(providers)),
     http.get('/api/settings/cloudflare', () => HttpResponse.json(credential(hasToken))),
+    http.get('/api/settings/email-updates', () => HttpResponse.json({ enabled: false, email: null, choices: [] })),
+    http.get('/api/settings/database', () => HttpResponse.json(
+      { provider: 'sqlite', source: 'default', description: 'SQLite /app-data/stagezero.db', canSwitch: true })),
     http.get('/api/dns/zones', () => HttpResponse.json([
       { id: 'z-home', name: 'home.example' },
       { id: 'z-lab', name: 'lab.example' },

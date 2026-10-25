@@ -129,10 +129,12 @@ cp .env.example .env
 ```
 
 **First run:** open the app (it goes to `/setup` on a fresh install), enter an email and a password, and that is the admin
-account. No verification code; StageZero never sends email. The form has two optional boxes, the CodeLifter
-newsletter and StageZero update news, which post to codelifter.net and get one
-confirmation email; unticked, nothing is sent. To hide them (a fork, an air-gapped
-install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
+account. No verification code; StageZero never sends email. The form's **Register this
+install with codelifter.net** box (ticked by default) sends the admin email and StageZero's
+version to codelifter.net so CodeLifter knows who runs it; it signs you up for nothing and
+sends no email. The CodeLifter newsletter and StageZero update emails are separate, optional
+choices on **Settings** (click your email), each with its own confirmation email. To switch
+all of it off (a fork, an air-gapped install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
 
 **Password reset without email:** StageZero does not send email, on purpose. The only
 flow that ever needed it, "forgot password", writes its code to the server log instead,
@@ -269,22 +271,30 @@ The `.env` file will be automatically loaded when debugging.
 **SQLite** by default, created automatically as `stagezero.db` in the app data directory
 (`/app-data` in a container, the per-user config directory otherwise). Nothing to set up.
 
-**PostgreSQL** instead, with two variables (in `.env` or the environment):
+**PostgreSQL** instead, on a server that runs **outside** StageZero's stack, so nothing done
+to StageZero's container (a `down -v`, a recreate, an upgrade) can touch the data. The
+platform's Infra stack is the intended one (`Infra/tools/create-app-db.sh prod stagezero`
+makes the role and database). Choose it in the web app, either on the first-run page
+(*Keep StageZero's data in PostgreSQL*) or later in **Settings → Database**: test the
+connection, then **Copy and switch**. StageZero copies everything into the database (which
+must be empty, so nothing is ever overwritten), saves the choice encrypted in
+`database.json` in the data directory, and restarts onto it. From a container, a server on
+the same machine is `host.docker.internal`. Switching runs one way, and the SQLite file is
+kept as it was.
+
+Or set it in the environment, which wins over the web app's choice and locks the card:
 
 ```bash
 STAGEZERO_DB_PROVIDER=postgres
 STAGEZERO_DB_CONNECTION="Host=db;Database=stagezero;Username=stagezero;Password=..."
 ```
 
-The database is created and migrated at startup. Or let compose run one beside the app:
-`docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d` (needs
-`POSTGRES_PASSWORD` in `.env`). Either way the data directory is still needed: it holds the
-logs and the keys that decrypt the stored Cloudflare tokens, so back it up with the database.
-
-Moving an existing install from SQLite to PostgreSQL: set the two variables, run
-`dotnet StageZero.dll copy-to-postgres` once (in Docker: `docker compose run --rm stagezero
-copy-to-postgres`), then restart. It copies every row into an empty PostgreSQL database and
-only reads the SQLite file, so going back is unsetting `STAGEZERO_DB_PROVIDER`.
+With variables, move existing data with `dotnet StageZero.dll copy-to-postgres` once (in
+Docker: `docker compose run --rm stagezero copy-to-postgres`), then restart. Either way the
+data directory is still needed: it holds the logs and the keys that decrypt the stored
+Cloudflare token and the saved connection, so back it up with the database.
+`docker-compose.postgres.yml` runs a database inside StageZero's own stack; it is for CI and
+trying PostgreSQL out, not for data you keep.
 
 ## Documentation
 

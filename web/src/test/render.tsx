@@ -16,7 +16,7 @@ export function sessionInfo(patch: Partial<SessionInfo> = {}): SessionInfo {
   return {
     setupRequired: false,
     user: null,
-    signupChoices: [],
+    codeLifterRegistration: false,
     passwordResetCodeHeading: 'STAGEZERO PASSWORD RESET CODE',
     verificationCodeHeading: 'STAGEZERO EMAIL VERIFICATION CODE',
     ...patch,

@@ -15,12 +15,18 @@ export interface SessionUser {
 export interface SessionInfo {
   setupRequired: boolean;
   user: SessionUser | null;
-  signupChoices: SignupChoice[];
+  /** First run only: offer "Register this install with codelifter.net". */
+  codeLifterRegistration: boolean;
   passwordResetCodeHeading: string;
   verificationCodeHeading: string;
 }
 
-export interface SetupResult { signup: { sent: boolean; message: string } | null }
+export interface SetupResult { registeredWithCodeLifter: boolean }
+
+/** Settings → Email from CodeLifter: the newsletter and StageZero updates, for the signed-in address. */
+export interface EmailUpdates { enabled: boolean; email: string | null; choices: SignupChoice[] }
+
+export interface EmailUpdateResult { sent: boolean; message: string }
 
 export interface CurrentIp { ipAddress: string | null; lastChecked: string | null }
 
@@ -172,3 +178,36 @@ export interface CloudflareCredential {
   /** What the last save or check found; null on a plain read. */
   checks: CloudflarePermissionCheck[] | null;
 }
+
+/** Where the database this process runs on was chosen: nothing (SQLite), the web app, or the environment. */
+export type DatabaseSource = 'default' | 'saved' | 'environment';
+
+export interface DatabaseStatus {
+  provider: 'sqlite' | 'postgres';
+  source: DatabaseSource;
+  /** Where the data is, never the password. */
+  description: string;
+  /** On the default SQLite file, so a move to PostgreSQL is offered. */
+  canSwitch: boolean;
+}
+
+/** A PostgreSQL database as the form describes it. */
+export interface PostgresTarget {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  sslMode: 'Prefer' | 'Require' | 'Disable';
+}
+
+export interface PostgresTestResult {
+  ok: boolean;
+  problem: string | null;
+  serverVersion: string | null;
+  tableCount: number;
+  hasData: boolean;
+  warnings: string[];
+}
+
+export interface DatabaseSwitchResult { description: string; restarting: boolean; copiedTables: string[] }

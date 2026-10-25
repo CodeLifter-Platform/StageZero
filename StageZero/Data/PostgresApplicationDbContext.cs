@@ -1,3 +1,4 @@
+using Lifted.BlazorAuth.Basic.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -15,6 +16,18 @@ public sealed class PostgresApplicationDbContext : ApplicationDbContext
     public PostgresApplicationDbContext(DbContextOptions<PostgresApplicationDbContext> options)
         : base(options)
     {
+    }
+
+    /// <summary>
+    /// Email in any case is one address: citext in place of SQLite's NOCASE collation, so the
+    /// unique index, sign-in and every comparison ignore case while the address keeps the case
+    /// it was typed in.
+    /// </summary>
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+        builder.HasPostgresExtension("citext");
+        builder.Entity<User>().Property(u => u.Email).UseCollation(null).HasColumnType("citext");
     }
 
     /// <summary>

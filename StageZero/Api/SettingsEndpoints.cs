@@ -1,3 +1,5 @@
+using Lifted.BlazorAuth.Basic.Services;
+using StageZero.Services.CodeLifter;
 using StageZero.Services.Cloudflare;
 
 namespace StageZero.Api;
@@ -34,11 +36,43 @@ public static class SettingsEndpoints
             await credentials.RemoveAsync();
             return Results.NoContent();
         });
+
+        // Email from CodeLifter: the newsletter and StageZero updates, each its own request to
+        // codelifter.net's double opt-in subscriptions, for the signed-in operator's address.
+        var email = api.MapGroup("/settings/email-updates").RequireAuthorization(Session.OperatorPolicy).WithUserFacingErrors();
+
+        email.MapGet("/", async (IAuthService auth, ISignupOptIn optIn) =>
+            new EmailUpdatesView(optIn.Choices.Count > 0, (await auth.GetCurrentUserAsync())?.Email, optIn.Choices));
+
+        email.MapPost("/", async (EmailUpdateRequest request, IAuthService auth, ISignupOptIn optIn) =>
+        {
+            var choice = optIn.Choices.FirstOrDefault(c => c.Key == request.Key)
+                         ?? throw new Services.UserFacingException("Pick the newsletter or StageZero updates.");
+            var user = await auth.GetCurrentUserAsync()
+                       ?? throw new Services.UserFacingException("Sign in again.", StatusCodes.Status401Unauthorized);
+            return await optIn.SubmitAsync(user.Email, [choice.Key]);
+        });
+
+        // A one-hour link, emailed by codelifter.net to the operator, to a page that switches
+        // each list on or off. Always the signed-in address; StageZero holds no credential for it.
+        email.MapPost("/manage-link", async (IAuthService auth, ICodeLifterManageLink manageLink) =>
+        {
+            if (!manageLink.Enabled) throw new Services.UserFacingException("Email from CodeLifter is switched off on this install.");
+            var user = await auth.GetCurrentUserAsync()
+                       ?? throw new Services.UserFacingException("Sign in again.", StatusCodes.Status401Unauthorized);
+            return await manageLink.RequestAsync(user.Email);
+        });
     }
 
     // ── contracts ────────────────────────────────────────────────
 
     public sealed record SaveRequest(string? ApiToken, string? AccountId);
+
+    /// <param name="Enabled">False when codelifter.net is switched off (a blank <c>CodeLifter__SubscriptionsUrl</c>).</param>
+    /// <param name="Email">Where a subscription goes: the signed-in operator's address.</param>
+    public sealed record EmailUpdatesView(bool Enabled, string? Email, IReadOnlyList<SignupOptInChoice> Choices);
+
+    public sealed record EmailUpdateRequest(string? Key);
 
     public sealed record PermissionView(string Scope, string Item, string Level, string UsedFor)
     {

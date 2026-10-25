@@ -9,12 +9,16 @@ Last reviewed: 2026-09-27.
 
 ## PostgreSQL (optional database)
 
-- **Usage:** Where the data goes instead of the SQLite file when
-  `STAGEZERO_DB_PROVIDER=postgres` (`StageZero/Data/DatabaseSettings.cs`; migrations in
-  `StageZero/Data/Migrations/Postgres/`). SQLite stays the default.
-- **Managed at:** The operator's own server, or the `postgres:18-alpine` container that
-  `docker-compose.postgres.yml` runs beside the app. The connection string, password
-  included, is supplied at runtime in `STAGEZERO_DB_CONNECTION` and never logged.
+- **Usage:** Where the data goes instead of the SQLite file, when chosen in the web app
+  (Settings → Database, or the first-run page; saved encrypted in `database.json` in the data
+  directory) or by `STAGEZERO_DB_PROVIDER=postgres` (`StageZero/Data/DatabaseChoice.cs`,
+  `DatabaseSettings.cs`; migrations in `StageZero/Data/Migrations/Postgres/`). SQLite stays
+  the default.
+- **Managed at:** The operator's own server outside StageZero's stack: for a CodeLifter
+  install, the platform Infra stack, with a `stagezero` role and database from
+  `Infra/tools/create-app-db.sh prod stagezero` and the password in 1Password as
+  `stagezero — INFRA_POSTGRES_PASSWORD`. `docker-compose.postgres.yml` runs one inside the
+  stack for CI and trials only. The password is never logged or returned by the API.
 
 ## GitHub Container Registry (image publishing)
 
@@ -101,18 +105,28 @@ Last reviewed: 2026-09-27.
   uses the workflow's `GITHUB_TOKEN`.
 - **Detail:** [..Documentation/NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md).
 
-## Subscriptions API (codelifter.net, optional signups on first run)
+## codelifter.net (install registration, optional email signups)
 
-- **Usage:** The two optional boxes on `/setup` (CodeLifter newsletter, StageZero
-  update news) post once to `POST https://codelifter.net/api/subscriptions`
-  (`StageZero/Services/CodeLifter/CodeLifterSubscriptions.cs`) with the email, the
-  app id `stagezero`, and the app version. The site sends one double-opt-in
-  confirmation email; nothing is subscribed until it is clicked. No token: the
-  endpoint is public by design and rate-limited on the site. Unreachable or
-  declined is a notice on the setup page, never a failed setup.
-- **Managed at:** codelifter.net (CodeLifter.Net repo, `NEWSLETTER.md` → In-app
-  subscriptions). The app id must exist in the site's `apps` registry. Operators
-  can hide the boxes with a blank `CodeLifter__SubscriptionsUrl`.
+- **Usage:** Two calls, both to the site named by `CodeLifter__SubscriptionsUrl`.
+  - **Registration** at first run, unless the operator unticks *Register this install
+    with codelifter.net*: `POST https://codelifter.net/api/app-users/register` with the
+    admin email, the app id `stagezero` and the version
+    (`StageZero/Services/CodeLifter/CodeLifterRegistration.cs`). It records who runs
+    StageZero, subscribes nobody and makes the site send nothing. Best-effort: a failure
+    never fails setup.
+  - **Email signups** on Settings → Email from CodeLifter: the newsletter and StageZero
+    updates, each its own `POST https://codelifter.net/api/subscriptions` for the
+    signed-in address (`CodeLifterSubscriptions.cs`). The site sends one double-opt-in
+    confirmation email per request; nothing is subscribed until it is clicked.
+  - **Manage email preferences** on the same card: `POST
+    https://codelifter.net/api/subscriptions/manage-link` with the signed-in address
+    (`CodeLifterManageLink.cs`). The site emails a one-hour link to
+    `codelifter.net/newsletter/manage`, where each list switches on or off. StageZero
+    stores no credential for it.
+  - No token on any of them: both endpoints are public by design and rate-limited on the site.
+- **Managed at:** codelifter.net (CodeLifter.Net repo, `NEWSLETTER.md` → App users, In-app
+  subscriptions and Managing lists from an emailed link). The app id must exist in the site's `apps` registry. A blank
+  `CodeLifter__SubscriptionsUrl` switches both off.
 
 ## Release notes API (codelifter.net)
 

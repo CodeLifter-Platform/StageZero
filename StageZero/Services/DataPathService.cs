@@ -25,7 +25,7 @@ public static class DataPathService
     /// <summary>
     /// Checks if the application is running inside a Docker container.
     /// </summary>
-    private static bool IsRunningInDocker()
+    public static bool IsRunningInDocker()
     {
         // Check for Docker-specific environment variable
         if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")

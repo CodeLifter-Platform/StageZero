@@ -9,8 +9,8 @@ using Microsoft.Extensions.Logging;
 namespace StageZero.Services.CodeLifter;
 
 /// <summary>
-/// The two optional boxes on the first-run setup form, and the one request they turn
-/// into: <c>POST /api/subscriptions</c> on codelifter.net. The endpoint is double opt-in,
+/// The two email options on the Settings page (the CodeLifter newsletter, StageZero
+/// updates), each its own request to <c>POST /api/subscriptions</c> on codelifter.net. The endpoint is double opt-in,
 /// so nothing is subscribed until the person clicks the confirmation email; this class
 /// only asks for that email to be sent. Best-effort by contract: it reports, never throws.
 /// </summary>
@@ -42,12 +42,12 @@ public sealed class CodeLifterSubscriptions : ISignupOptIn
             {
                 new SignupOptInChoice(
                     NewsletterKey,
-                    "Send me the CodeLifter newsletter",
+                    "The CodeLifter newsletter",
                     "Occasional posts from codelifter.net. One confirmation email; unsubscribe any time."),
                 new SignupOptInChoice(
                     AppUpdatesKey,
-                    "Tell me about StageZero updates",
-                    "New releases and what changed. Same confirmation email."),
+                    "StageZero updates",
+                    "New releases and what changed. Its own confirmation email; unsubscribe any time."),
             }
             : Array.Empty<SignupOptInChoice>();
     }
@@ -105,7 +105,7 @@ public sealed class CodeLifterSubscriptions : ISignupOptIn
         {
             _logger.LogWarning(ex, "Could not reach codelifter.net to sign {Email} up", email);
             return new SignupOptInResult(false,
-                "Couldn't reach codelifter.net to sign you up. Your account is fine; you can subscribe at codelifter.net later.");
+                "Couldn't reach codelifter.net to sign you up. Try again later.");
         }
     }
 

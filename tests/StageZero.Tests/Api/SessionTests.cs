@@ -239,6 +239,53 @@ public class SessionTests
         Assert.True(admin.EmailVerified);
     }
 
+    private const string RegisterUrl = "https://codelifter.net/api/app-users/register";
+
+    [Fact]
+    public async Task Setup_registers_the_admin_with_codelifter_and_asks_for_no_subscription()
+    {
+        await using var app = new StageZeroApp();
+        app.Http.On(HttpMethod.Post, RegisterUrl, _ => FakeHttp.Text("""{"ok":true}"""));
+        using var client = app.CreateApiClient();
+
+        var offered = await (await client.GetAsync("/api/auth/session")).ReadAsync<AuthEndpoints.SessionResponse>();
+        var response = await client.PostJsonAsync("/api/auth/setup", new { email = "owner@example.com", password = TestApi.Password });
+
+        Assert.True(offered.CodeLifterRegistration);
+        Assert.True((await response.ReadAsync<AuthEndpoints.SetupResponse>()).RegisteredWithCodeLifter);
+        var sent = Assert.Single(app.Http.Requests);
+        Assert.Equal(RegisterUrl, sent.Url.ToString());
+        using var body = System.Text.Json.JsonDocument.Parse(sent.Body!);
+        Assert.Equal("owner@example.com", body.RootElement.GetProperty("email").GetString());
+        Assert.Equal("stagezero", body.RootElement.GetProperty("app").GetString());
+        Assert.False(body.RootElement.TryGetProperty("newsletter", out _));
+    }
+
+    [Fact]
+    public async Task Setup_sends_nothing_to_codelifter_when_the_box_is_unticked()
+    {
+        await using var app = new StageZeroApp();
+        using var client = app.CreateApiClient();
+
+        var response = await client.PostJsonAsync("/api/auth/setup",
+            new { email = "owner@example.com", password = TestApi.Password, registerWithCodeLifter = false });
+
+        Assert.False((await response.ReadAsync<AuthEndpoints.SetupResponse>()).RegisteredWithCodeLifter);
+        Assert.Empty(app.Http.Requests);
+    }
+
+    [Fact]
+    public async Task Setup_succeeds_when_codelifter_is_unreachable()
+    {
+        await using var app = new StageZeroApp(); // no fake route: every request to the site fails
+        using var client = app.CreateApiClient();
+
+        var response = await client.PostJsonAsync("/api/auth/setup", new { email = "owner@example.com", password = TestApi.Password });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False((await response.ReadAsync<AuthEndpoints.SetupResponse>()).RegisteredWithCodeLifter);
+    }
+
     [Theory]
     [InlineData("not-an-email", TestApi.Password, "valid email")]
     [InlineData("owner@example.com", "short", "at least 8")]

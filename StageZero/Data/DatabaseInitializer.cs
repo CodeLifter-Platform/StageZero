@@ -32,6 +32,9 @@ public static class DatabaseInitializer
     /// <summary>The migration that matches the last pre-migrations schema.</summary>
     public const string BaselineMigration = "20260927204016_InitialCreate";
 
+    /// <summary>The migration that makes Users.Email compare without case (NOCASE / citext).</summary>
+    public const string CaseInsensitiveEmailMigration = "CaseInsensitiveEmail";
+
     /// <summary>
     /// Brings whichever database <paramref name="settings"/> names to its latest migration.
     /// Only a SQLite file can be a legacy one; a PostgreSQL database has only ever been built
@@ -66,7 +69,32 @@ public static class DatabaseInitializer
                 pending.Count, string.Join(", ", pending));
         }
 
+        if (pending.Any(m => m.EndsWith("_" + CaseInsensitiveEmailMigration, StringComparison.Ordinal))
+            && !pending.Any(m => m.EndsWith("_InitialCreate", StringComparison.Ordinal)))
+        {
+            await RefuseCaseDuplicateEmailsAsync(db, cancellationToken);
+        }
+
         await db.Database.MigrateAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Two accounts whose addresses differ only in case can't both survive the move to a
+    /// case-insensitive unique index, and picking one would be deleting the other's account.
+    /// So startup stops and names them; the operator removes the extra one by hand.
+    /// </summary>
+    private static async Task RefuseCaseDuplicateEmailsAsync(ApplicationDbContext db, CancellationToken cancellationToken)
+    {
+        var duplicates = await db.Database
+            .SqlQueryRaw<string>("""SELECT lower("Email") AS "Value" FROM "Users" GROUP BY lower("Email") HAVING COUNT(*) > 1""")
+            .ToListAsync(cancellationToken);
+        if (duplicates.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Email addresses now ignore case, but these have more than one account in different cases: "
+                + string.Join(", ", duplicates)
+                + ". Delete the extra account(s) from the Users table, then start StageZero again.");
+        }
     }
 
     /// <summary>A context on the given file, unpooled so no handle outlives it.</summary>

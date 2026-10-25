@@ -3,9 +3,10 @@ using Microsoft.Extensions.Configuration;
 namespace StageZero.Services.CodeLifter;
 
 /// <summary>
-/// Where the optional first-run signups go. Read from the <c>CodeLifter</c> configuration
-/// section (<c>CodeLifter__SubscriptionsUrl</c> in <c>.env</c>). A blank URL turns the
-/// boxes off entirely, for a fork or an air-gapped install.
+/// Where StageZero talks to codelifter.net: the first-run registration, the email
+/// options on Settings and the manage link. Read from the <c>CodeLifter</c> configuration section
+/// (<c>CodeLifter__SubscriptionsUrl</c> in <c>.env</c>). A blank URL turns both off
+/// entirely, for a fork or an air-gapped install.
 /// </summary>
 public sealed class CodeLifterSubscriptionsOptions
 {
@@ -21,6 +22,12 @@ public sealed class CodeLifterSubscriptionsOptions
 
     public bool Enabled => Uri.TryCreate(SubscriptionsUrl, UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
+
+    /// <summary>The registration endpoint on the same site as <see cref="SubscriptionsUrl"/>, or null when off.</summary>
+    public Uri? RegisterUrl => Enabled ? new Uri(new Uri(SubscriptionsUrl!), "/api/app-users/register") : null;
+
+    /// <summary>The manage-link endpoint on the same site, or null when off.</summary>
+    public Uri? ManageLinkUrl => Enabled ? new Uri(new Uri(SubscriptionsUrl!), "/api/subscriptions/manage-link") : null;
 
     public static CodeLifterSubscriptionsOptions FromConfiguration(IConfiguration configuration)
     {

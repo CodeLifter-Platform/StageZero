@@ -15,6 +15,7 @@ using StageZero.Services;
 using StageZero.Services.Access;
 using StageZero.Services.Cli;
 using StageZero.Services.Cloudflare;
+using StageZero.Services.Database;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
@@ -69,7 +70,7 @@ for (int i = 0; loadDotEnv && i <= 5; i++)
 // STAGEZERO_HOME or STAGEZERO_DB_* set there finds the same database the app uses.
 if (args is [ResetPasswordCommand.Name, ..])
 {
-    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DatabaseSettings.FromEnvironment(), args, Console.Out);
+    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DatabaseChoice.Resolve().Settings, args, Console.Out);
     return;
 }
 
@@ -117,10 +118,18 @@ try
     builder.Services.AddStageZeroApi();
     builder.Services.AddStageZeroSession();
 
-    // Entity Framework with DbContextFactory: SQLite in the data directory by default, or
-    // PostgreSQL when STAGEZERO_DB_PROVIDER says so (DatabaseSettings).
-    var database = DatabaseSettings.FromEnvironment();
-    Log.Information("Database: {Database}", database.Describe());
+    // Entity Framework with DbContextFactory: SQLite in the data directory by default,
+    // PostgreSQL when chosen in the web app (database.json) or STAGEZERO_DB_PROVIDER says so,
+    // the variables winning (DatabaseChoice).
+    var selection = DatabaseChoice.Resolve();
+    var database = selection.Settings;
+    Log.Information("Database: {Database} ({Source})", database.Describe(), selection.Source switch
+    {
+        DatabaseSource.Environment => "from the environment",
+        DatabaseSource.Saved => "chosen in the web app",
+        _ => "the default"
+    });
+    builder.Services.AddSingleton(selection);
     database.AddDbContextFactory(builder.Services);
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
@@ -205,6 +214,8 @@ try
     builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
+    builder.Services.AddScoped<ICodeLifterRegistration, CodeLifterRegistration>();
+    builder.Services.AddScoped<ICodeLifterManageLink, CodeLifterManageLink>();
     builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
     builder.Services.TryAddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<IIpMonitorStatus, IpMonitorStatus>();
@@ -225,6 +236,8 @@ try
     builder.Services.AddScoped<ICloudflareTokenProtector, CloudflareTokenProtector>();
     builder.Services.AddScoped<ICloudflareAccountService, CloudflareAccountService>();
     builder.Services.AddScoped<ICloudflareCredentialService, CloudflareCredentialService>();
+    builder.Services.AddScoped<IDatabaseSwitchService, DatabaseSwitchService>();
+    builder.Services.AddSingleton<IAppRestarter, HostAppRestarter>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
     builder.Services.AddScoped<ITunnelSetupService, TunnelSetupService>();
@@ -308,6 +321,7 @@ try
     api.MapDnsEndpoints();
     api.MapTunnelEndpoints();
     api.MapSettingsEndpoints();
+    api.MapDatabaseEndpoints();
 
     // Everything else is the React app's: deep links and reloads get index.html.
     app.MapSpaFallback();

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useSession } from '../../app/session';
 import { useToast } from '../../app/toast';
+import { DatabaseSwitch } from '../../components/DatabaseSwitch';
 import { Notice } from '../../components/Notice';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
 import { Button, Card, Checkbox, Input } from '../../ui';
@@ -24,15 +25,14 @@ export function SetupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [optIns, setOptIns] = useState<string[]>([]);
+  const [register, setRegister] = useState(true);
+  const [choosingDatabase, setChoosingDatabase] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (info && !info.setupRequired) {
     return <Notice tone="info" title="Setup already completed" action={<Button size="sm" onClick={() => navigate('/login')}>Sign in</Button>} />;
   }
-
-  const choices = info?.signupChoices ?? [];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -41,9 +41,8 @@ export function SetupPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await api.auth.setup(email.trim(), password, optIns);
+      await api.auth.setup(email.trim(), password, (info?.codeLifterRegistration ?? false) && register);
       notify('Admin account created. Sign in to continue.', 'success');
-      if (result.signup) notify(result.signup.message, result.signup.sent ? 'info' : 'warning');
       await refresh();
       navigate('/login', { replace: true });
     } catch (err) {
@@ -54,34 +53,44 @@ export function SetupPage() {
   };
 
   return (
-    <Card>
-      <form className="sz-stack" onSubmit={submit} noValidate>
-        <div className="sz-stack-sm">
-          <h1>Welcome</h1>
-          <p className="sz-muted sz-small">Create your admin account.</p>
+    <div className="sz-stack">
+      <Card>
+        <div className="sz-stack">
+          <span className="sz-kicker">Optional, before you start</span>
+          <Checkbox label="Keep StageZero's data in PostgreSQL" checked={choosingDatabase} disabled={busy}
+            onChange={(e) => setChoosingDatabase(e.target.checked)} />
+          <span className="sz-xs sz-muted sz-indent">
+            Optional. Without it, StageZero uses a SQLite file in its data directory, and you can move to PostgreSQL later from Settings.
+          </span>
+          {choosingDatabase ? (
+            <DatabaseSwitch databases={api.setupDatabase}
+              onSwitched={() => notify('StageZero is now on PostgreSQL. Create your admin account.', 'success')} />
+          ) : null}
         </div>
-        <Input label="Admin email" hint="This is your login" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
-        <Input label="Password" hint="Minimum 8 characters" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
-        <Input label="Confirm password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={busy} />
-        {choices.length > 0 ? (
+      </Card>
+      <Card>
+        <form className="sz-stack" onSubmit={submit} noValidate>
           <div className="sz-stack-sm">
-            <span className="sz-kicker">Optional</span>
-            {choices.map((c) => (
-              <div key={c.key} className="sz-stack-sm">
-                <Checkbox
-                  label={c.label}
-                  checked={optIns.includes(c.key)}
-                  disabled={busy}
-                  onChange={(e) => setOptIns((list) => (e.target.checked ? [...list, c.key] : list.filter((k) => k !== c.key)))}
-                />
-                <span className="sz-xs sz-muted sz-indent">{c.description}</span>
-              </div>
-            ))}
+            <h1>Welcome</h1>
+            <p className="sz-muted sz-small">Create your admin account.</p>
           </div>
-        ) : null}
-        {error ? <Notice tone="danger">{error}</Notice> : null}
-        <Button type="submit" disabled={busy || !email || !password || !confirm}>{busy ? 'Creating account…' : 'Create admin account'}</Button>
-      </form>
-    </Card>
+          <Input label="Admin email" hint="This is your login" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
+          <Input label="Password" hint="Minimum 8 characters" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} />
+          <Input label="Confirm password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} disabled={busy} />
+          {info?.codeLifterRegistration ? (
+            <div className="sz-stack-sm">
+              <Checkbox label="Register this install with codelifter.net" checked={register} disabled={busy}
+                onChange={(e) => setRegister(e.target.checked)} />
+              <span className="sz-xs sz-muted sz-indent">
+                Sends your admin email and StageZero&apos;s version to codelifter.net, so CodeLifter knows who runs StageZero.
+                It signs you up for nothing and sends you no email. The newsletter and update emails are optional, in Settings.
+              </span>
+            </div>
+          ) : null}
+          {error ? <Notice tone="danger">{error}</Notice> : null}
+          <Button type="submit" disabled={busy || !email || !password || !confirm}>{busy ? 'Creating account…' : 'Create admin account'}</Button>
+        </form>
+      </Card>
+    </div>
   );
 }

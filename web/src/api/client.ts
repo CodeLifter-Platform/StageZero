@@ -3,7 +3,8 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CurrentIp, DeleteRouteResult,
+  AccessStatus, AccountResult, CloudflareCredential, EmailUpdateResult, EmailUpdates, CloudflareDnsRecord, DatabaseStatus, DatabaseSwitchResult,
+  PostgresTarget, PostgresTestResult, CloudflareZone, CurrentIp, DeleteRouteResult,
   DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
   RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView,
   TunnelConfig, TunnelRoute, TunnelRouteInput,
@@ -94,7 +95,8 @@ const del = <T>(path: string) => request<T>('DELETE', path);
 export const api = {
   auth: {
     session: () => get<SessionInfo>('/api/auth/session'),
-    setup: (email: string, password: string, optIns: string[]) => post<SetupResult>('/api/auth/setup', { email, password, optIns }),
+    setup: (email: string, password: string, registerWithCodeLifter: boolean) =>
+      post<SetupResult>('/api/auth/setup', { email, password, registerWithCodeLifter }),
     login: (email: string, password: string) => post<SessionUser>('/api/auth/login', { email, password }),
     logout: () => post<undefined>('/api/auth/logout'),
     forgotPassword: (email: string) => post<undefined>('/api/auth/forgot-password', { email }),
@@ -148,8 +150,25 @@ export const api = {
       put<CloudflareCredential>('/api/settings/cloudflare', { apiToken, accountId: accountId || null }),
     checkCloudflare: () => post<CloudflareCredential>('/api/settings/cloudflare/check'),
     removeCloudflare: () => del<undefined>('/api/settings/cloudflare'),
+    emailUpdates: () => get<EmailUpdates>('/api/settings/email-updates'),
+    subscribe: (key: string) => post<EmailUpdateResult>('/api/settings/email-updates', { key }),
+    /** Asks codelifter.net to email the signed-in address a one-hour link to manage its lists. */
+    manageLink: () => post<EmailUpdateResult>('/api/settings/email-updates/manage-link', {}),
   },
+  database: databaseApi('/api/settings/database'),
+  /** The same calls on the first-run page, open only while no user exists. */
+  setupDatabase: databaseApi('/api/setup/database'),
 };
+
+export type DatabaseApi = ReturnType<typeof databaseApi>;
+
+function databaseApi(base: string) {
+  return {
+    status: () => get<DatabaseStatus>(base),
+    test: (target: PostgresTarget) => post<PostgresTestResult>(`${base}/test`, target),
+    switchTo: (target: PostgresTarget) => post<DatabaseSwitchResult>(`${base}/switch`, target),
+  };
+}
 
 /** Live IP changes over server-sent events. Returns a function that closes the stream. */
 export function subscribeToIp(onIp: (ip: CurrentIp) => void): () => void {

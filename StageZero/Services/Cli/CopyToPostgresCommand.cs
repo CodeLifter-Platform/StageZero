@@ -64,8 +64,23 @@ public static class CopyToPostgresCommand
             return 1;
         }
 
-        var source = DatabaseSettings.Sqlite(sqlitePath);
-        var target = DatabaseSettings.Postgres(targetConnection);
+        var copied = await CopyAsync(DatabaseSettings.Sqlite(sqlitePath), DatabaseSettings.Postgres(targetConnection), output, cancellationToken);
+        if (copied != 0) return copied;
+
+        await output.WriteLineAsync(
+            $"Done. Set {DatabaseSettings.ProviderVariable}=postgres and {DatabaseSettings.ConnectionVariable} for the app, " +
+            "keep the data directory mounted (it holds the keys), and restart.");
+        return 0;
+    }
+
+    /// <summary>
+    /// The copy itself, also used by the web app's switch (<c>DatabaseSwitchService</c>):
+    /// migrates both, refuses a target that has any row, then copies every table in one
+    /// transaction. 0 on success, 1 when the target already has data.
+    /// </summary>
+    public static async Task<int> CopyAsync(
+        DatabaseSettings source, DatabaseSettings target, TextWriter output, CancellationToken cancellationToken = default)
+    {
         await output.WriteLineAsync($"From: {source.Describe()}");
         await output.WriteLineAsync($"To:   {target.Describe()}");
 
@@ -116,9 +131,6 @@ public static class CopyToPostgresCommand
             await transaction.CommitAsync(cancellationToken);
         }
 
-        await output.WriteLineAsync(
-            $"Done. Set {DatabaseSettings.ProviderVariable}=postgres and {DatabaseSettings.ConnectionVariable} for the app, " +
-            "keep the data directory mounted (it holds the keys), and restart.");
         return 0;
     }
 

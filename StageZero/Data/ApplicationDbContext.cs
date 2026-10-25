@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using StageZero.Models;
 using Lifted.BlazorAuth.Basic.Data;
+using Lifted.BlazorAuth.Basic.Models;
 
 namespace StageZero.Data;
 
@@ -33,6 +34,11 @@ public class ApplicationDbContext : BasicAuthDbContext
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // An email address is one address in any case: a@x and A@x can't both have an account,
+        // and signing in as A@x finds a@x. SQLite's NOCASE folds ASCII letters only, which
+        // covers addresses in practice; PostgreSQL uses citext (PostgresApplicationDbContext).
+        builder.Entity<User>().Property(u => u.Email).UseCollation("NOCASE");
 
         // Configure IpCheck entity
         builder.Entity<IpCheck>(entity =>

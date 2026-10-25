@@ -1,6 +1,11 @@
 # StageZero on PostgreSQL: an add-on to docker-compose.yml that runs a PostgreSQL 18 beside
 # the app and keeps the data there instead of the SQLite file.
 #
+# For CI and trying PostgreSQL out. The database lives in StageZero's own stack, so
+# `docker compose down -v` deletes it. For data you keep, run PostgreSQL outside this stack
+# (the platform Infra stack) and choose it in the web app: Settings -> Database
+# (..Documentation/OnboardDocker.md, On PostgreSQL).
+#
 #   echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 #
