@@ -1,25 +1,39 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using StageZero.DataAdapters.CloudflareCredentials;
 using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.Models;
+using StageZero.Services;
 using StageZero.Tests.Infrastructure;
 
 namespace StageZero.Tests.Dns;
 
-/// <summary>Seeds a provider and records, and answers Cloudflare's DNS API in FakeHttp.</summary>
+/// <summary>Seeds the saved token, a provider and records, and answers Cloudflare's DNS API in FakeHttp.</summary>
 internal static class CloudflareFakes
 {
     public const string Token = "cf-test-token-0123456789abcdefghijklmnop";
     public const string ZoneId = "zone-1";
     public const string ZoneUrl = $"https://api.cloudflare.com/client/v4/zones/{ZoneId}/dns_records";
 
+    /// <summary>Saves <see cref="Token"/> as the Settings page would, without asking Cloudflare.</summary>
+    public static async Task SaveTokenAsync(StageZeroApp app, string? accountId = null)
+    {
+        using var scope = app.Services.CreateScope();
+        var protector = scope.ServiceProvider.GetRequiredService<ICloudflareTokenProtector>();
+        await scope.ServiceProvider.GetRequiredService<ICloudflareCredentialWriter>().UpsertAsync(new CloudflareCredential
+        {
+            ProtectedApiToken = protector.Protect(Token), AccountId = accountId
+        });
+    }
+
     public static async Task<DnsProvider> AddProviderAsync(StageZeroApp app, params DnsRecord[] records)
     {
+        await SaveTokenAsync(app);
         using var scope = app.Services.CreateScope();
         var provider = await scope.ServiceProvider.GetRequiredService<IDnsProviderWriter>().InsertAsync(new DnsProvider
         {
-            Name = "Home", ProviderType = "Cloudflare", ApiToken = Token, ZoneId = ZoneId
+            Name = "Home", ProviderType = "Cloudflare", ZoneId = ZoneId
         });
 
         var writer = scope.ServiceProvider.GetRequiredService<IDnsRecordWriter>();

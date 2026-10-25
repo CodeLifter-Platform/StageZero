@@ -3,16 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace StageZero.Models;
 
 /// <summary>
-/// Single-row table holding the Cloudflare account and tunnel this instance manages.
+/// Single-row table holding the tunnel this instance manages. The account and API token it is
+/// reached with are the Settings page's (<see cref="CloudflareCredential"/>).
 /// </summary>
 public class TunnelConfig
 {
     [Key]
     public int Id { get; set; }
-
-    [Required]
-    [MaxLength(100)]
-    public string CloudflareAccountId { get; set; } = string.Empty;
 
     /// <summary>Zone the tunnel's hostnames live in (CNAMEs are written here).</summary>
     [MaxLength(100)]
@@ -21,13 +18,6 @@ public class TunnelConfig
     /// <summary>Zone name, kept for display so the UI need not re-query Cloudflare.</summary>
     [MaxLength(255)]
     public string? CloudflareZoneName { get; set; }
-
-    /// <summary>
-    /// API token encrypted with ASP.NET Data Protection. Never store the raw token —
-    /// go through ICloudflareTokenProtector.
-    /// </summary>
-    [Required]
-    public string ProtectedApiToken { get; set; } = string.Empty;
 
     [MaxLength(100)]
     public string? TunnelId { get; set; }

@@ -72,7 +72,8 @@ Narrow the list only when a hostname should accept one specific provider.
 
 StageZero's DNS and tunnel work is **zone-scoped**; Access is **account-scoped**. A token
 that happily writes DNS records may have no Access permissions whatsoever. Access uses the
-token saved in **Tunnel Setup**, and needs, on top of the tunnel permissions:
+one token saved on the **Settings** page (click your email, top right), which shows whether
+it has these. On top of the tunnel permissions it needs:
 
 | Scope | Permission | Needed for |
 |---|---|---|

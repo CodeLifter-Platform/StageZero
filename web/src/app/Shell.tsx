@@ -15,10 +15,14 @@ export const NAV = [
   { id: '/tunnel-routes', label: 'Tunnel Routes', icon: '⑂' },
 ];
 
-/** Which nav item a path belongs to: /tunnel-routes/edit/3 is under Tunnel Routes. */
+/**
+ * Which nav item a path belongs to: /tunnel-routes/edit/3 is under Tunnel Routes. A page
+ * outside the nav (Settings, opened from the email) highlights nothing.
+ */
 export function navFor(pathname: string): string {
+  if (pathname === '/') return '/';
   const match = NAV.filter((n) => n.id !== '/' && (pathname === n.id || pathname.startsWith(`${n.id}/`)));
-  return match[0]?.id ?? '/';
+  return match[0]?.id ?? '';
 }
 
 function readCollapsed(): boolean {
@@ -52,7 +56,12 @@ export function Shell({ children }: { children: ReactNode }) {
           <IpChip />
           <span className="sz-spacer" />
           <ThemeToggle />
-          <span className="sz-small sz-muted" title="Signed in as">{info?.user?.email}</span>
+          {/* The account menu: the email opens Settings (the Cloudflare token lives there). */}
+          <Button variant="ghost" size="sm" title="Settings" aria-label={`Settings for ${info?.user?.email ?? 'your account'}`}
+            aria-current={location.pathname === '/settings' ? 'page' : undefined}
+            onClick={() => navigate('/settings')}>
+            {info?.user?.email}
+          </Button>
           <Button variant="ghost" size="sm" onClick={async () => { await signOut(); navigate('/login'); }}>Sign out</Button>
         </header>
         <main className="sz-content">{children}</main>

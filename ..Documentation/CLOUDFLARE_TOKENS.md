@@ -19,8 +19,8 @@ placeholders.
 
 | Credential | Secret? | Where it comes from | Where it goes in StageZero | Stored by StageZero |
 |---|---|---|---|---|
-| **API token** | Yes | You create it in the Cloudflare dashboard | **DNS Configuration → Cloudflare credentials**, and **Tunnel Setup → API token** | Yes, encrypted with ASP.NET Data Protection |
-| **Account ID** | No | Cloudflare dashboard | **Tunnel Setup → Account ID** | Yes, plain |
+| **API token** | Yes | You create it in the Cloudflare dashboard | **Settings** (click your email, top right) → **Cloudflare API token**. One token for DNS, Tunnel and Access | Yes, encrypted with ASP.NET Data Protection |
+| **Account ID** | No | Worked out from the token; the dashboard URL if the token reaches several accounts | **Settings → Account ID (optional)** | Yes, plain |
 | **Connector token** | Yes | StageZero fetches it from Cloudflare after tunnel setup | Not entered. You pass it to `cloudflared service install` or `TUNNEL_TOKEN` | No. Fetched from Cloudflare each time it is shown |
 | **Access service token** (client ID + client secret) | The secret is | StageZero mints it when a route uses `service_token` or `both` | Not entered. Your clients send it as headers | Client ID only. **The secret never** |
 
@@ -52,7 +52,7 @@ is the most common setup mistake.
 
 | Feature | Scope | Permission | What StageZero does with it |
 |---|---|---|---|
-| **Dynamic DNS** | Zone | Zone → **Read** | Lists zones on the DNS Configuration credentials card (`GET /zones`) |
+| **Dynamic DNS** | Zone | Zone → **Read** | Lists zones on the DNS Configuration page's *Add a zone* card (`GET /zones`) |
 | | Zone | DNS → **Edit** | Lists records (import, "Load existing records") and rewrites an A record's address (`PATCH /zones/{zone}/dns_records/{id}`) |
 | **Cloudflare Tunnel** | Zone | Zone → **Read** | Lists zones during Tunnel Setup |
 | | Account | Cloudflare Tunnel → **Edit** | Lists, creates and adopts tunnels, fetches the connector token, pushes ingress rules (`/accounts/{account}/cfd_tunnel/...`) |
@@ -75,31 +75,35 @@ Edit, not Read, throughout. StageZero's Access pre-check can only prove the toke
 *read* the endpoints. A Read-only token passes the check and then fails on the first write
 with Cloudflare's own error.
 
-### One token or two?
+### One token
 
-The DNS provider and Tunnel Setup each keep their own copy of a token, so you choose:
+StageZero keeps exactly one token, on the **Settings** page, and every feature uses it. The
+page shows the five rows it needs and, after a save or **Check permissions**, which of them
+this token has:
 
-- **One token for everything.** Grant every permission in the table. Paste the same token
-  into DNS Configuration and into Tunnel Setup. Simplest, and what the Tunnel Setup page
-  suggests.
-- **Least privilege.** A *dynamic DNS* token with only Zone → Read and DNS → Edit, limited
-  to the zones you update, for each DNS provider. A *tunnel* token with everything else for
-  Tunnel Setup. Access always uses the Tunnel Setup token, since Access is provisioned as
-  part of publishing a route.
+| Scope | Item | Level | Without it |
+|---|---|---|---|
+| Account | Cloudflare Tunnel | Edit | No tunnel setup or route changes |
+| Account | Access: Apps and Policies | Edit | Routes in `identity` or `both` mode fail and roll back |
+| Account | Access: Service Tokens | Edit | Routes in `service_token` or `both` mode fail and roll back |
+| Zone | DNS | Edit | No DNS updates, no tunnel CNAMEs |
+| Zone | Zone | Read | Nothing can find a zone |
 
-| | DNS provider token | Tunnel Setup token |
-|---|---|---|
-| Zone → Zone → Read | ✅ | ✅ |
-| Zone → DNS → Edit | ✅ | ✅ |
-| Account → Cloudflare Tunnel → Edit | | ✅ |
-| Account → Access: Apps and Policies → Edit | | ✅ (unless every route is `none`) |
-| Account → Access: Service Tokens → Edit | | ✅ (for `service_token` / `both`) |
-| Account → Access: Organizations, Identity Providers, and Groups → Read | | optional |
+*Access: Organizations, Identity Providers, and Groups → Read* is optional on top: it fills
+the identity-provider picker in the route editor.
 
-If you only want dynamic DNS and tunnels, leave the Access permissions off and set each
-route's Access mode to `none`. Every other part of the app works without them. Routes
-default to `identity`, though, and saving one without Access permissions fails and rolls
-back.
+**Least privilege** still works within one token. A token with only the two Zone rows,
+limited to the zones you update, runs dynamic DNS; Settings saves it, reports the Account
+rows as missing, and Tunnel Setup asks for a token with account permissions. If you only
+want dynamic DNS and tunnels, leave the Access permissions off and set each route's Access
+mode to `none`. Routes default to `identity`, though, and saving one without Access
+permissions fails and rolls back.
+
+Installs from before the Settings page kept a token per DNS provider and one for the tunnel.
+The upgrade keeps one of them: the tunnel's if there was a tunnel (it carried the most
+permissions), else the first enabled provider's. If your providers used tokens for zones the
+kept token can't see, **Check permissions** shows it; replace the token with one that covers
+every zone.
 
 ---
 
@@ -140,30 +144,38 @@ token into StageZero; it proves the token is active, though not which permission
 
 ### The Account ID
 
-Not a secret, but Tunnel Setup needs it. It appears in the dashboard under
-**Workers & Pages → Account details**, and in the **API** section on the right of any
-zone's **Overview** page.
+Not a secret, and usually not needed: when you save the token, StageZero asks Cloudflare which
+accounts it reaches and uses the only one. Enter it only if the token reaches several. It is
+the hex string in the dashboard URL (`dash.cloudflare.com/<account-id>/…`), and is in the
+**API** section on the right of any zone's **Overview** page.
+
+Don't give the token a custom start date in the future (Cloudflare's *Custom* expiry sets a
+window). Cloudflare accepts it but refuses every call until then; StageZero's Settings page
+refuses to save such a token and says when it starts working.
 
 ---
 
 ## Where the token goes in StageZero
 
-**Dynamic DNS.** **DNS Configuration → Cloudflare credentials**. Paste the token into
-*API token* and click **Connect**. StageZero lists every zone the token can reach; click
-**Add provider** next to each one you want (zones already added read *Added*). The provider
-is named after its zone. One provider per zone. Each provider stores its own copy of the
-token.
+**Settings → Cloudflare API token.** Open Settings by clicking your email at the top right.
+Paste the token (and the Account ID, only if it reaches several accounts) and click **Save
+token**. StageZero verifies it with Cloudflare first, refusing one that is disabled, expired
+or not valid yet, then saves it and runs one read-only probe per permission. The table shows
+*Granted* or *Missing* for each row. Cloudflare can't report an Edit right without a write,
+so DNS → Edit reads *Granted* when records can be read; the first update proves the rest.
 
-**Tunnel and Access.** **Tunnel Setup → 1. Cloudflare credentials**. Paste the token and
-the Account ID and click **Connect**. StageZero lists the zones and tunnels the token can
-see. The token is saved only when you **Create tunnel** or **Adopt** one. Until then it
-travels in each request and is not stored.
+**Dynamic DNS.** **DNS Configuration → Add a zone → Load zones**. StageZero lists every
+zone the saved token can reach; click **Add provider** next to each one you want (zones
+already added read *Added*). The provider is named after its zone.
 
-In both places the token is encrypted with ASP.NET Data Protection before it reaches the
-database, and it is never sent back to the browser. The keys that decrypt it live in the
-data directory (`dp-keys/`, `/app-data/dp-keys` in Docker). Lose that directory and every
-stored token is unreadable; StageZero then behaves as if the tunnel was never set up, and
-DNS updates fail until the providers are re-added.
+**Tunnel and Access.** **Tunnel Setup → 1. Cloudflare account** shows the account from
+Settings; click **Connect** to list its zones and tunnels, then create or adopt one.
+
+The token is encrypted with ASP.NET Data Protection before it reaches the database, and it
+is never sent back to the browser. The keys that decrypt it live in the data directory
+(`dp-keys/`, `/app-data/dp-keys` in Docker). Lose that directory and the stored token is
+unreadable; Settings says so, and DNS updates, tunnel changes and Access stop until you
+enter the token again.
 
 ---
 
@@ -179,20 +191,15 @@ schedule):
 1. **Create the new token** in Cloudflare with the same permissions, or use **Roll** on the
    existing token's menu, which issues a new value for the same token. Either way, copy the
    new value now.
-2. **Tunnel Setup.** Paste the new token and the Account ID and click **Connect**. Pick the
-   same zone, then **Adopt** the tunnel StageZero already manages (it is listed as
-   *Remote*). This saves the new token and re-pushes every route's ingress rules. It does
-   not change the tunnel ID, the CNAMEs or the connector token, so `cloudflared` keeps
-   running and nothing goes offline. Avoid **Disconnect** for this. It is not needed, and
-   it leaves StageZero managing nothing until you connect again.
-3. **Each DNS provider.** A provider's token cannot be edited in place yet. Delete the
-   provider, then add it again from **Cloudflare credentials** with the new token, then **Import all records**. Deleting a
-   provider removes its records *from StageZero only*; Cloudflare keeps them, and the
-   import brings them back. Records you added by hand need **Auto-update** ticked again if
-   the import did not set it (it does for A records).
-4. **Revoke the old token** in Cloudflare (*Delete* on the old token, unless you used
-   *Roll*, which already invalidated it).
-5. **Check.** On **IP Monitor**, click **Check now**; the server log should show no
+2. **Settings → Replace token.** Paste the new value and click **Replace token**. It is
+   verified and checked like a new one, and every feature uses it from the next call. The
+   tunnel ID, the CNAMEs and the connector token don't change, so `cloudflared` keeps running
+   and nothing goes offline. While a tunnel is saved, a token for a *different* account is
+   refused: disconnect the tunnel on Tunnel Setup first if you really are moving accounts.
+3. **Revoke the old token** in Cloudflare (*Delete* on the old token, unless you used
+   *Roll*, which already invalidated it). **Remove** on the Settings page only makes
+   StageZero forget the token; it keeps working at Cloudflare until you delete it there.
+4. **Check.** On **IP Monitor**, click **Check now**; the server log should show no
    "Failed to update Cloudflare DNS record" lines. Open a route's **Access** page; it reads
    Cloudflare live with the new token.
 
@@ -238,6 +245,19 @@ in the server log), it tells you which kind of problem it is: **Unauthorized** m
 token is wrong, revoked or expired. **Forbidden** means the token is valid but lacks a
 permission or does not cover that zone or account.
 
+### Settings
+
+| Message | Cause |
+|---|---|
+| `Cloudflare did not accept this token: Cloudflare could not verify the token: Invalid API Token` | A typo, a revoked token, or an account-owned token whose account isn't given (enter the Account ID) |
+| `This token can't be used until <date> UTC. …` | The token has a custom start date in the future. Edit it in Cloudflare and choose a preset expiry |
+| `This token has expired. …` / `Cloudflare reports this token as disabled. …` | Roll it, re-enable it, or create a new one |
+| `This token can see several accounts (…). Enter the Account ID StageZero should use.` | Fill in *Account ID* |
+| `This token can't see account <id>. …` | The Account ID is wrong, or not in the token's *Account Resources* |
+| `The tunnel <name> is managed in account <id>, but this token is for account <id>. …` | Replacing with another account's token while a tunnel is saved. Disconnect the tunnel first, or use a token for the same account |
+| `No Cloudflare API token is saved. Add one on the Settings page …` (on any page) | No token yet, or it was removed |
+| `The saved Cloudflare API token can't be decrypted …` | The `dp-keys` directory was lost. Enter the token again |
+
 ### DNS Configuration
 
 These messages do not carry Cloudflare's status code. The server log does: look for
@@ -246,7 +266,7 @@ These messages do not carry Cloudflare's status code. The server log does: look 
 
 | Message | Missing |
 |---|---|
-| `Failed to load zones: Could not get zones` (Connect on DNS Configuration) | The token is wrong, revoked or expired (Unauthorized in the log), or lacks Zone → Zone → Read (Forbidden) |
+| `Failed to load zones: Could not get zones` (Load zones on DNS Configuration) | The token is wrong, revoked or expired (Unauthorized in the log), or lacks Zone → Zone → Read (Forbidden) |
 | `No zones found for this API token` | The token works but no zone is in its *Zone Resources* |
 | `Failed to load DNS records: Could not get DNS records` (Load existing records) | Zone → DNS (Read at least; grant Edit), or the token was revoked |
 | `Error importing records: Could not get DNS records` (Import all records) | Same |
@@ -258,13 +278,15 @@ screen:
   the token can read records but not write them. Grant DNS → Edit.
 - `Could not list DNS records for provider <name>`: the token cannot read the zone's
   records at all, or has been revoked.
+- `Skipping DNS verification: no usable Cloudflare API token is saved`: add one on Settings.
 
 ### Tunnel Setup
 
 | Message | Missing |
 |---|---|
-| `Could not reach Cloudflare with those credentials: Could not get zones` | The token is wrong, revoked or expired, or lacks Zone → Zone → Read (the log has the status) |
-| `Could not reach Cloudflare with those credentials: Cloudflare API error while trying to list tunnels: Forbidden — ‹…›` | Account → Cloudflare Tunnel → Edit, a wrong Account ID, or the account is not in the token's *Account Resources* |
+| `The saved Cloudflare API token has no account permissions, which the tunnel and Access need. …` | Every Account row: the token is zone-only. Replace it on Settings |
+| `Could not reach Cloudflare with the saved token: Could not get zones` | The token is wrong, revoked or expired, or lacks Zone → Zone → Read (the log has the status) |
+| `Could not reach Cloudflare with the saved token: Cloudflare API error while trying to list tunnels: Forbidden — ‹…›` | Account → Cloudflare Tunnel → Edit, or the account is not in the token's *Account Resources* |
 | `The token is valid but can't see any zones. Check that it has Zone → Zone → Read.` | Zone → Zone → Read, or no zone in *Zone Resources* |
 | `That zone isn't visible to this token.` | The chosen zone is not in the token's *Zone Resources* |
 | `Could not create the tunnel: …` / `Could not adopt the tunnel: …` | Cloudflare Tunnel → **Edit** (Read is not enough) |
@@ -276,9 +298,9 @@ screen:
 |---|---|
 | `Could not save the route: Cloudflare API error while trying to write CNAME for <host>: Forbidden — ‹…›` | Zone → DNS → Edit on the tunnel's zone |
 | `Could not save the route: Cloudflare API error while trying to sync ingress rules: …` | Cloudflare Tunnel → Edit |
-| `Could not save the route: Cloudflare Access setup failed for <host>: The saved Cloudflare API token cannot manage Access. Add these account-scoped permissions and save the token again: Access: Apps Read and Access: Apps Edit; Access: Service Tokens Read and Access: Service Tokens Edit. The route has been disabled and its DNS record removed, …` | The Access permissions named. The service-token one is listed whenever it is missing but only blocks `service_token` and `both` routes |
+| `Could not save the route: Cloudflare Access setup failed for <host>: The saved Cloudflare API token cannot manage Access. Add these account-scoped permissions and save the token again on the Settings page: Access: Apps Read and Access: Apps Edit; Access: Service Tokens Read and Access: Service Tokens Edit. The route has been disabled and its DNS record removed, …` | The Access permissions named. The service-token one is listed whenever it is missing but only blocks `service_token` and `both` routes |
 | `Could not save the route: Cloudflare Access setup failed for <host>: ‹…› The route has been disabled and its DNS record removed, …` (any other Cloudflare detail) | Usually an Edit level that is only Read, or the policy permission (see the note above) |
-| `Cloudflare Tunnel is not configured. Complete setup at /tunnel-settings first.` | Not a permission problem. Tunnel Setup was never finished, or its token can no longer be decrypted (lost `dp-keys`) |
+| `Cloudflare Tunnel is not configured. Save a Cloudflare API token on the Settings page, then complete Tunnel Setup.` | Not a permission problem. Tunnel Setup was never finished, no token (or a zone-only one) is saved, or the token can no longer be decrypted (lost `dp-keys`) |
 
 When Access fails, StageZero has already published the ingress rule and the CNAME. It then
 **rolls the route back**: it disables the route, pushes ingress without it and deletes its

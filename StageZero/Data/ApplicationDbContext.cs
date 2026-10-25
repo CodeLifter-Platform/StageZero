@@ -28,6 +28,7 @@ public class ApplicationDbContext : BasicAuthDbContext
     public DbSet<TunnelRoute> TunnelRoutes => Set<TunnelRoute>();
     public DbSet<TunnelConfig> TunnelConfigs => Set<TunnelConfig>();
     public DbSet<AccessServiceToken> AccessServiceTokens => Set<AccessServiceToken>();
+    public DbSet<CloudflareCredential> CloudflareCredentials => Set<CloudflareCredential>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -48,8 +49,6 @@ public class ApplicationDbContext : BasicAuthDbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
             entity.Property(e => e.ProviderType).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ProtectedApiToken).IsRequired();
-            entity.Ignore(e => e.ApiToken);
             entity.Property(e => e.ZoneId).HasMaxLength(100);
         });
 
@@ -127,13 +126,21 @@ public class ApplicationDbContext : BasicAuthDbContext
         builder.Entity<TunnelConfig>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.CloudflareAccountId).HasMaxLength(100).IsRequired();
             entity.Property(e => e.CloudflareZoneId).HasMaxLength(100);
             entity.Property(e => e.CloudflareZoneName).HasMaxLength(255);
-            entity.Property(e => e.ProtectedApiToken).IsRequired();
             entity.Property(e => e.TunnelId).HasMaxLength(100);
             entity.Property(e => e.TunnelName).HasMaxLength(255);
             entity.Ignore(e => e.IsConfigured);
+        });
+
+        // Configure CloudflareCredential entity (single row)
+        builder.Entity<CloudflareCredential>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ProtectedApiToken).IsRequired();
+            entity.Property(e => e.AccountId).HasMaxLength(100);
+            entity.Property(e => e.AccountName).HasMaxLength(255);
+            entity.Property(e => e.TokenId).HasMaxLength(100);
         });
 
         // Configure AccessServiceToken entity

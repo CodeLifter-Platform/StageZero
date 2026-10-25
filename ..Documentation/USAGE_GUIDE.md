@@ -141,7 +141,27 @@ Signed in, every page has:
 - **The sidebar**: Home, IP Monitor, DNS Configuration, Tunnel Setup, Tunnel Routes.
   Its collapse button shrinks it to an icon rail; the choice is remembered in this browser.
 - **The top bar**: the current public IP (it updates live when it changes), the theme
-  toggle, the signed-in email and **Sign out**.
+  toggle, the signed-in email (click it for **Settings**) and **Sign out**.
+
+### Settings: the Cloudflare API token
+
+StageZero reaches Cloudflare with **one** API token, for dynamic DNS, the tunnel and Access
+alike. Click your email in the top bar to open **Settings**, where it lives:
+
+1. The **Permissions the token needs** table lists the five rows to add when you create the
+   token (Account → Cloudflare Tunnel, Access: Apps and Policies, Access: Service Tokens, all
+   Edit; Zone → DNS → Edit; Zone → Zone → Read), with what each is for, and the steps for
+   Cloudflare's *Create Token* page. Details: [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md).
+2. Paste the token and click **Save token**. Fill in **Account ID** only if the token
+   reaches more than one account. StageZero verifies the token with Cloudflare first and
+   refuses one that is disabled, expired or not valid yet (a custom start date in the
+   future), then saves it encrypted and marks each permission *Granted* or *Missing*.
+3. **Check permissions** re-runs the checks, **Replace token** swaps in a new value (that is
+   how you [rotate it](CLOUDFLARE_TOKENS.md#rotating-the-token)), and **Remove** makes
+   StageZero forget it. Removing doesn't revoke it: delete it in Cloudflare too.
+
+The token is never shown again once saved. A token with only the two Zone rows runs dynamic
+DNS; the tunnel and Access need the Account rows.
 
 ### Theme toggle
 
@@ -178,19 +198,16 @@ dashboard is put back on the next check.
 
 ### Add a DNS provider
 
-A *provider* is one Cloudflare zone plus the token StageZero uses for it.
+A *provider* is one Cloudflare zone StageZero manages records in, reached with the token
+saved on [Settings](#settings-the-cloudflare-api-token).
 
-1. Create a Cloudflare API token with **Zone → Zone → Read** and **Zone → DNS → Edit**
-   ([CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md)).
-2. Open **DNS Configuration** (`/dns-config`). In the **Cloudflare credentials** card,
-   paste the **API token** and click **Connect**.
+1. Save the token on Settings first. Until then, DNS Configuration points you there.
+2. Open **DNS Configuration** (`/dns-config`). In the **Add a zone** card, click
+   **Load zones**.
 3. StageZero lists every zone the token can reach. Click **Add provider** next to the zone
    you want; the provider is named after the zone. Zones you already manage read *Added*.
 4. A new provider starts with updates on. To stage records without touching DNS yet,
    switch it to **Updates disabled** on its card before adding records.
-
-The token is encrypted before it is stored and is never shown again. To change it, see
-[rotating the token](CLOUDFLARE_TOKENS.md#rotating-the-token).
 
 Each provider card has a switch, **Updates enabled / Updates disabled**. Switched off, IP
 monitoring continues and the records stay listed, but StageZero makes no DNS changes for
@@ -232,11 +249,10 @@ A Cloudflare Tunnel publishes services on your network at your own hostnames, wi
 port forwarding, no certificates and no public IP needed. The detailed runbook, including
 migrating from a local `config.yml`, is [CLOUDFLARE_TUNNEL_SETUP.md](CLOUDFLARE_TUNNEL_SETUP.md).
 
-1. Create an API token with the tunnel and Access permissions in
-   [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md#by-feature), and note your Account ID.
-2. Open **Tunnel Setup** (`/tunnel-settings`). Under **1. Cloudflare credentials**, paste
-   the **API token** and the **Account ID** and click **Connect**. StageZero lists the
-   zones and tunnels the token can see.
+1. Save a token with the Account permissions on
+   [Settings](#settings-the-cloudflare-api-token). Settings shows whether it has them.
+2. Open **Tunnel Setup** (`/tunnel-settings`). **1. Cloudflare account** shows the account
+   the token belongs to; click **Connect**. StageZero lists the zones and tunnels it can see.
 3. Under **2. Zone and tunnel**, pick the **Zone** your hostnames belong to. Then either:
    - **Adopt** a tunnel already on the account. A tunnel marked *Local file* is switched to
      remotely-managed configuration. Adopting a tunnel that serves traffic interrupts it:
@@ -261,11 +277,8 @@ more resilient choice.
 Afterwards, **Current configuration** at the top of Tunnel Setup shows the tunnel, its ID,
 the zone and the Account ID. **Show connector token** fetches the token again from
 Cloudflare when you need to reinstall the connector. **Disconnect** forgets the saved
-account and tunnel. The tunnel and its routes stay on Cloudflare, but StageZero stops
-managing them until you connect again.
-
-The API token is not shown again after a tunnel is saved. Changing any setting on this
-page means entering it again; that is also how you [rotate it](CLOUDFLARE_TOKENS.md#rotating-the-token).
+tunnel; the API token on Settings stays. The tunnel and its routes stay on Cloudflare, but
+StageZero stops managing them until you connect again.
 
 ---
 

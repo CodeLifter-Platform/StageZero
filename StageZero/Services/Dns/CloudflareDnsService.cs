@@ -12,7 +12,7 @@ namespace StageZero.Services.Dns;
 
 public interface ICloudflareService
 {
-    Task<bool> UpdateDnsRecordAsync(DnsProvider provider, DnsRecord record, string ipAddress);
+    Task<bool> UpdateDnsRecordAsync(string apiToken, DnsProvider provider, DnsRecord record, string ipAddress);
     Task<List<CloudflareZone>> GetZonesAsync(string apiToken);
     Task<List<CloudflareDnsRecord>> GetDnsRecordsAsync(string apiToken, string zoneId);
 }
@@ -66,7 +66,7 @@ public class CloudflareService : ICloudflareService
         _dnsRecordWriter = dnsRecordWriter;
     }
 
-    public async Task<bool> UpdateDnsRecordAsync(DnsProvider provider, DnsRecord record, string ipAddress)
+    public async Task<bool> UpdateDnsRecordAsync(string apiToken, DnsProvider provider, DnsRecord record, string ipAddress)
     {
         try
         {
@@ -75,7 +75,7 @@ public class CloudflareService : ICloudflareService
                 throw new CloudflareServiceException("Zone ID is required for Cloudflare provider");
             }
 
-            var httpClient = CreateAuthenticatedClient(provider.ApiToken);
+            var httpClient = CreateAuthenticatedClient(apiToken);
 
             // If we don't have a record ID, we need to find it first
             if (string.IsNullOrEmpty(record.RecordId))

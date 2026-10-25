@@ -66,7 +66,6 @@ export interface CloudflareDnsRecord { id: string; name: string; type: string; c
 export interface ImportResult { imported: number; skipped: number }
 
 export interface TunnelConfig {
-  accountId: string;
   zoneId: string | null;
   zoneName: string | null;
   tunnelId: string | null;
@@ -147,4 +146,29 @@ export interface AccessStatus {
   serviceTokenRouteCount: number;
   warnings: string[];
   isUnprotected: boolean;
+}
+
+/** One permission the Cloudflare token needs, phrased as Cloudflare's Create Token page shows it. */
+export interface CloudflarePermission { scope: string; item: string; level: string; usedFor: string }
+
+export interface CloudflarePermissionCheck { permission: CloudflarePermission; granted: boolean; detail: string }
+
+/** What is saved for the Cloudflare token. The token itself never comes back from the server. */
+export interface CloudflareCredentialStatus {
+  isConfigured: boolean;
+  /** False when a token is saved but the keys that decrypt it are gone. */
+  isReadable: boolean;
+  accountId: string | null;
+  accountName: string | null;
+  tokenId: string | null;
+  expiresOn: string | null;
+  verifiedAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CloudflareCredential {
+  status: CloudflareCredentialStatus;
+  required: CloudflarePermission[];
+  /** What the last save or check found; null on a plain read. */
+  checks: CloudflarePermissionCheck[] | null;
 }

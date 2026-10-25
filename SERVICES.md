@@ -39,7 +39,8 @@ Last reviewed: 2026-09-27.
 
 - **Usage:** The DNS provider StageZero drives for dynamic DNS updates
   (`StageZero/Models/DnsProvider.cs`, DNS config UI).
-- **Managed at:** End-user Cloudflare accounts; API tokens supplied at runtime.
+- **Managed at:** End-user Cloudflare accounts. One API token, supplied on the Settings
+  page and stored encrypted, serves DNS, Tunnel and Access.
 
 ## Public IP lookup (Cloudflare trace, ipify, AWS checkip)
 
@@ -57,9 +58,8 @@ Last reviewed: 2026-09-27.
   (`StageZero/Services/Tunnel/CloudflareTunnelService.cs`) and writes proxied
   CNAMEs into the zone. Replaced the in-app YARP reverse proxy and Let's Encrypt
   certificate issuance, which are no longer needed — Cloudflare terminates TLS.
-- **Managed at:** End-user Cloudflare accounts. The API token is supplied through
-  the Tunnel Setup UI and stored encrypted; the connector token is installed on
-  the host as a `cloudflared` service.
+- **Managed at:** End-user Cloudflare accounts. The API token is the one saved on the
+  Settings page; the connector token is installed on the host as a `cloudflared` service.
 - **Detail:** [..Documentation/CLOUDFLARE_TUNNEL_SETUP.md](..Documentation/CLOUDFLARE_TUNNEL_SETUP.md).
 
 ## Cloudflare Access (Zero Trust)

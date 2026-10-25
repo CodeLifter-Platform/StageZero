@@ -1,6 +1,7 @@
 using StageZero.DataAdapters.TunnelConfigs;
 using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
+using StageZero.Services.Cloudflare;
 using StageZero.Services.Dns;
 
 namespace StageZero.Services.Tunnel;
@@ -10,24 +11,24 @@ namespace StageZero.Services.Tunnel;
 // ═══════════════════════════════════════════════════════════════
 
 /// <summary>
-/// The tunnel setup wizard: verify credentials, pick a zone, create or adopt a tunnel, and
-/// hand back the connector token for the host install. Stateless: the token typed on the
-/// form comes with every step until a tunnel is saved, then lives encrypted in the database.
+/// The tunnel setup wizard: list what the account holds, pick a zone, create or adopt a tunnel,
+/// and hand back the connector token for the host install. Every call uses the token and account
+/// saved on the Settings page; none takes credentials from the caller.
 /// </summary>
 public interface ITunnelSetupService
 {
     Task<TunnelConfig?> GetSavedConfigAsync();
 
-    /// <summary>Validates the credentials and lists the zones and tunnels they can see.</summary>
-    Task<(List<CloudflareZone> Zones, List<TunnelInfo> Tunnels)> LoadAccountAsync(string apiToken, string accountId);
+    /// <summary>Lists the zones and tunnels the saved token can see.</summary>
+    Task<(List<CloudflareZone> Zones, List<TunnelInfo> Tunnels)> LoadAccountAsync();
 
-    Task<TunnelSetupResult> CreateTunnelAsync(string apiToken, string accountId, string zoneId, string tunnelName);
+    Task<TunnelSetupResult> CreateTunnelAsync(string zoneId, string tunnelName);
 
     /// <summary>
     /// Adopts a tunnel already on the account. Whether it needs switching to remote config
     /// is read from Cloudflare, not taken from the caller.
     /// </summary>
-    Task<TunnelSetupResult> AdoptTunnelAsync(string apiToken, string accountId, string zoneId, string tunnelId);
+    Task<TunnelSetupResult> AdoptTunnelAsync(string zoneId, string tunnelId);
 
     /// <summary>Re-fetches the connector token for the saved tunnel.</summary>
     Task<string> GetConnectorTokenAsync();
@@ -54,7 +55,7 @@ public class TunnelSetupService : ITunnelSetupService
     private readonly ITunnelRouteReader _routeReader;
     private readonly ICloudflareService _cloudflareService;
     private readonly ICloudflareTunnelService _tunnelService;
-    private readonly ICloudflareTokenProtector _tokenProtector;
+    private readonly ICloudflareCredentialService _credentials;
     private readonly ITunnelSyncService _syncService;
 
     public TunnelSetupService(
@@ -64,7 +65,7 @@ public class TunnelSetupService : ITunnelSetupService
         ITunnelRouteReader routeReader,
         ICloudflareService cloudflareService,
         ICloudflareTunnelService tunnelService,
-        ICloudflareTokenProtector tokenProtector,
+        ICloudflareCredentialService credentials,
         ITunnelSyncService syncService)
     {
         _logger = logger;
@@ -73,15 +74,15 @@ public class TunnelSetupService : ITunnelSetupService
         _routeReader = routeReader;
         _cloudflareService = cloudflareService;
         _tunnelService = tunnelService;
-        _tokenProtector = tokenProtector;
+        _credentials = credentials;
         _syncService = syncService;
     }
 
     public Task<TunnelConfig?> GetSavedConfigAsync() => _configReader.GetAsync();
 
-    public async Task<(List<CloudflareZone> Zones, List<TunnelInfo> Tunnels)> LoadAccountAsync(string apiToken, string accountId)
+    public async Task<(List<CloudflareZone> Zones, List<TunnelInfo> Tunnels)> LoadAccountAsync()
     {
-        (apiToken, accountId) = RequireCredentials(apiToken, accountId);
+        var (apiToken, accountId) = await RequireCredentialsAsync();
         _logger.LogInformation("Loading Cloudflare zones and tunnels for account {AccountId}", accountId);
 
         List<CloudflareZone> zones;
@@ -95,7 +96,7 @@ public class TunnelSetupService : ITunnelSetupService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load Cloudflare account details");
-            throw new UserFacingException($"Could not reach Cloudflare with those credentials: {ex.Message}", ex);
+            throw new UserFacingException($"Could not reach Cloudflare with the saved token: {ex.Message}", ex);
         }
 
         if (zones.Count == 0)
@@ -107,9 +108,9 @@ public class TunnelSetupService : ITunnelSetupService
         return (zones, tunnels);
     }
 
-    public async Task<TunnelSetupResult> CreateTunnelAsync(string apiToken, string accountId, string zoneId, string tunnelName)
+    public async Task<TunnelSetupResult> CreateTunnelAsync(string zoneId, string tunnelName)
     {
-        (apiToken, accountId) = RequireCredentials(apiToken, accountId);
+        var (apiToken, accountId) = await RequireCredentialsAsync();
         tunnelName = tunnelName?.Trim() ?? string.Empty;
         if (tunnelName.Length == 0) throw new UserFacingException("Tunnel name is required.");
         var zone = await RequireZoneAsync(apiToken, zoneId);
@@ -126,9 +127,9 @@ public class TunnelSetupService : ITunnelSetupService
         }
     }
 
-    public async Task<TunnelSetupResult> AdoptTunnelAsync(string apiToken, string accountId, string zoneId, string tunnelId)
+    public async Task<TunnelSetupResult> AdoptTunnelAsync(string zoneId, string tunnelId)
     {
-        (apiToken, accountId) = RequireCredentials(apiToken, accountId);
+        var (apiToken, accountId) = await RequireCredentialsAsync();
         var zone = await RequireZoneAsync(apiToken, zoneId);
 
         try
@@ -175,16 +176,13 @@ public class TunnelSetupService : ITunnelSetupService
         await _configWriter.DeleteAsync();
     }
 
-    private static (string ApiToken, string AccountId) RequireCredentials(string apiToken, string accountId)
+    private async Task<(string ApiToken, string AccountId)> RequireCredentialsAsync()
     {
-        apiToken = apiToken?.Trim() ?? string.Empty;
-        accountId = accountId?.Trim() ?? string.Empty;
-        if (apiToken.Length == 0) throw new UserFacingException("API token is required.");
-        if (accountId.Length == 0) throw new UserFacingException("Account ID is required.");
-        return (apiToken, accountId);
+        var credentials = await _credentials.RequireAsync(needsAccount: true);
+        return (credentials.ApiToken, credentials.AccountId!);
     }
 
-    /// <summary>The zone, looked up with the caller's token so its name comes from Cloudflare.</summary>
+    /// <summary>The zone, looked up with the saved token so its name comes from Cloudflare.</summary>
     private async Task<CloudflareZone> RequireZoneAsync(string apiToken, string zoneId)
     {
         if (string.IsNullOrWhiteSpace(zoneId)) throw new UserFacingException("Pick a zone.");
@@ -195,7 +193,7 @@ public class TunnelSetupService : ITunnelSetupService
         }
         catch (Exception ex)
         {
-            throw new UserFacingException($"Could not reach Cloudflare with those credentials: {ex.Message}", ex);
+            throw new UserFacingException($"Could not reach Cloudflare with the saved token: {ex.Message}", ex);
         }
 
         return zones.FirstOrDefault(z => z.Id == zoneId.Trim())
@@ -207,10 +205,8 @@ public class TunnelSetupService : ITunnelSetupService
     {
         var saved = await _configWriter.UpsertAsync(new TunnelConfig
         {
-            CloudflareAccountId = accountId,
             CloudflareZoneId = zone.Id,
             CloudflareZoneName = zone.Name,
-            ProtectedApiToken = _tokenProtector.Protect(apiToken),
             TunnelId = tunnel.Id,
             TunnelName = tunnel.Name
         });

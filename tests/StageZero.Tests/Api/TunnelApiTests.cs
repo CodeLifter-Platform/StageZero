@@ -23,7 +23,7 @@ public class TunnelApiTests
     private readonly FakeCloudflareTunnelService _tunnels = new();
     private readonly FakeCloudflareAccessService _access = new();
 
-    private StageZeroApp CreateApp()
+    private StageZeroApp CreateApp(bool withToken = true)
     {
         var app = new StageZeroApp
         {
@@ -34,11 +34,16 @@ public class TunnelApiTests
             }
         };
         app.Http.OnGet("https://api.cloudflare.com/client/v4/zones", CloudflareFakes.List(new { id = "zone-1", name = "example.com" }));
+        if (withToken)
+        {
+            CloudflareFakes.SaveTokenAsync(app, AccountId).GetAwaiter().GetResult();
+        }
+
         return app;
     }
 
     private static object Setup(string tunnelName = "stagezero") =>
-        new { apiToken = CloudflareFakes.Token, accountId = AccountId, zoneId = "zone-1", tunnelName };
+        new { zoneId = "zone-1", tunnelName };
 
     private static object Route(string mode, string domain = "App.Example.com", bool createToken = false) => new
     {
@@ -59,7 +64,7 @@ public class TunnelApiTests
     };
 
     [Fact]
-    public async Task Creating_a_tunnel_saves_it_without_echoing_the_api_token()
+    public async Task Creating_a_tunnel_uses_the_saved_token_and_never_echoes_it()
     {
         await using var app = CreateApp();
         using var client = await app.SignedInClientAsync();
@@ -83,10 +88,10 @@ public class TunnelApiTests
         using var client = await app.SignedInClientAsync();
 
         var local = await (await client.PostJsonAsync("/api/tunnel/adopt",
-            new { apiToken = CloudflareFakes.Token, accountId = AccountId, zoneId = "zone-1", tunnelId = "t-local" }))
+            new { zoneId = "zone-1", tunnelId = "t-local" }))
             .ReadAsync<TunnelEndpoints.SetupView>();
         var remote = await (await client.PostJsonAsync("/api/tunnel/adopt",
-            new { apiToken = CloudflareFakes.Token, accountId = AccountId, zoneId = "zone-1", tunnelId = "t-remote" }))
+            new { zoneId = "zone-1", tunnelId = "t-remote" }))
             .ReadAsync<TunnelEndpoints.SetupView>();
 
         Assert.True(local.WasLocallyManaged);
@@ -101,9 +106,32 @@ public class TunnelApiTests
         using var client = await app.SignedInClientAsync();
 
         var response = await client.PostJsonAsync("/api/tunnel/create",
-            new { apiToken = CloudflareFakes.Token, accountId = AccountId, zoneId = "someone-elses-zone", tunnelName = "x" });
+            new { zoneId = "someone-elses-zone", tunnelName = "x" });
 
         Assert.Equal("That zone isn't visible to this token.", await response.ProblemTitleAsync(HttpStatusCode.BadRequest));
+    }
+
+    [Fact]
+    public async Task Tunnel_setup_before_a_token_is_saved_points_to_settings()
+    {
+        await using var app = CreateApp(withToken: false);
+        using var client = await app.SignedInClientAsync();
+
+        var response = await client.GetAsync("/api/tunnel/account");
+
+        Assert.Contains("Settings page", await response.ProblemTitleAsync(HttpStatusCode.Conflict));
+    }
+
+    [Fact]
+    public async Task A_token_without_an_account_is_refused_for_the_tunnel()
+    {
+        await using var app = CreateApp(withToken: false);
+        await CloudflareFakes.SaveTokenAsync(app, accountId: null);
+        using var client = await app.SignedInClientAsync();
+
+        var response = await client.PostJsonAsync("/api/tunnel/create", Setup());
+
+        Assert.Contains("no account permissions", await response.ProblemTitleAsync(HttpStatusCode.Conflict));
     }
 
     [Fact]

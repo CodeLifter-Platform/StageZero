@@ -10,7 +10,7 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, DataTable, Input, Switch, type DataColumn } from '../../ui';
+import { Badge, Button, Card, DataTable, Switch, type DataColumn } from '../../ui';
 import { AddRecordDialog, EditRecordDialog } from './RecordDialogs';
 
 type Pending =
@@ -26,7 +26,7 @@ export function DnsConfigPage() {
   const [providers, setProviders] = useState<DnsProvider[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllCnames, setShowAllCnames] = useState(false);
-  const [apiToken, setApiToken] = useState('');
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
   const [zones, setZones] = useState<CloudflareZone[] | null>(null);
   const [addingRecordTo, setAddingRecordTo] = useState<DnsProvider | null>(null);
   const [editing, setEditing] = useState<DnsRecord | null>(null);
@@ -43,20 +43,25 @@ export function DnsConfigPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    api.settings.cloudflare()
+      .then((c) => setHasToken(c.status.isConfigured && c.status.isReadable))
+      .catch(() => setHasToken(null));
+  }, []);
 
   const act = async (key: string, work: () => Promise<void>) => {
     setBusy(key);
     try { await work(); } catch (err) { notify((err as Error).message, 'error'); } finally { setBusy(null); }
   };
 
-  const connect = () => act('connect', async () => {
-    const found = await api.dns.zones(apiToken.trim());
+  const loadZones = () => act('zones', async () => {
+    const found = await api.dns.zones();
     setZones(found);
     notify(`Found ${found.length} zone(s)`, found.length > 0 ? 'success' : 'info');
   });
 
   const addProvider = (zone: CloudflareZone) => act(`add-${zone.id}`, async () => {
-    const p = await api.dns.addProvider(zone.name, apiToken.trim(), zone.id, true);
+    const p = await api.dns.addProvider(zone.name, zone.id, true);
     notify(`Provider '${p.name}' added`, 'success');
     await load();
   });
@@ -157,7 +162,7 @@ export function DnsConfigPage() {
       {loadError ? <Notice tone="danger" title="Couldn't load DNS providers">{loadError}</Notice> : null}
 
       {providers && providers.length === 0 ? (
-        <Notice title="No DNS providers configured">Connect your Cloudflare credentials below and add a zone to start managing its DNS records automatically.</Notice>
+        <Notice title="No DNS providers configured">Add a zone below to start managing its DNS records automatically.</Notice>
       ) : null}
 
       {providers?.map((p) => (
@@ -186,17 +191,22 @@ export function DnsConfigPage() {
 
       <Card>
         <div className="sz-stack">
-          <h2>Cloudflare credentials</h2>
-          <Notice title="Create an API token with these permissions">
-            Zone → DNS → Edit and Zone → Zone → Read, for every zone you want StageZero to manage.
-            The token from the Tunnel Setup page works here too.
-          </Notice>
-          <Input label="API token" type="password" autoComplete="off" value={apiToken} disabled={busy !== null}
-            hint="Stored encrypted with each provider you add; never shown again."
-            onChange={(e) => { setApiToken(e.target.value); setZones(null); }} />
-          <div className="sz-row">
-            <Button disabled={busy !== null || !apiToken.trim()} onClick={() => void connect()}>{busy === 'connect' ? 'Working…' : 'Connect'}</Button>
-          </div>
+          <h2>Add a zone</h2>
+          {hasToken === false ? (
+            <Notice tone="warning" title="No Cloudflare API token saved"
+              action={<Button size="sm" onClick={() => navigate('/settings')}>Open Settings</Button>}>
+              StageZero reaches Cloudflare with the one token saved in Settings (your email, top right). Add it there, then come back to pick a zone.
+            </Notice>
+          ) : (
+            <>
+              <p className="sz-small sz-muted">
+                Zones come from the Cloudflare API token saved in <a href="/settings" onClick={(e) => { e.preventDefault(); navigate('/settings'); }}>Settings</a>.
+              </p>
+              <div className="sz-row">
+                <Button disabled={busy !== null} onClick={() => void loadZones()}>{busy === 'zones' ? 'Loading…' : 'Load zones'}</Button>
+              </div>
+            </>
+          )}
           {zones ? (
             <DataTable caption="Zones this token can manage" density="standard" columns={zoneColumns}
               rows={zones} rowKey={(z) => z.id} empty="No zones found for this API token" />

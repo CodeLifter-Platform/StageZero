@@ -160,7 +160,7 @@ public class AccessPermissionCheck
 
     public string ToErrorMessage() =>
         "The saved Cloudflare API token cannot manage Access. Add these account-scoped "
-        + $"permissions and save the token again: {string.Join("; ", MissingPermissions)}.";
+        + $"permissions and save the token again on the Settings page: {string.Join("; ", MissingPermissions)}.";
 }
 
 /// <summary>Body for creating or replacing a self-hosted Access application.</summary>

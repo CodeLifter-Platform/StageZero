@@ -1,10 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StageZero.Models;
 
 /// <summary>
-/// Represents a DNS provider account (e.g., Cloudflare).
+/// A Cloudflare zone StageZero manages records in. The API token is not per zone: every
+/// provider uses the one saved on the Settings page (<see cref="CloudflareCredential"/>).
 /// </summary>
 public class DnsProvider
 {
@@ -18,17 +18,6 @@ public class DnsProvider
     [Required]
     [MaxLength(50)]
     public string ProviderType { get; set; } = string.Empty; // "Cloudflare", etc.
-
-    /// <summary>The Cloudflare API token as stored: encrypted (ICloudflareTokenProtector).</summary>
-    [Required]
-    public string ProtectedApiToken { get; set; } = string.Empty;
-
-    /// <summary>
-    /// The token in the clear, in memory only: filled by the readers, encrypted into
-    /// <see cref="ProtectedApiToken"/> by the writer. Never persisted.
-    /// </summary>
-    [NotMapped]
-    public string ApiToken { get; set; } = string.Empty;
 
     [MaxLength(100)]
     public string? ZoneId { get; set; }

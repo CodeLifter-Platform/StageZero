@@ -41,10 +41,8 @@ public class TunnelConfigWriter : ITunnelConfigWriter
         }
         else
         {
-            existing.CloudflareAccountId = config.CloudflareAccountId;
             existing.CloudflareZoneId = config.CloudflareZoneId;
             existing.CloudflareZoneName = config.CloudflareZoneName;
-            existing.ProtectedApiToken = config.ProtectedApiToken;
             existing.TunnelId = config.TunnelId;
             existing.TunnelName = config.TunnelName;
             existing.UpdatedAt = config.UpdatedAt;

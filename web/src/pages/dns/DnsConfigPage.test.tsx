@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import type { DnsProvider } from '../../api/types';
+import type { CloudflareCredential, DnsProvider } from '../../api/types';
 import { NAV } from '../../app/Shell';
 import { server } from '../../test/server';
 import { owner, renderApp, sessionInfo } from '../../test/render';
@@ -18,20 +18,32 @@ function rowOf(cell: HTMLElement): HTMLElement {
   return row;
 }
 
-function signedIn(providers: DnsProvider[]) {
+function credential(isConfigured: boolean): CloudflareCredential {
+  return {
+    status: {
+      isConfigured, isReadable: isConfigured, accountId: null, accountName: null, tokenId: null,
+      expiresOn: null, verifiedAt: null, updatedAt: null,
+    },
+    required: [],
+    checks: null,
+  };
+}
+
+function signedIn(providers: DnsProvider[], hasToken = true) {
   server.use(
     http.get('/api/auth/session', () => HttpResponse.json(sessionInfo({ user: owner }))),
     http.get('/api/ip/current', () => HttpResponse.json({ ipAddress: null, lastChecked: null })),
     http.get('/api/dns/providers', () => HttpResponse.json(providers)),
-    http.post('/api/dns/zones', () => HttpResponse.json([
+    http.get('/api/settings/cloudflare', () => HttpResponse.json(credential(hasToken))),
+    http.get('/api/dns/zones', () => HttpResponse.json([
       { id: 'z-home', name: 'home.example' },
       { id: 'z-lab', name: 'lab.example' },
     ])),
   );
 }
 
-describe('the DNS Cloudflare credentials card', () => {
-  it('lists the token\'s zones, marks the added ones, and adds a zone with the token', async () => {
+describe('the DNS add-a-zone card', () => {
+  it('lists the saved token\'s zones, marks the added ones, and adds a zone without sending a token', async () => {
     const providers = [home];
     signedIn(providers);
     let added: Record<string, unknown> | undefined;
@@ -44,8 +56,8 @@ describe('the DNS Cloudflare credentials card', () => {
     renderApp('/dns-config');
 
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText(/^API token/), ' cf-token ');
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(screen.queryByLabelText(/API token/)).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Load zones' }));
 
     const zones = await screen.findByRole('table', { name: 'Zones this token can manage' });
     const homeRow = rowOf(within(zones).getByText('home.example'));
@@ -54,22 +66,20 @@ describe('the DNS Cloudflare credentials card', () => {
     const labRow = rowOf(within(zones).getByText('lab.example'));
     await user.click(within(labRow).getByRole('button', { name: 'Add provider' }));
 
-    await waitFor(() => expect(added).toEqual({ name: 'lab.example', apiToken: 'cf-token', zoneId: 'z-lab', isActive: true }));
+    await waitFor(() => expect(added).toEqual({ name: 'lab.example', zoneId: 'z-lab', isActive: true }));
     expect(await within(labRow).findByText('Added')).toBeInTheDocument();
   });
 
-  it('forgets the zones when the token changes', async () => {
-    signedIn([]);
+  it('sends the person to Settings when no token is saved', async () => {
+    signedIn([], false);
     renderApp('/dns-config');
 
     const user = userEvent.setup();
-    const token = await screen.findByLabelText(/^API token/);
-    await user.type(token, 'cf-token');
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
-    await screen.findByRole('table', { name: 'Zones this token can manage' });
+    expect(await screen.findByText('No Cloudflare API token saved')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load zones' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Open Settings' }));
 
-    await user.type(token, 'x');
-    expect(screen.queryByRole('table', { name: 'Zones this token can manage' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('location').textContent).toBe('/settings');
   });
 });
 

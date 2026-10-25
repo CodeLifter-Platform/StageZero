@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { CloudflareZone, TunnelConfig, TunnelInfo } from '../../api/types';
+import type { CloudflareCredentialStatus, CloudflareZone, TunnelConfig, TunnelInfo } from '../../api/types';
 import { useToast } from '../../app/toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Loading } from '../../components/Loading';
@@ -64,8 +64,7 @@ export function TunnelSettingsPage() {
   const notify = useToast();
   const navigate = useNavigate();
   const [saved, setSaved] = useState<TunnelConfig | null | undefined>(undefined);
-  const [apiToken, setApiToken] = useState('');
-  const [accountId, setAccountId] = useState('');
+  const [credential, setCredential] = useState<CloudflareCredentialStatus | null>(null);
   const [zones, setZones] = useState<CloudflareZone[]>([]);
   const [tunnels, setTunnels] = useState<TunnelInfo[]>([]);
   const [zoneId, setZoneId] = useState('');
@@ -82,12 +81,14 @@ export function TunnelSettingsPage() {
       .then(({ config }) => {
         setSaved(config);
         if (config) {
-          setAccountId(config.accountId);
           setZoneId(config.zoneId ?? '');
           setTunnelName(config.tunnelName ?? 'stagezero');
         }
       })
       .catch((err: Error) => { setSaved(null); setError(err.message); });
+    api.settings.cloudflare()
+      .then((c) => setCredential(c.status))
+      .catch((err: Error) => setError(err.message));
   }, []);
 
   const run = async (work: () => Promise<void>) => {
@@ -97,7 +98,7 @@ export function TunnelSettingsPage() {
   };
 
   const connect = () => run(async () => {
-    const result = await api.tunnel.loadAccount(apiToken.trim(), accountId.trim());
+    const result = await api.tunnel.loadAccount();
     setZones(result.zones);
     setTunnels(result.tunnels);
     if (!result.zones.some((z) => z.id === zoneId)) setZoneId(result.zones[0]?.id ?? '');
@@ -105,7 +106,7 @@ export function TunnelSettingsPage() {
   });
 
   const create = () => run(async () => {
-    const result = await api.tunnel.create(apiToken.trim(), accountId.trim(), zoneId, tunnelName.trim());
+    const result = await api.tunnel.create(zoneId, tunnelName.trim());
     setSaved(result.config);
     setConnectorToken(result.connectorToken);
     setWasAdopted(false);
@@ -113,7 +114,7 @@ export function TunnelSettingsPage() {
   });
 
   const adopt = (tunnel: TunnelInfo) => run(async () => {
-    const result = await api.tunnel.adopt(apiToken.trim(), accountId.trim(), zoneId, tunnel.id);
+    const result = await api.tunnel.adopt(zoneId, tunnel.id);
     setSaved(result.config);
     setConnectorToken(result.connectorToken);
     setWasAdopted(result.wasLocallyManaged);
@@ -149,11 +150,13 @@ export function TunnelSettingsPage() {
   ];
 
   const instructions = connectorToken ? connectorInstructions(os, connectorToken) : null;
+  const usableToken = credential?.isConfigured === true && credential.isReadable;
+  const openSettings = <Button size="sm" onClick={() => navigate('/settings')}>Open Settings</Button>;
 
   return (
     <div className="sz-page sz-page-narrow">
       <PageHeader title="Cloudflare Tunnel Setup">
-        StageZero manages your tunnel's routes through the Cloudflare API. Connect an account here, then install the connector on the host.
+        StageZero manages your tunnel's routes through the Cloudflare API, with the token saved in Settings. Pick a zone and tunnel here, then install the connector on the host.
       </PageHeader>
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
@@ -166,7 +169,7 @@ export function TunnelSettingsPage() {
               <dt>Tunnel</dt><dd>{saved.tunnelName}</dd>
               <dt>Tunnel ID</dt><dd className="sz-mono sz-break">{saved.tunnelId}</dd>
               <dt>Zone</dt><dd>{saved.zoneName}</dd>
-              <dt>Account ID</dt><dd className="sz-mono sz-break">{saved.accountId}</dd>
+              <dt>Account ID</dt><dd className="sz-mono sz-break">{credential?.accountId ?? '-'}</dd>
             </dl>
             <div className="sz-row">
               <Button variant="outline" size="sm" disabled={busy} onClick={() => void showToken()}>Show connector token</Button>
@@ -178,19 +181,28 @@ export function TunnelSettingsPage() {
 
       <Card>
         <div className="sz-stack">
-          <h2>1. Cloudflare credentials</h2>
-          <Notice title="Create an API token with these permissions">
-            Account → Cloudflare Tunnel → Edit; Zone → DNS → Edit; Zone → Zone → Read; and for Access,
-            Account → Access: Apps → Edit and Account → Access: Service Tokens → Edit.
-            The same token also works on the DNS Configuration page.
-          </Notice>
-          <Input label="API token" type="password" autoComplete="off" value={apiToken} disabled={busy}
-            hint="Stored encrypted. Re-enter it to change any setting below." onChange={(e) => setApiToken(e.target.value)} />
-          <Input label="Account ID" value={accountId} disabled={busy} className="sz-mono"
-            hint="Cloudflare dashboard → Workers & Pages → Account details" onChange={(e) => setAccountId(e.target.value)} />
-          <div className="sz-row">
-            <Button disabled={busy || !apiToken.trim() || !accountId.trim()} onClick={() => void connect()}>{busy ? 'Working…' : 'Connect'}</Button>
-          </div>
+          <h2>1. Cloudflare account</h2>
+          {credential === null ? null : !usableToken ? (
+            <Notice tone="warning" title="No Cloudflare API token saved" action={openSettings}>
+              The tunnel uses the one Cloudflare token saved in Settings (your email, top right). Add it there, with the permissions
+              listed on that page, then come back.
+            </Notice>
+          ) : !credential.accountId ? (
+            <Notice tone="warning" title="The saved token has no account permissions" action={openSettings}>
+              It can manage DNS, but the tunnel and Access need the Account permissions. Replace it in Settings.
+            </Notice>
+          ) : (
+            <>
+              <dl className="sz-kv">
+                <dt>Account</dt>
+                <dd>{credential.accountName ?? ''} <span className="sz-mono sz-muted sz-break">{credential.accountId}</span></dd>
+              </dl>
+              <span className="sz-xs sz-muted">From the token saved in Settings. Change it there.</span>
+              <div className="sz-row">
+                <Button disabled={busy} onClick={() => void connect()}>{busy ? 'Working…' : 'Connect'}</Button>
+              </div>
+            </>
+          )}
         </div>
       </Card>
 
@@ -243,7 +255,7 @@ export function TunnelSettingsPage() {
       ) : null}
 
       <ConfirmDialog open={confirmingDisconnect} busy={busy} title="Disconnect the tunnel" confirmLabel="Disconnect"
-        message="Forget the saved Cloudflare account and tunnel? The tunnel and its routes stay on Cloudflare; StageZero stops managing them until you connect again."
+        message="Forget the saved tunnel? The tunnel and its routes stay on Cloudflare; StageZero stops managing them until you connect again. The Cloudflare token in Settings is kept."
         onCancel={() => setConfirmingDisconnect(false)} onConfirm={() => void disconnect()} />
     </div>
   );

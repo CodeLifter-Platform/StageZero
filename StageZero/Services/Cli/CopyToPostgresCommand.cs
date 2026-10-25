@@ -12,7 +12,7 @@ namespace StageZero.Services.Cli;
 /// usual move is to set both for the app, run this once, and restart. The SQLite file is only
 /// read, so going back is just unsetting <c>STAGEZERO_DB_PROVIDER</c>.
 /// <para>
-/// The stored Cloudflare tokens move still encrypted. The keys that decrypt them stay in the
+/// The stored Cloudflare token moves still encrypted. The keys that decrypt them stay in the
 /// data directory, which the app keeps needing on PostgreSQL too.
 /// </para>
 /// </summary>
@@ -31,6 +31,7 @@ public static class CopyToPostgresCommand
         Copy<Models.TunnelConfig>,
         Copy<Models.TunnelRoute>,
         Copy<Models.AccessServiceToken>,
+        Copy<Models.CloudflareCredential>,
     ];
 
     /// <summary>The entity types <see cref="Tables"/> copies; a table missing here is a bug.</summary>
@@ -44,6 +45,7 @@ public static class CopyToPostgresCommand
         typeof(Models.TunnelConfig),
         typeof(Models.TunnelRoute),
         typeof(Models.AccessServiceToken),
+        typeof(Models.CloudflareCredential),
     ];
 
     public static async Task<int> RunAsync(

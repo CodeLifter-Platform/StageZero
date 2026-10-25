@@ -19,21 +19,18 @@ public static class TunnelEndpoints
         tunnel.MapGet("/config", async (ITunnelSetupService setup) =>
             new ConfigResponse(ConfigView.From(await setup.GetSavedConfigAsync())));
 
-        tunnel.MapPost("/account", async (AccountRequest request, ITunnelSetupService setup) =>
+        // The account and token are the Settings page's; nothing here takes credentials.
+        tunnel.MapGet("/account", async (ITunnelSetupService setup) =>
         {
-            var (zones, tunnels) = await setup.LoadAccountAsync(request.ApiToken ?? string.Empty, request.AccountId ?? string.Empty);
+            var (zones, tunnels) = await setup.LoadAccountAsync();
             return new AccountResponse(zones, tunnels.Select(TunnelView.From).ToList());
         });
 
         tunnel.MapPost("/create", async (CreateRequest request, ITunnelSetupService setup) =>
-            SetupView.From(await setup.CreateTunnelAsync(
-                request.ApiToken ?? string.Empty, request.AccountId ?? string.Empty,
-                request.ZoneId ?? string.Empty, request.TunnelName ?? string.Empty)));
+            SetupView.From(await setup.CreateTunnelAsync(request.ZoneId ?? string.Empty, request.TunnelName ?? string.Empty)));
 
         tunnel.MapPost("/adopt", async (AdoptRequest request, ITunnelSetupService setup) =>
-            SetupView.From(await setup.AdoptTunnelAsync(
-                request.ApiToken ?? string.Empty, request.AccountId ?? string.Empty,
-                request.ZoneId ?? string.Empty, request.TunnelId ?? string.Empty)));
+            SetupView.From(await setup.AdoptTunnelAsync(request.ZoneId ?? string.Empty, request.TunnelId ?? string.Empty)));
 
         tunnel.MapPost("/connector-token", async (ITunnelSetupService setup) =>
             new ConnectorTokenResponse(await setup.GetConnectorTokenAsync()));
@@ -97,20 +94,18 @@ public static class TunnelEndpoints
 
     // ── contracts ────────────────────────────────────────────────
 
-    public sealed record AccountRequest(string? ApiToken, string? AccountId);
+    public sealed record CreateRequest(string? ZoneId, string? TunnelName);
 
-    public sealed record CreateRequest(string? ApiToken, string? AccountId, string? ZoneId, string? TunnelName);
-
-    public sealed record AdoptRequest(string? ApiToken, string? AccountId, string? ZoneId, string? TunnelId);
+    public sealed record AdoptRequest(string? ZoneId, string? TunnelId);
 
     public sealed record ConfigResponse(ConfigView? Config);
 
-    /// <summary>The saved configuration, without its API token.</summary>
-    public sealed record ConfigView(string AccountId, string? ZoneId, string? ZoneName, string? TunnelId, string? TunnelName)
+    /// <summary>The saved tunnel. Its account and token are the Settings page's.</summary>
+    public sealed record ConfigView(string? ZoneId, string? ZoneName, string? TunnelId, string? TunnelName)
     {
         public static ConfigView? From(TunnelConfig? c) => c is null
             ? null
-            : new(c.CloudflareAccountId, c.CloudflareZoneId, c.CloudflareZoneName, c.TunnelId, c.TunnelName);
+            : new(c.CloudflareZoneId, c.CloudflareZoneName, c.TunnelId, c.TunnelName);
     }
 
     public sealed record TunnelView(string Id, string Name, bool IsRemotelyManaged, string? Status)

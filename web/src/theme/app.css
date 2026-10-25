@@ -74,6 +74,7 @@ p { margin: 0; }
 .sz-kv { display: grid; grid-template-columns: minmax(140px, max-content) 1fr; gap: var(--cl-space-xs) var(--cl-space-lg); margin: 0; }
 .sz-kv dt { color: var(--cl-text-muted); font-size: var(--cl-text-sm); }
 .sz-kv dd { margin: 0; font-size: var(--cl-text-sm); min-width: 0; }
+.sz-list { margin: 0; padding-left: var(--cl-space-lg); display: grid; gap: var(--cl-space-xs); }
 
 .sz-code {
   margin: 0;
