@@ -160,6 +160,15 @@ public class DatabaseSwitchService : IDatabaseSwitchService
             var version = (string?)await Scalar(connection, "SHOW server_version", cancellationToken) ?? "unknown";
             var canCreate = (bool?)await Scalar(connection,
                 "SELECT has_schema_privilege(current_user, 'public', 'CREATE')", cancellationToken) == true;
+            // Email addresses are citext (case-insensitive), created by the first migration
+            // that needs it: the server must ship it, and the user must be able to add it.
+            var citext = (string?)await Scalar(connection, """
+                SELECT CASE
+                  WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'citext') THEN 'installed'
+                  WHEN NOT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'citext') THEN 'missing'
+                  WHEN has_database_privilege(current_user, current_database(), 'CREATE') THEN 'creatable'
+                  ELSE 'forbidden' END
+                """, cancellationToken);
             var tables = await TableNamesAsync(connection, cancellationToken);
             var hasData = await AnyStageZeroRowsAsync(connection, tables, cancellationToken);
 
@@ -172,6 +181,16 @@ public class DatabaseSwitchService : IDatabaseSwitchService
             {
                 return new(false, $"Connected, but {parts.Username} can't create tables in the public schema. "
                     + "Make it the database's owner (Infra's create-app-db.sh does).", version, tables.Count, hasData, warnings);
+            }
+
+            if (citext is "missing" or "forbidden")
+            {
+                return new(false, citext == "missing"
+                    ? "Connected, but this server doesn't have the citext extension, which StageZero uses so email "
+                      + "addresses ignore case. Install PostgreSQL's contrib package (the official images include it)."
+                    : $"Connected, but {parts.Username} can't add the citext extension, which StageZero uses so email "
+                      + "addresses ignore case. Make it the database's owner (Infra's create-app-db.sh does), or have a "
+                      + "superuser run CREATE EXTENSION citext in this database.", version, tables.Count, hasData, warnings);
             }
 
             if (hasData)

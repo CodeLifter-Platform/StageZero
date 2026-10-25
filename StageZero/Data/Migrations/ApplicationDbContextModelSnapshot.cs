@@ -29,7 +29,8 @@ namespace StageZero.Data.Migrations
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
 
                     b.Property<int>("EmailVerificationAttempts")
                         .HasColumnType("INTEGER");

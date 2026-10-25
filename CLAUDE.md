@@ -88,3 +88,5 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
   `... --context PostgresApplicationDbContext --output-dir Data/Migrations/Postgres`
   (move the Postgres snapshot if EF drops it in a nested `StageZero/StageZero/`). Run the
   suite on Postgres with `STAGEZERO_TEST_POSTGRES=<server connection string>`.
+  Email compares without case on both: `NOCASE` on SQLite, `citext` on PostgreSQL (the
+  Postgres context overrides the column). Keep any new email column the same way.

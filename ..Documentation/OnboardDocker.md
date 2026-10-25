@@ -107,6 +107,11 @@ Keep the database **outside** StageZero's stack, so nothing done to this compose
 tools/create-app-db.sh prod stagezero
 ```
 
+StageZero stores email addresses as `citext`, so `a@example.com` and `A@example.com` are one
+account. Its first migration on the database adds that extension, which the database's owner
+can do (`create-app-db.sh` makes `stagezero` the owner). *Test connection* says so if the user
+can't.
+
 Then, in StageZero, either tick **Keep StageZero's data in PostgreSQL** on the first-run page,
 or open **Settings → Database** on an install that already has data. Fill in host
 `host.docker.internal` (the Infra server on this machine, as the container sees it; the

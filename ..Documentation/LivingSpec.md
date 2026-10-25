@@ -241,6 +241,14 @@ there), so its web app is a Vite SPA served by its own API host, one container. 
 
 ## Data and state
 
+**Email addresses ignore case.** `Users.Email` is `NOCASE` on SQLite (ASCII letters) and
+`citext` on PostgreSQL (`ApplicationDbContext`, `PostgresApplicationDbContext`), so
+`a@example.com` and `A@Example.com` are one account, sign-in matches either, and the address
+keeps the case it was typed in. The `CaseInsensitiveEmail` migration refuses to run, and
+startup stops naming them, if two accounts already differ only in case: picking one would
+delete the other (`DatabaseInitializer`). A PostgreSQL user must be able to add the citext
+extension (the database's owner can; it is a trusted extension), which *Test connection* checks.
+
 Under the resolved app data directory (`/app-data` in a container; `~/.config/stagezero`
 on Linux, `%APPDATA%\StageZero` on Windows, `~/Library/Application Support/StageZero` on
 macOS): `stagezero.db` (SQLite), `logs/`, and the Data Protection keyring (`dp-keys/`;
