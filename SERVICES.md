@@ -105,9 +105,14 @@ Last reviewed: 2026-09-27.
     updates, each its own `POST https://codelifter.net/api/subscriptions` for the
     signed-in address (`CodeLifterSubscriptions.cs`). The site sends one double-opt-in
     confirmation email per request; nothing is subscribed until it is clicked.
-  - No token on either: both endpoints are public by design and rate-limited on the site.
-- **Managed at:** codelifter.net (CodeLifter.Net repo, `NEWSLETTER.md` → App users and
-  In-app subscriptions). The app id must exist in the site's `apps` registry. A blank
+  - **Manage email preferences** on the same card: `POST
+    https://codelifter.net/api/subscriptions/manage-link` with the signed-in address
+    (`CodeLifterManageLink.cs`). The site emails a one-hour link to
+    `codelifter.net/newsletter/manage`, where each list switches on or off. StageZero
+    stores no credential for it.
+  - No token on any of them: both endpoints are public by design and rate-limited on the site.
+- **Managed at:** codelifter.net (CodeLifter.Net repo, `NEWSLETTER.md` → App users, In-app
+  subscriptions and Managing lists from an emailed link). The app id must exist in the site's `apps` registry. A blank
   `CodeLifter__SubscriptionsUrl` switches both off.
 
 ## Release notes API (codelifter.net)

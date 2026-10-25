@@ -1,4 +1,5 @@
 using Lifted.BlazorAuth.Basic.Services;
+using StageZero.Services.CodeLifter;
 using StageZero.Services.Cloudflare;
 
 namespace StageZero.Api;
@@ -50,6 +51,16 @@ public static class SettingsEndpoints
             var user = await auth.GetCurrentUserAsync()
                        ?? throw new Services.UserFacingException("Sign in again.", StatusCodes.Status401Unauthorized);
             return await optIn.SubmitAsync(user.Email, [choice.Key]);
+        });
+
+        // A one-hour link, emailed by codelifter.net to the operator, to a page that switches
+        // each list on or off. Always the signed-in address; StageZero holds no credential for it.
+        email.MapPost("/manage-link", async (IAuthService auth, ICodeLifterManageLink manageLink) =>
+        {
+            if (!manageLink.Enabled) throw new Services.UserFacingException("Email from CodeLifter is switched off on this install.");
+            var user = await auth.GetCurrentUserAsync()
+                       ?? throw new Services.UserFacingException("Sign in again.", StatusCodes.Status401Unauthorized);
+            return await manageLink.RequestAsync(user.Email);
         });
     }
 

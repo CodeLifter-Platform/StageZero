@@ -75,7 +75,9 @@ A fresh install has no users, so every page redirects to **`/setup`**.
    email and its version to codelifter.net, so CodeLifter knows who runs StageZero. It
    signs you up for nothing and sends you no email. Untick it to send nothing. The
    CodeLifter newsletter and StageZero update emails are separate, optional choices on
-   **Settings → Email from CodeLifter**, each with its own confirmation email. Set
+   **Settings → Email from CodeLifter**, each with its own confirmation email. To change
+   them later, **Manage email preferences** there emails you a link (good for an hour)
+   to a codelifter.net page with a switch for each list. Set
    `CodeLifter__SubscriptionsUrl=` (blank) in `.env` to switch all of it off.
 3. Click **Create admin account**, then sign in.
 

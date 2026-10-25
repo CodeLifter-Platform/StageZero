@@ -152,6 +152,8 @@ export const api = {
     removeCloudflare: () => del<undefined>('/api/settings/cloudflare'),
     emailUpdates: () => get<EmailUpdates>('/api/settings/email-updates'),
     subscribe: (key: string) => post<EmailUpdateResult>('/api/settings/email-updates', { key }),
+    /** Asks codelifter.net to email the signed-in address a one-hour link to manage its lists. */
+    manageLink: () => post<EmailUpdateResult>('/api/settings/email-updates/manage-link', {}),
   },
   database: databaseApi('/api/settings/database'),
   /** The same calls on the first-run page, open only while no user exists. */

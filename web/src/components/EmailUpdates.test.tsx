@@ -59,6 +59,21 @@ describe('Settings → Email from CodeLifter', () => {
     expect(await screen.findByText("You're already subscribed. Nothing to confirm.")).toBeInTheDocument();
   });
 
+  it('asks for a manage link for the signed-in address, with no body to choose another', async () => {
+    signedIn(offered);
+    const sent: unknown[] = [];
+    server.use(http.post('/api/settings/email-updates/manage-link', async ({ request }) => {
+      sent.push(await request.json());
+      return HttpResponse.json({ sent: true, message: 'Check owner@example.com: the link to manage your emails works for an hour.' });
+    }));
+    renderApp('/settings');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Manage email preferences' }));
+
+    expect(await screen.findByText('Check owner@example.com: the link to manage your emails works for an hour.')).toBeInTheDocument();
+    expect(sent).toEqual([{}]);
+  });
+
   it('says when codelifter.net is switched off on this install', async () => {
     signedIn({ enabled: false, email: 'owner@example.com', choices: [] });
     renderApp('/settings');

@@ -62,11 +62,46 @@ public class EmailUpdatesApiTests
     }
 
     [Fact]
+    public async Task A_manage_link_is_asked_for_the_signed_in_address_only()
+    {
+        const string manageUrl = "https://codelifter.net/api/subscriptions/manage-link";
+        await using var app = new StageZeroApp();
+        app.Http.On(HttpMethod.Post, manageUrl, _ => FakeHttp.Text("""{"ok":true,"message":"Check your inbox."}"""));
+        using var client = await app.SignedInClientAsync();
+
+        var result = await (await client.PostJsonAsync($"{Url}/manage-link", new { email = "someone-else@example.com" }))
+            .ReadAsync<SignupOptInResult>();
+
+        Assert.True(result.Sent);
+        Assert.Contains("an hour", result.Message);
+        var sent = Assert.Single(app.Http.Requests, r => r.Url.ToString() == manageUrl);
+        using var body = JsonDocument.Parse(sent.Body!);
+        Assert.Equal(["email"], body.RootElement.EnumerateObject().Select(p => p.Name));
+        Assert.Equal("owner@example.com", body.RootElement.GetProperty("email").GetString());
+    }
+
+    [Fact]
+    public async Task A_refused_manage_link_says_why()
+    {
+        await using var app = new StageZeroApp();
+        app.Http.On(HttpMethod.Post, "https://codelifter.net/api/subscriptions/manage-link",
+            _ => FakeHttp.Text("""{"error":"Too many emails to this address. Check your inbox, or try again later."}""", HttpStatusCode.TooManyRequests));
+        using var client = await app.SignedInClientAsync();
+
+        var result = await (await client.PostJsonAsync($"{Url}/manage-link", new { })).ReadAsync<SignupOptInResult>();
+
+        Assert.False(result.Sent);
+        Assert.Equal("Couldn't send the link: Too many emails to this address. Check your inbox, or try again later.", result.Message);
+    }
+
+    [Fact]
     public async Task Needs_a_signed_in_operator()
     {
         await using var app = new StageZeroApp();
         using var client = app.CreateClient();
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync(Url)).StatusCode);
+        using var api = app.CreateApiClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await api.PostAsync($"{Url}/manage-link", null)).StatusCode);
     }
 }

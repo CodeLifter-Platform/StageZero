@@ -220,4 +220,34 @@ public class CodeLifterSubscriptionsTests
         Assert.False(await failing.RegisterAsync("owner@example.com"));
         Assert.False(await refused.RegisterAsync("owner@example.com"));
     }
+
+    // ── manage link (POST /api/subscriptions/manage-link) ───────
+
+    private static CodeLifterManageLink CreateManageLink(FakeHandler handler, string? url = "https://example.test/api/subscriptions") =>
+        new(new CodeLifterSubscriptionsOptions { SubscriptionsUrl = url }, new FakeFactory(handler), NullLogger<CodeLifterManageLink>.Instance);
+
+    [Fact]
+    public async Task Manage_link_posts_only_the_address_to_the_same_site()
+    {
+        var handler = new FakeHandler { Respond = _ => FakeHandler.JsonResponse(HttpStatusCode.OK, """{"ok":true,"message":"Check your inbox."}""") };
+
+        var result = await CreateManageLink(handler).RequestAsync("owner@example.com");
+
+        Assert.True(result.Sent);
+        Assert.Equal("https://example.test/api/subscriptions/manage-link", handler.Request!.RequestUri!.ToString());
+        Assert.Equal("""{"email":"owner@example.com"}""", handler.RequestBody);
+    }
+
+    [Fact]
+    public async Task Manage_link_is_off_with_a_blank_url_and_never_throws()
+    {
+        var off = CreateManageLink(new FakeHandler(), url: "");
+        var failing = CreateManageLink(new FakeHandler { Respond = _ => throw new HttpRequestException("down") });
+
+        Assert.False(off.Enabled);
+        Assert.False((await off.RequestAsync("owner@example.com")).Sent);
+        var unreachable = await failing.RequestAsync("owner@example.com");
+        Assert.False(unreachable.Sent);
+        Assert.Equal("Couldn't reach codelifter.net. Try again later.", unreachable.Message);
+    }
 }

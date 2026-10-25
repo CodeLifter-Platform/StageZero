@@ -119,8 +119,12 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   never fails setup. The newsletter and StageZero updates are on **Settings → Email from
   CodeLifter** (`/api/settings/email-updates`), each its own request to the site's
   double-opt-in subscriptions API for the signed-in address (the library's `ISignupOptIn`
-  extension point), so each gets its own confirmation email. A blank
-  `CodeLifter__SubscriptionsUrl` switches both off and hides them.
+  extension point), so each gets its own confirmation email. **Manage email preferences**
+  (`POST /api/settings/email-updates/manage-link`, `CodeLifterManageLink.cs`) asks the site
+  to email the signed-in address a one-hour link to a page that switches each list on or
+  off; the inbox is the credential, so StageZero stores nothing for it and the request
+  carries only the signed-in address. A blank `CodeLifter__SubscriptionsUrl` switches all
+  of it off and hides it.
 - **The API refuses anyone not signed in.** Every `/api/ip`, `/api/dns`, `/api/tunnel` and
   `/api/settings` route answers 401 without the cookie (tested route by route, and that no 401 body carries
   the IP). Only `/api/auth/*` and `/healthz` are open, and `GET /api/auth/session` says
