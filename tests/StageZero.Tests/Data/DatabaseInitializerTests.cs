@@ -35,7 +35,8 @@ public sealed class DatabaseInitializerTests : IDisposable
         var record = await db.DnsRecords.Include(r => r.DnsProvider).SingleAsync();
         Assert.Equal("home.example.com", record.RecordName);
         Assert.Equal("203.0.113.7", record.LastIpAddress);
-        Assert.Equal("test-token", record.DnsProvider.ProtectedApiToken); // encrypted later, at app startup
+        // The provider's token became the one saved token; it is encrypted later, at app startup.
+        Assert.Equal("test-token", (await db.CloudflareCredentials.SingleAsync()).ProtectedApiToken);
         Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
         Assert.Equal("300", (await db.AppSettings.SingleAsync()).Value);
         Assert.Equal(1, await db.IpChecks.CountAsync());
@@ -97,8 +98,10 @@ public sealed class DatabaseInitializerTests : IDisposable
                 INSERT INTO __EFMigrationsHistory VALUES ('20260921190518_CollapseIpHistoryIntoRuns', '10.0.12');
                 ALTER TABLE Users ADD COLUMN "SecurityStamp" TEXT NOT NULL DEFAULT '';
                 ALTER TABLE Users ADD COLUMN "TotpSecret" TEXT NULL;
-                INSERT INTO DnsProviders (Id, Name, ProviderType, ProtectedApiToken, ZoneId, IsActive, CreatedAt)
-                    VALUES (1, 'Cloudflare', 'Cloudflare', 'protected-token', 'zone', 1, '2026-09-21 00:00:00');
+                INSERT INTO DnsProviders (Id, Name, ProviderType, ZoneId, IsActive, CreatedAt)
+                    VALUES (1, 'Cloudflare', 'Cloudflare', 'zone', 1, '2026-09-21 00:00:00');
+                INSERT INTO CloudflareCredentials (ProtectedApiToken, UpdatedAt)
+                    VALUES ('protected-token', '2026-09-21 00:00:00');
                 INSERT INTO Users (Id, Email, PasswordHash, EmailVerified, CreatedAt, IsActive,
                     RequiresPasswordChange, EmailVerificationAttempts, FailedLoginCount, PasswordResetAttempts,
                     SecurityStamp)
@@ -114,7 +117,8 @@ public sealed class DatabaseInitializerTests : IDisposable
         await using var db = DatabaseInitializer.CreateContext(DatabasePath);
         Assert.Empty(await db.Database.GetPendingMigrationsAsync());
         Assert.DoesNotContain("20260921182220_InitialCreate", await AppliedMigrationsAsync());
-        Assert.Equal("protected-token", (await db.DnsProviders.SingleAsync()).ProtectedApiToken);
+        Assert.Equal("zone", (await db.DnsProviders.SingleAsync()).ZoneId);
+        Assert.Equal("protected-token", (await db.CloudflareCredentials.SingleAsync()).ProtectedApiToken);
         Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
         Assert.Equal(42, (await db.IpChecks.SingleAsync()).Confirmations); // not collapsed again
         Assert.Single(Backups());

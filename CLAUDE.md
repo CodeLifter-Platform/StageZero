@@ -37,8 +37,12 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
 - **This repo is PUBLIC.** Its macOS CI legs stay on GitHub-hosted runners; the
   `runs-on: macbook` rule applies to private repos only
   (`Platform-Standards/process/versioning-ci.md`).
+- **One Cloudflare API token, saved on Settings, for everything** (`Services/Cloudflare/`).
+  DNS, tunnel and Access code gets it from `ICloudflareCredentialService`; no route takes a
+  token from a request. Its required permissions are `CloudflareCredentialService.RequiredPermissions`,
+  which the Settings page renders — change the list there, not in copy.
 - **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
-  while DNS is zone-scoped, so the API token needs `Access: Apps Edit` and
+  while DNS is zone-scoped, so the API token needs `Access: Apps and Policies Edit` and
   `Access: Service Tokens Edit` on top of the tunnel and DNS permissions
   (`..Documentation/CLOUDFLARE_ACCESS_SETUP.md`). A minted service token's client secret
   is returned by Cloudflare exactly once — never log it, store it, or write it to disk.

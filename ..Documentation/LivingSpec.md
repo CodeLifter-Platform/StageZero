@@ -44,7 +44,24 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   off without stopping monitoring. A change is
   published on the singleton `IIpChangeNotifier`; `GET /api/ip/events` streams it to the
   browser as server-sent events (first event: the IP as it stands), which the top-bar chip
-  and the IP Monitor page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**, whose **Cloudflare credentials** card takes an API token, lists the zones it can manage, and adds any of them as a provider in one click (the token is stored encrypted with each provider and never shown again).
+  and the IP Monitor page listen to (no polling). UI: **IP Monitor** (history) and **DNS Configuration**, whose **Add a zone** card lists the zones the saved token can manage and adds any of them as a provider in one click. A check with no usable token saved is skipped with a warning in the log.
+- **One Cloudflare API token, on Settings** (`Services/Cloudflare/`, `Api/SettingsEndpoints.cs`,
+  `web/src/pages/settings/`). The signed-in email in the top bar opens **Settings**, where the
+  operator adds, checks, replaces and removes the single token every feature uses — DNS,
+  the tunnel and Access — kept in the single-row `CloudflareCredentials` table with its
+  account. The page always shows the five permissions it needs (Account → Cloudflare Tunnel,
+  Access: Apps and Policies, Access: Service Tokens, all Edit; Zone → DNS → Edit; Zone → Zone
+  → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
+  Cloudflare's verify endpoint (user token, then account token) and refuses a disabled,
+  expired or not-yet-valid token, naming the start date; works out the account from
+  `GET /accounts` (the given Account ID if the token sees it, else the only one; several
+  without an ID is refused; none is allowed and means DNS only); refuses a token for another
+  account while a tunnel is saved; then runs one read-only probe per permission and returns
+  *Granted*/*Missing* with what it saw. DNS → Edit can only be shown as readable records; the
+  first update proves the write. `POST /check` re-verifies and re-probes; `DELETE` forgets
+  the token (it keeps working at Cloudflare until deleted there, which the page says). No
+  other route takes a token: `/api/dns/zones` is a GET, and Tunnel Setup's account, create
+  and adopt calls read the saved token, so the token travels in exactly one request.
 - **Public IP by consensus.** `PublicIpResolver` asks three independent services in
   parallel — Cloudflare's `1.1.1.1/cdn-cgi/trace`, ipify, and AWS `checkip` — with a 5-second
   timeout each. Only a public IPv4 address counts as an answer (an HTML captive-portal
@@ -56,8 +73,8 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   how many did (`Confirmations`). An unchanged check extends the current row; a change
   starts a new one. Upgrading folds the old one-row-per-check history into runs (a real
   month of 2,715 rows became 11, every check still counted).
-- **Cloudflare Tunnel routes** (`Services/Tunnel/`). Connect an account, create or adopt a
-  tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
+- **Cloudflare Tunnel routes** (`Services/Tunnel/`). With the Settings token's account,
+  create or adopt a tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for
   macOS, Windows, Linux, and Docker. UI: **Tunnel Setup** and **Tunnel Routes**, in that order in the nav.
 - **Cloudflare Access** (`Services/Access/`). Every new route gets an Access application,
@@ -99,8 +116,8 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
   single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
   never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
-- **The API refuses anyone not signed in.** Every `/api/ip`, `/api/dns` and `/api/tunnel`
-  route answers 401 without the cookie (tested route by route, and that no 401 body carries
+- **The API refuses anyone not signed in.** Every `/api/ip`, `/api/dns`, `/api/tunnel` and
+  `/api/settings` route answers 401 without the cookie (tested route by route, and that no 401 body carries
   the IP). Only `/api/auth/*` and `/healthz` are open, and `GET /api/auth/session` says
   only whether setup is needed and who is signed in. Every non-GET API call must carry
   `X-Requested-With: StageZero` (`Api/ApiPipeline.cs`), which a cross-site form can't send.
@@ -239,10 +256,14 @@ before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabas
 and then migrated like any other. So is one migrated by the retired pre-#18 migration set
 (a history naming none of today's migrations): it is adopted at the latest schema, since its
 data already went through every current migration. Either way the original is kept beside it
-as `stagezero.db.pre-migrations-<ts>.bak`. The Cloudflare DNS token and tunnel token are encrypted
-with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`) before they reach
-SQLite — a plaintext token from an older install is encrypted on first start — and losing
-the keyring makes them undecryptable. Access service-token client secrets are never persisted. The theme choice
+as `stagezero.db.pre-migrations-<ts>.bak`. The one Cloudflare API token (`CloudflareCredentials`,
+single row) is encrypted with ASP.NET Data Protection (`Services/CloudflareTokenProtector.cs`)
+before it reaches the database — a plaintext token from an older install is encrypted on first
+start (`CloudflareTokenStore`) — and losing the keyring makes it undecryptable, which Settings
+reports. Installs from before 2026-10-25 kept a token per DNS provider and one on the tunnel;
+the `SingleCloudflareCredential` migration keeps the tunnel's (with its account), else the first
+enabled provider's, then drops the per-provider and tunnel token columns and the tunnel's
+account column. Its `Down` hands the token back to the tunnel and every provider. Access service-token client secrets are never persisted. The theme choice
 and the sidebar's collapsed state live in the browser's `localStorage` (`stagezero.theme`,
 `stagezero.sidebar`), not on the server. The session is a cookie holding the user id and a
 credentials stamp, encrypted with the same key ring; no session state is kept server-side.
@@ -304,15 +325,16 @@ GitHub-hosted runners.
   Splitting the services into their own package is the clean fix; it changes the published
   package, so it is left for its own change.
 - **The Access permission name is not settled in the app.** StageZero writes Access
-  applications *and* account-level reusable policies, so the docs ask for Cloudflare's
-  *Access: Apps and Policies → Edit*. The Tunnel Setup page's notice and the pre-check's
-  error message still say "Access: Apps Edit", and the pre-check
+  applications *and* account-level reusable policies, so the docs and the Settings page ask
+  for Cloudflare's *Access: Apps and Policies → Edit*. The pre-check's error message still
+  says "Access: Apps Edit", and the pre-check
   (`CloudflareAccessService.CheckPermissionsAsync`) probes only `/access/apps` and
   `/access/service_tokens`, never `/access/policies`. Whether *Access: Apps → Edit* alone
   can write reusable policies has not been tested against a live account.
-- **A DNS provider's token can't be replaced in place.** Rotating it means deleting the
-  provider and adding it again, then re-importing its records
-  ([CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md#rotating-the-token)).
-- **The tunnel API token is typed on every setup step.** The wizard is stateless: the token
-  travels in each request body (never a URL) until a tunnel is saved, then lives encrypted
-  in the database. Same behaviour as before, now visible as API calls.
+- **Settings can't prove Edit rights.** Cloudflare has no "what may this token do" call, and
+  the probes are read-only so a check never changes anything: DNS → Edit, Tunnel → Edit and
+  the Access rows show *Granted* when the matching list call succeeds. A Read-only grant
+  passes and fails on the first write, with Cloudflare's own error.
+- **Settings has no "revoke at Cloudflare".** Remove only forgets the token; deleting it
+  needs the dashboard, because a token can only delete itself with the *API Tokens* permission,
+  which StageZero deliberately doesn't ask for.

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.DataProtection;
-using StageZero.Models;
 
 namespace StageZero.Services;
 
@@ -8,8 +7,8 @@ namespace StageZero.Services;
 // ═══════════════════════════════════════════════════════════════
 
 /// <summary>
-/// Encrypts and decrypts the Cloudflare API tokens StageZero stores — the DNS providers'
-/// and the tunnel's. Backed by ASP.NET Data Protection (the dp-keys ring), so a copy of the
+/// Encrypts and decrypts the Cloudflare API token StageZero stores (the Settings page's,
+/// <see cref="Models.CloudflareCredential"/>). Backed by ASP.NET Data Protection (the dp-keys ring), so a copy of the
 /// database alone doesn't give the tokens away.
 /// </summary>
 public interface ICloudflareTokenProtector
@@ -29,7 +28,8 @@ public interface ICloudflareTokenProtector
 
 public class CloudflareTokenProtector : ICloudflareTokenProtector
 {
-    // Unchanged from when this protected only the tunnel's token, so those still decrypt.
+    // Unchanged since this protected only the tunnel's token: tokens carried over from the
+    // tunnel and the DNS providers still decrypt.
     private const string Purpose = "StageZero.CloudflareApiToken.v1";
 
     // Every Data Protection payload starts with its magic header, base64url-encoded.
@@ -67,42 +67,8 @@ public class CloudflareTokenProtector : ICloudflareTokenProtector
         {
             _logger.LogError(ex,
                 "Could not decrypt a stored Cloudflare API token. The data-protection " +
-                "keyring may have been lost; enter the token again (tunnel setup, or the DNS provider).");
+                "keyring may have been lost; enter the token again on the Settings page.");
             return null;
         }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// READ-SIDE HELPERS
-// ═══════════════════════════════════════════════════════════════
-
-/// <summary>Decrypts stored DNS provider tokens into <see cref="DnsProvider.ApiToken"/> as the readers load them.</summary>
-public static class CloudflareTokenReveal
-{
-    public static DnsProvider Reveal(this ICloudflareTokenProtector tokens, DnsProvider provider)
-    {
-        provider.ApiToken = CloudflareTokenProtector.IsProtected(provider.ProtectedApiToken)
-            ? tokens.Unprotect(provider.ProtectedApiToken) ?? string.Empty
-            : provider.ProtectedApiToken; // not yet encrypted (see CloudflareTokenStore)
-        return provider;
-    }
-
-    public static async Task<List<DnsProvider>> RevealAll(this Task<List<DnsProvider>> query, ICloudflareTokenProtector tokens)
-    {
-        var providers = await query;
-        providers.ForEach(p => tokens.Reveal(p));
-        return providers;
-    }
-
-    public static async Task<List<DnsRecord>> RevealProviders(this Task<List<DnsRecord>> query, ICloudflareTokenProtector tokens)
-    {
-        var records = await query;
-        foreach (var provider in records.Select(r => r.DnsProvider).Distinct())
-        {
-            tokens.Reveal(provider);
-        }
-
-        return records;
     }
 }

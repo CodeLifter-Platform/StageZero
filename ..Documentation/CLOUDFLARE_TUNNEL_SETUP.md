@@ -23,26 +23,26 @@ new subdomain is a form submission rather than a config file edit and a restart.
 
 ---
 
-## 1. Create an API token
+## 1. Save the Cloudflare API token
 
-In the Cloudflare dashboard: **My Profile → API Tokens → Create Token → Custom token**.
+StageZero uses one Cloudflare API token for DNS, the tunnel and Access, saved on the
+**Settings** page (click your email at the top right). The page lists the five permissions
+it needs:
 
-| Scope | Permission |
-|---|---|
-| Account | Cloudflare Tunnel → **Edit** |
-| Zone | DNS → **Edit** |
-| Zone | Zone → **Read** |
+| Scope | Item | Level |
+|---|---|---|
+| Account | Cloudflare Tunnel | Edit |
+| Account | Access: Apps and Policies | Edit |
+| Account | Access: Service Tokens | Edit |
+| Zone | DNS | Edit |
+| Zone | Zone | Read |
 
-Restrict the zone permissions to the domain you're publishing. The same token also
-works for StageZero's DNS Configuration page, so one token covers both features.
-
-If you also want Cloudflare Access in front of the hostnames this tunnel publishes
-— which is StageZero's default for new routes — the token needs more,
-account-scoped, permissions. The full list, step-by-step creation and rotation are in
-[CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md).
-
-You'll also need your **Account ID**, from **Workers & Pages → Account details** in
-the dashboard sidebar.
+The Access rows are for Cloudflare Access in front of the hostnames this tunnel publishes,
+which is StageZero's default for new routes. Create the token under
+**My Profile → API Tokens → Create Token → Custom token**, paste it on Settings and
+**Save token**. StageZero works out the account from the token (enter the Account ID only
+if it reaches several) and shows which permissions the token has. Step-by-step creation and
+rotation are in [CLOUDFLARE_TOKENS.md](CLOUDFLARE_TOKENS.md).
 
 ---
 
@@ -50,14 +50,14 @@ the dashboard sidebar.
 
 Open **Tunnel Setup** (`/tunnel-settings`) and:
 
-1. Paste the API token and Account ID, then **Connect**.
+1. Check the account shown under **1. Cloudflare account** (it comes from Settings), then **Connect**.
 2. Pick the zone your hostnames belong to.
 3. Either **Adopt** an existing tunnel or **Create** a new one.
 
 The token is encrypted with ASP.NET Data Protection before it's stored. The
 encryption keys live in the app data directory (`/app-data/dp-keys` in Docker), so
 that directory must be on a persistent volume — otherwise the token becomes
-unreadable after a restart and setup has to be repeated.
+unreadable after a restart and has to be entered again on Settings.
 
 ---
 
@@ -177,7 +177,7 @@ enabled, and that the hostname matches exactly.
 
 **"Could not decrypt the stored Cloudflare API token."** The data-protection
 keyring was lost — usually a container restart without a persistent `/app-data`
-mount. Re-run Tunnel Setup, then fix the volume mount.
+mount. Enter the token again on Settings, then fix the volume mount.
 
 **Login redirects to localhost.** Forwarded headers aren't being honored. Confirm
 you're running the release compose file (`docker-compose.yml`), which sets

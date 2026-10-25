@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using StageZero.Api;
 using StageZero.Data;
 using StageZero.DataAdapters.AccessServiceTokens;
+using StageZero.DataAdapters.CloudflareCredentials;
 using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.DataAdapters.IpChecks;
@@ -13,6 +14,7 @@ using StageZero.Models;
 using StageZero.Services;
 using StageZero.Services.Access;
 using StageZero.Services.Cli;
+using StageZero.Services.Cloudflare;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
@@ -178,6 +180,8 @@ try
     builder.Services.AddScoped<ITunnelConfigWriter, TunnelConfigWriter>();
     builder.Services.AddScoped<IAccessServiceTokenReader, AccessServiceTokenReader>();
     builder.Services.AddScoped<IAccessServiceTokenWriter, AccessServiceTokenWriter>();
+    builder.Services.AddScoped<ICloudflareCredentialReader, CloudflareCredentialReader>();
+    builder.Services.AddScoped<ICloudflareCredentialWriter, CloudflareCredentialWriter>();
 
     // ═══════════════════════════════════════════════════════════════
     // SERVICES REGISTRATION
@@ -219,6 +223,8 @@ try
     // CLOUDFLARE TUNNEL SERVICES
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<ICloudflareTokenProtector, CloudflareTokenProtector>();
+    builder.Services.AddScoped<ICloudflareAccountService, CloudflareAccountService>();
+    builder.Services.AddScoped<ICloudflareCredentialService, CloudflareCredentialService>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
     builder.Services.AddScoped<ITunnelSetupService, TunnelSetupService>();
@@ -301,6 +307,7 @@ try
     api.MapIpEndpoints();
     api.MapDnsEndpoints();
     api.MapTunnelEndpoints();
+    api.MapSettingsEndpoints();
 
     // Everything else is the React app's: deep links and reloads get index.html.
     app.MapSpaFallback();

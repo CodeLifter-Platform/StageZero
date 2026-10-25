@@ -1,6 +1,7 @@
 using StageZero.DataAdapters.DnsProviders;
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.Models;
+using StageZero.Services.Cloudflare;
 
 namespace StageZero.Services.Dns;
 
@@ -10,20 +11,21 @@ namespace StageZero.Services.Dns;
 
 /// <summary>
 /// The DNS Configuration screen's operations: Cloudflare providers and the records StageZero
-/// tracks for them. Every rule about which records may auto-update lives here (and in
+/// tracks for them, reached with the one token saved on the Settings page. Every rule about which records may auto-update lives here (and in
 /// <see cref="DnsRecord.SupportsAutoUpdate"/>), so no client can switch it on for a type the
 /// verifier would break.
 /// </summary>
 public interface IDnsConfigService
 {
     Task<List<DnsProvider>> GetProvidersAsync();
-    Task<DnsProvider> AddProviderAsync(string name, string apiToken, string zoneId, bool isActive);
+    Task<DnsProvider> AddProviderAsync(string name, string zoneId, bool isActive);
     Task<DnsProvider> ToggleProviderAsync(int providerId);
     Task DeleteProviderAsync(int providerId);
     Task<DnsRecord> AddRecordAsync(int providerId, DnsRecordInput input);
     Task<DnsRecord> UpdateRecordAsync(int recordId, DnsRecordInput input);
     Task DeleteRecordAsync(int recordId);
-    Task<List<CloudflareZone>> GetCloudflareZonesAsync(string apiToken);
+    /// <summary>The zones the saved token can see.</summary>
+    Task<List<CloudflareZone>> GetCloudflareZonesAsync();
     Task<List<CloudflareDnsRecord>> GetCloudflareRecordsAsync(int providerId);
     Task<DnsImportResult> ImportAllRecordsAsync(int providerId);
 }
@@ -57,6 +59,7 @@ public class DnsConfigService : IDnsConfigService
     private readonly IDnsRecordReader _recordReader;
     private readonly IDnsRecordWriter _recordWriter;
     private readonly ICloudflareService _cloudflareService;
+    private readonly ICloudflareCredentialService _credentials;
 
     public DnsConfigService(
         ILogger<DnsConfigService> logger,
@@ -64,7 +67,8 @@ public class DnsConfigService : IDnsConfigService
         IDnsProviderWriter providerWriter,
         IDnsRecordReader recordReader,
         IDnsRecordWriter recordWriter,
-        ICloudflareService cloudflareService)
+        ICloudflareService cloudflareService,
+        ICloudflareCredentialService credentials)
     {
         _logger = logger;
         _providerReader = providerReader;
@@ -72,25 +76,24 @@ public class DnsConfigService : IDnsConfigService
         _recordReader = recordReader;
         _recordWriter = recordWriter;
         _cloudflareService = cloudflareService;
+        _credentials = credentials;
     }
 
     public Task<List<DnsProvider>> GetProvidersAsync() => _providerReader.GetAllAsync();
 
-    public async Task<DnsProvider> AddProviderAsync(string name, string apiToken, string zoneId, bool isActive)
+    public async Task<DnsProvider> AddProviderAsync(string name, string zoneId, bool isActive)
     {
         name = name.Trim();
-        apiToken = apiToken.Trim();
         zoneId = zoneId.Trim();
         if (name.Length == 0) throw new UserFacingException("Name is required.");
-        if (apiToken.Length == 0) throw new UserFacingException("API token is required.");
         if (zoneId.Length == 0) throw new UserFacingException("Pick a zone.");
+        await _credentials.RequireAsync();
 
         _logger.LogInformation("Adding Cloudflare provider: {Name}", name);
         var provider = new DnsProvider
         {
             Name = name,
             ProviderType = "Cloudflare",
-            ApiToken = apiToken,
             ZoneId = zoneId,
             IsActive = isActive
         };
@@ -161,12 +164,12 @@ public class DnsConfigService : IDnsConfigService
         await _recordWriter.DeleteAsync(record);
     }
 
-    public async Task<List<CloudflareZone>> GetCloudflareZonesAsync(string apiToken)
+    public async Task<List<CloudflareZone>> GetCloudflareZonesAsync()
     {
-        if (string.IsNullOrWhiteSpace(apiToken)) throw new UserFacingException("API token is required.");
+        var credentials = await _credentials.RequireAsync();
         try
         {
-            return await _cloudflareService.GetZonesAsync(apiToken.Trim());
+            return await _cloudflareService.GetZonesAsync(credentials.ApiToken);
         }
         catch (Exception ex) when (ex is not UserFacingException)
         {
@@ -178,9 +181,10 @@ public class DnsConfigService : IDnsConfigService
     public async Task<List<CloudflareDnsRecord>> GetCloudflareRecordsAsync(int providerId)
     {
         var provider = await RequireProviderAsync(providerId);
+        var credentials = await _credentials.RequireAsync();
         try
         {
-            var records = await _cloudflareService.GetDnsRecordsAsync(provider.ApiToken, provider.ZoneId!);
+            var records = await _cloudflareService.GetDnsRecordsAsync(credentials.ApiToken, provider.ZoneId!);
             return records.Where(r => TrackedTypes.Contains(r.Type)).ToList();
         }
         catch (Exception ex) when (ex is not UserFacingException)
@@ -193,12 +197,13 @@ public class DnsConfigService : IDnsConfigService
     public async Task<DnsImportResult> ImportAllRecordsAsync(int providerId)
     {
         var provider = await RequireProviderAsync(providerId);
+        var credentials = await _credentials.RequireAsync();
         _logger.LogInformation("Importing all DNS records from Cloudflare for provider {ProviderId}", providerId);
 
         List<CloudflareDnsRecord> cloudflareRecords;
         try
         {
-            cloudflareRecords = await _cloudflareService.GetDnsRecordsAsync(provider.ApiToken, provider.ZoneId!);
+            cloudflareRecords = await _cloudflareService.GetDnsRecordsAsync(credentials.ApiToken, provider.ZoneId!);
         }
         catch (Exception ex) when (ex is not UserFacingException)
         {

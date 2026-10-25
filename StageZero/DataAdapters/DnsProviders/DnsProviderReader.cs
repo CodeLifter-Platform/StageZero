@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StageZero.Data;
 using StageZero.Models;
-using StageZero.Services;
 
 namespace StageZero.DataAdapters.DnsProviders;
 
@@ -23,21 +22,18 @@ public interface IDnsProviderReader
 public class DnsProviderReader : IDnsProviderReader
 {
     private readonly IDbContextFactory<ApplicationDbContext> _factory;
-    private readonly ICloudflareTokenProtector _tokens;
 
-    public DnsProviderReader(IDbContextFactory<ApplicationDbContext> factory, ICloudflareTokenProtector tokens)
+    public DnsProviderReader(IDbContextFactory<ApplicationDbContext> factory)
     {
         _factory = factory;
-        _tokens = tokens;
     }
 
     public async Task<DnsProvider?> GetByIdAsync(int id)
     {
         await using var db = await _factory.CreateDbContextAsync();
-        var provider = await db.DnsProviders
+        return await db.DnsProviders
             .Include(p => p.DnsRecords)
             .FirstOrDefaultAsync(p => p.Id == id);
-        return provider is null ? null : _tokens.Reveal(provider);
     }
 
     public async Task<List<DnsProvider>> GetAllAsync()
@@ -47,8 +43,7 @@ public class DnsProviderReader : IDnsProviderReader
             .Include(p => p.DnsRecords)
             .AsNoTracking()
             .OrderBy(p => p.Name)
-            .ToListAsync()
-            .RevealAll(_tokens);
+            .ToListAsync();
     }
 
     public async Task<List<DnsProvider>> GetActiveAsync()
@@ -59,8 +54,7 @@ public class DnsProviderReader : IDnsProviderReader
             .AsNoTracking()
             .Where(p => p.IsActive)
             .OrderBy(p => p.Name)
-            .ToListAsync()
-            .RevealAll(_tokens);
+            .ToListAsync();
     }
 }
 

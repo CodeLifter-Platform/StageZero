@@ -148,6 +148,42 @@ namespace StageZero.Data.Migrations
                     b.ToTable("AppSettings");
                 });
 
+            modelBuilder.Entity("StageZero.Models.CloudflareCredential", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AccountId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountName")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExpiresOn")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProtectedApiToken")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TokenId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CloudflareCredentials");
+                });
+
             modelBuilder.Entity("StageZero.Models.DnsProvider", b =>
                 {
                     b.Property<int>("Id")
@@ -166,10 +202,6 @@ namespace StageZero.Data.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProtectedApiToken")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ProviderType")
@@ -273,21 +305,12 @@ namespace StageZero.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("CloudflareAccountId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("CloudflareZoneId")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("CloudflareZoneName")
                         .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProtectedApiToken")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TunnelId")

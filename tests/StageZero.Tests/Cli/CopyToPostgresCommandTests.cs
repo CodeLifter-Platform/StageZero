@@ -59,19 +59,20 @@ public sealed class CopyToPostgresCommandTests : IAsyncLifetime
         await using var db = DatabaseSettings.Postgres(_target!).CreateContext();
         Assert.Equal("owner@example.com", (await db.Users.SingleAsync()).Email);
         Assert.Equal("300", (await db.AppSettings.SingleAsync()).Value);
-        var provider = await db.DnsProviders.SingleAsync();
-        Assert.Equal((7, "CfDJ8-protected-token"), (provider.Id, provider.ProtectedApiToken));
+        Assert.Equal(7, (await db.DnsProviders.SingleAsync()).Id);
+        var credential = await db.CloudflareCredentials.SingleAsync();
+        Assert.Equal(("CfDJ8-protected-token", "acct-1"), (credential.ProtectedApiToken, credential.AccountId));
         var record = await db.DnsRecords.SingleAsync();
         Assert.Equal((7, "home.example.com"), (record.DnsProviderId, record.RecordName));
         var check = await db.IpChecks.SingleAsync();
         Assert.Equal((42, new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc)), (check.Confirmations, check.LastConfirmedAt));
-        Assert.Equal("acct-1", (await db.TunnelConfigs.SingleAsync()).CloudflareAccountId);
+        Assert.Equal("t-1", (await db.TunnelConfigs.SingleAsync()).TunnelId);
         var route = await db.TunnelRoutes.SingleAsync();
         Assert.Equal(("app.example.com", "owner@example.com"), (route.DomainName, route.Access.AllowedEmails));
         Assert.Equal("token-1", (await db.AccessServiceTokens.SingleAsync()).CloudflareTokenId);
 
         // The sequences moved past the copied ids: a new row doesn't collide.
-        db.DnsProviders.Add(new DnsProvider { Name = "Second", ProviderType = "Cloudflare", ProtectedApiToken = "x" });
+        db.DnsProviders.Add(new DnsProvider { Name = "Second", ProviderType = "Cloudflare" });
         await db.SaveChangesAsync();
         Assert.Equal(8, (await db.DnsProviders.OrderBy(p => p.Id).LastAsync()).Id);
     }
@@ -101,7 +102,7 @@ public sealed class CopyToPostgresCommandTests : IAsyncLifetime
         db.AppSettings.Add(new AppSettings { Key = "CheckIntervalSeconds", Value = "300" });
         db.DnsProviders.Add(new DnsProvider
         {
-            Id = 7, Name = "Home", ProviderType = "Cloudflare", ProtectedApiToken = "CfDJ8-protected-token", ZoneId = "zone-1",
+            Id = 7, Name = "Home", ProviderType = "Cloudflare", ZoneId = "zone-1",
             DnsRecords = [new DnsRecord { RecordName = "home.example.com", RecordType = "A", AutoUpdate = true }]
         });
         db.IpChecks.Add(new IpCheck
@@ -109,7 +110,8 @@ public sealed class CopyToPostgresCommandTests : IAsyncLifetime
             IpAddress = "203.0.113.7", CheckedAt = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
             LastConfirmedAt = new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc), Confirmations = 42
         });
-        db.TunnelConfigs.Add(new TunnelConfig { CloudflareAccountId = "acct-1", ProtectedApiToken = "CfDJ8-tunnel" });
+        db.CloudflareCredentials.Add(new CloudflareCredential { ProtectedApiToken = "CfDJ8-protected-token", AccountId = "acct-1" });
+        db.TunnelConfigs.Add(new TunnelConfig { TunnelId = "t-1" });
         db.TunnelRoutes.Add(new TunnelRoute
         {
             DomainName = "app.example.com", ForwardHost = "192.168.1.10", ForwardPort = 8080,

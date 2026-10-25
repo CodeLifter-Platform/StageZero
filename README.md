@@ -199,7 +199,9 @@ This is useful for:
 
 ### Cloudflare API Token
 
-One token can drive all three features. Create it at **My Profile → API Tokens** with:
+One token drives all three features. Create it at **My Profile → API Tokens**, then save it
+on StageZero's **Settings** page (click your email at the top right), which lists the same
+permissions and checks the token has each one:
 
 | Scope | Permission | Needed for |
 |---|---|---|
@@ -212,10 +214,10 @@ One token can drive all three features. Create it at **My Profile → API Tokens
 
 The Access permissions are **account-scoped**, unlike the zone-scoped DNS permissions — a
 token that writes DNS records fine may still have no Access rights at all. Step-by-step
-creation, one token versus two, rotation, and the errors each missing permission causes:
+creation, rotation, and the errors each missing permission causes:
 [..Documentation/CLOUDFLARE_TOKENS.md](..Documentation/CLOUDFLARE_TOKENS.md).
 
-The tunnel token is encrypted with ASP.NET Data Protection before storage. The
+The token is encrypted with ASP.NET Data Protection before storage. The
 keyring lives in the app data directory (`/app-data/dp-keys` in Docker), which
 must be on a persistent volume — otherwise the token can't be decrypted after a
 restart.

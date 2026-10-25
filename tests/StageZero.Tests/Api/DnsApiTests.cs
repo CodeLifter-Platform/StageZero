@@ -9,30 +9,37 @@ namespace StageZero.Tests.Api;
 
 /// <summary>
 /// The DNS Configuration screen over HTTP, against the real store and a scripted Cloudflare.
-/// A provider's API token goes in once and must never come back out.
+/// Every provider uses the token saved on the Settings page; none is taken or returned here.
 /// </summary>
 [Collection(AppCollection.Name)]
 public class DnsApiTests
 {
     [Fact]
-    public async Task A_provider_token_is_stored_encrypted_and_never_returned()
+    public async Task A_provider_is_added_for_a_zone_without_a_token_of_its_own()
+    {
+        await using var app = new StageZeroApp();
+        await CloudflareFakes.SaveTokenAsync(app);
+        using var client = await app.SignedInClientAsync();
+
+        var added = await client.PostJsonAsync("/api/dns/providers",
+            new { name = "Home", zoneId = CloudflareFakes.ZoneId, isActive = false });
+        var list = await client.GetAsync("/api/dns/providers");
+
+        Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+        Assert.DoesNotContain(CloudflareFakes.Token, await list.Content.ReadAsStringAsync());
+        var provider = Assert.Single(await list.ReadAsync<List<DnsEndpoints.ProviderView>>());
+        Assert.False(provider.IsActive); // the dialog's switch used to be ignored
+    }
+
+    [Fact]
+    public async Task Adding_a_provider_before_a_token_is_saved_points_to_settings()
     {
         await using var app = new StageZeroApp();
         using var client = await app.SignedInClientAsync();
 
-        var added = await client.PostJsonAsync("/api/dns/providers",
-            new { name = "Home", apiToken = CloudflareFakes.Token, zoneId = CloudflareFakes.ZoneId, isActive = false });
-        var list = await client.GetAsync("/api/dns/providers");
+        var response = await client.PostJsonAsync("/api/dns/providers", new { name = "Home", zoneId = CloudflareFakes.ZoneId });
 
-        Assert.DoesNotContain(CloudflareFakes.Token, await added.Content.ReadAsStringAsync());
-        Assert.DoesNotContain(CloudflareFakes.Token, await list.Content.ReadAsStringAsync());
-        var provider = Assert.Single(await list.ReadAsync<List<DnsEndpoints.ProviderView>>());
-        Assert.False(provider.IsActive); // the dialog's switch used to be ignored
-
-        await using var db = await app.CreateDbContextAsync();
-        var stored = await db.DnsProviders.SingleAsync();
-        Assert.NotEqual(CloudflareFakes.Token, stored.ProtectedApiToken);
-        Assert.DoesNotContain(CloudflareFakes.Token, stored.ProtectedApiToken);
+        Assert.Contains("Settings page", await response.ProblemTitleAsync(HttpStatusCode.Conflict));
     }
 
     [Fact]
@@ -127,14 +134,14 @@ public class DnsApiTests
     }
 
     [Fact]
-    public async Task Zones_are_listed_with_the_token_from_the_body()
+    public async Task Zones_are_listed_with_the_saved_token()
     {
         await using var app = new StageZeroApp();
+        await CloudflareFakes.SaveTokenAsync(app);
         app.Http.OnGet("https://api.cloudflare.com/client/v4/zones", CloudflareFakes.List(new { id = "zone-1", name = "example.com" }));
         using var client = await app.SignedInClientAsync();
 
-        var zones = await (await client.PostJsonAsync("/api/dns/zones", new { apiToken = CloudflareFakes.Token }))
-            .ReadAsync<List<CloudflareZone>>();
+        var zones = await (await client.GetAsync("/api/dns/zones")).ReadAsync<List<CloudflareZone>>();
 
         Assert.Equal("example.com", Assert.Single(zones).Name);
         var request = Assert.Single(app.Http.Requests);

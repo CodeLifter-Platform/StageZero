@@ -4,8 +4,8 @@ using StageZero.Services.Dns;
 namespace StageZero.Api;
 
 /// <summary>
-/// DNS providers and the records StageZero tracks. A provider's Cloudflare token goes in
-/// once, when it is added, and never comes back out: nothing here serialises it.
+/// DNS providers and the records StageZero tracks. Every provider is reached with the one
+/// Cloudflare token saved on the Settings page; nothing here takes or returns a token.
 /// </summary>
 public static class DnsEndpoints
 {
@@ -18,7 +18,7 @@ public static class DnsEndpoints
 
         dns.MapPost("/providers", async (AddProviderRequest request, IDnsConfigService service) =>
             ProviderView.From(await service.AddProviderAsync(
-                request.Name ?? string.Empty, request.ApiToken ?? string.Empty, request.ZoneId ?? string.Empty, request.IsActive)));
+                request.Name ?? string.Empty, request.ZoneId ?? string.Empty, request.IsActive)));
 
         dns.MapPost("/providers/{id:int}/toggle", async (int id, IDnsConfigService service) =>
             ProviderView.From(await service.ToggleProviderAsync(id)));
@@ -41,9 +41,7 @@ public static class DnsEndpoints
             return Results.NoContent();
         });
 
-        // POST, so the token travels in the body and never in a URL or an access log.
-        dns.MapPost("/zones", (ZonesRequest request, IDnsConfigService service) =>
-            service.GetCloudflareZonesAsync(request.ApiToken ?? string.Empty));
+        dns.MapGet("/zones", (IDnsConfigService service) => service.GetCloudflareZonesAsync());
 
         dns.MapGet("/providers/{id:int}/cloudflare-records", (int id, IDnsConfigService service) =>
             service.GetCloudflareRecordsAsync(id));
@@ -52,9 +50,7 @@ public static class DnsEndpoints
             service.ImportAllRecordsAsync(id));
     }
 
-    public sealed record AddProviderRequest(string? Name, string? ApiToken, string? ZoneId, bool IsActive = true);
-
-    public sealed record ZonesRequest(string? ApiToken);
+    public sealed record AddProviderRequest(string? Name, string? ZoneId, bool IsActive = true);
 
     public sealed record ProviderView(
         int Id, string Name, string ProviderType, string? ZoneId, bool IsActive,

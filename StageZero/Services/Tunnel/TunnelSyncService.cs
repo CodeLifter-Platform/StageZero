@@ -2,6 +2,7 @@ using StageZero.DataAdapters.TunnelConfigs;
 using StageZero.DataAdapters.TunnelRoutes;
 using StageZero.Models;
 using StageZero.Services.Access;
+using StageZero.Services.Cloudflare;
 
 namespace StageZero.Services.Tunnel;
 
@@ -16,7 +17,10 @@ namespace StageZero.Services.Tunnel;
 /// </summary>
 public interface ITunnelSyncService
 {
-    /// <summary>Resolved tunnel settings with the API token decrypted, or null if setup has not run.</summary>
+    /// <summary>
+    /// The saved tunnel with the Settings page's token decrypted and its account, or null if
+    /// setup has not run or no usable token with an account is saved.
+    /// </summary>
     Task<ResolvedTunnelConfig?> GetResolvedConfigAsync();
 
     /// <summary>Pushes all enabled routes as the tunnel's ingress rules.</summary>
@@ -81,7 +85,7 @@ public class TunnelSyncService : ITunnelSyncService
     private readonly ITunnelRouteReader _routeReader;
     private readonly ITunnelRouteWriter _routeWriter;
     private readonly ICloudflareTunnelService _tunnelService;
-    private readonly ICloudflareTokenProtector _tokenProtector;
+    private readonly ICloudflareCredentialService _credentials;
     private readonly IAccessProvisioningService _accessProvisioning;
 
     public TunnelSyncService(
@@ -90,7 +94,7 @@ public class TunnelSyncService : ITunnelSyncService
         ITunnelRouteReader routeReader,
         ITunnelRouteWriter routeWriter,
         ICloudflareTunnelService tunnelService,
-        ICloudflareTokenProtector tokenProtector,
+        ICloudflareCredentialService credentials,
         IAccessProvisioningService accessProvisioning)
     {
         _logger = logger;
@@ -98,7 +102,7 @@ public class TunnelSyncService : ITunnelSyncService
         _routeReader = routeReader;
         _routeWriter = routeWriter;
         _tunnelService = tunnelService;
-        _tokenProtector = tokenProtector;
+        _credentials = credentials;
         _accessProvisioning = accessProvisioning;
     }
 
@@ -110,18 +114,18 @@ public class TunnelSyncService : ITunnelSyncService
             return null;
         }
 
-        var apiToken = _tokenProtector.Unprotect(config.ProtectedApiToken);
-        if (apiToken is null)
+        var credentials = await _credentials.ResolveAsync();
+        if (credentials?.AccountId is null)
         {
             return null;
         }
 
         return new ResolvedTunnelConfig
         {
-            AccountId = config.CloudflareAccountId,
+            AccountId = credentials.AccountId,
             ZoneId = config.CloudflareZoneId!,
             ZoneName = config.CloudflareZoneName,
-            ApiToken = apiToken,
+            ApiToken = credentials.ApiToken,
             TunnelId = config.TunnelId!,
             TunnelName = config.TunnelName
         };
@@ -241,7 +245,8 @@ public class TunnelSyncService : ITunnelSyncService
         if (config is null)
         {
             throw new TunnelNotConfiguredException(
-                "Cloudflare Tunnel is not configured. Complete setup at /tunnel-settings first.");
+                "Cloudflare Tunnel is not configured. Save a Cloudflare API token on the Settings page, "
+                + "then complete Tunnel Setup.");
         }
 
         return config;

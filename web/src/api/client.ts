@@ -3,7 +3,7 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareDnsRecord, CloudflareZone, CurrentIp, DeleteRouteResult,
+  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CurrentIp, DeleteRouteResult,
   DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
   RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView,
   TunnelConfig, TunnelRoute, TunnelRouteInput,
@@ -112,24 +112,22 @@ export const api = {
   },
   dns: {
     providers: () => get<DnsProvider[]>('/api/dns/providers'),
-    addProvider: (name: string, apiToken: string, zoneId: string, isActive: boolean) =>
-      post<DnsProvider>('/api/dns/providers', { name, apiToken, zoneId, isActive }),
+    addProvider: (name: string, zoneId: string, isActive: boolean) =>
+      post<DnsProvider>('/api/dns/providers', { name, zoneId, isActive }),
     toggleProvider: (id: number) => post<DnsProvider>(`/api/dns/providers/${id}/toggle`),
     deleteProvider: (id: number) => del<undefined>(`/api/dns/providers/${id}`),
     addRecord: (providerId: number, input: DnsRecordInput) => post<DnsRecord>(`/api/dns/providers/${providerId}/records`, input),
     updateRecord: (id: number, input: DnsRecordInput) => put<DnsRecord>(`/api/dns/records/${id}`, input),
     deleteRecord: (id: number) => del<undefined>(`/api/dns/records/${id}`),
-    zones: (apiToken: string) => post<CloudflareZone[]>('/api/dns/zones', { apiToken }),
+    zones: () => get<CloudflareZone[]>('/api/dns/zones'),
     cloudflareRecords: (providerId: number) => get<CloudflareDnsRecord[]>(`/api/dns/providers/${providerId}/cloudflare-records`),
     importAll: (providerId: number) => post<ImportResult>(`/api/dns/providers/${providerId}/import`),
   },
   tunnel: {
     config: () => get<{ config: TunnelConfig | null }>('/api/tunnel/config'),
-    loadAccount: (apiToken: string, accountId: string) => post<AccountResult>('/api/tunnel/account', { apiToken, accountId }),
-    create: (apiToken: string, accountId: string, zoneId: string, tunnelName: string) =>
-      post<SetupView>('/api/tunnel/create', { apiToken, accountId, zoneId, tunnelName }),
-    adopt: (apiToken: string, accountId: string, zoneId: string, tunnelId: string) =>
-      post<SetupView>('/api/tunnel/adopt', { apiToken, accountId, zoneId, tunnelId }),
+    loadAccount: () => get<AccountResult>('/api/tunnel/account'),
+    create: (zoneId: string, tunnelName: string) => post<SetupView>('/api/tunnel/create', { zoneId, tunnelName }),
+    adopt: (zoneId: string, tunnelId: string) => post<SetupView>('/api/tunnel/adopt', { zoneId, tunnelId }),
     connectorToken: () => post<{ connectorToken: string }>('/api/tunnel/connector-token'),
     clear: () => del<undefined>('/api/tunnel/config'),
     routes: () => get<RoutesResult>('/api/tunnel/routes'),
@@ -142,6 +140,14 @@ export const api = {
     accessStatus: (id: number) => get<AccessStatus>(`/api/tunnel/routes/${id}/access-status`),
     identityProviders: () => get<IdentityProvider[]>('/api/tunnel/access/identity-providers'),
     serviceTokens: () => get<ServiceTokenInfo[]>('/api/tunnel/access/service-tokens'),
+  },
+  settings: {
+    // The one Cloudflare token every feature uses. It goes in on save and never comes back.
+    cloudflare: () => get<CloudflareCredential>('/api/settings/cloudflare'),
+    saveCloudflare: (apiToken: string, accountId: string) =>
+      put<CloudflareCredential>('/api/settings/cloudflare', { apiToken, accountId: accountId || null }),
+    checkCloudflare: () => post<CloudflareCredential>('/api/settings/cloudflare/check'),
+    removeCloudflare: () => del<undefined>('/api/settings/cloudflare'),
   },
 };
 

@@ -1,5 +1,6 @@
 using StageZero.DataAdapters.DnsRecords;
 using StageZero.Models;
+using StageZero.Services.Cloudflare;
 
 namespace StageZero.Services.Dns;
 
@@ -21,15 +22,18 @@ public class DnsVerificationService : IDnsVerificationService
     private readonly ILogger<DnsVerificationService> _logger;
     private readonly IDnsRecordReader _dnsRecordReader;
     private readonly ICloudflareService _cloudflareService;
+    private readonly ICloudflareCredentialService _credentials;
 
     public DnsVerificationService(
         ILogger<DnsVerificationService> logger,
         IDnsRecordReader dnsRecordReader,
-        ICloudflareService cloudflareService)
+        ICloudflareService cloudflareService,
+        ICloudflareCredentialService credentials)
     {
         _logger = logger;
         _dnsRecordReader = dnsRecordReader;
         _cloudflareService = cloudflareService;
+        _credentials = credentials;
     }
 
     public async Task VerifyAndSyncAllRecordsAsync(string currentIp, bool ipChanged)
@@ -47,6 +51,13 @@ public class DnsVerificationService : IDnsVerificationService
                 return;
             }
 
+            var credentials = await _credentials.ResolveAsync();
+            if (credentials is null)
+            {
+                _logger.LogWarning("Skipping DNS verification: no usable Cloudflare API token is saved (Settings page)");
+                return;
+            }
+
             _logger.LogDebug("Checking {Count} DNS records", records.Count);
 
             // One listing per zone per check, however many of its records are tracked.
@@ -54,7 +65,7 @@ public class DnsVerificationService : IDnsVerificationService
                 .Where(r => DnsRecord.SupportsAutoUpdate(r.RecordType) && MatchesAddressFamily(r.RecordType, currentIp))
                 .GroupBy(r => r.DnsProviderId))
             {
-                await VerifyZoneAsync(zone.First().DnsProvider, zone.ToList(), currentIp);
+                await VerifyZoneAsync(credentials.ApiToken, zone.First().DnsProvider, zone.ToList(), currentIp);
             }
 
             _logger.LogDebug("Completed DNS verification");
@@ -74,7 +85,7 @@ public class DnsVerificationService : IDnsVerificationService
             _ => false
         };
 
-    private async Task VerifyZoneAsync(DnsProvider provider, List<DnsRecord> records, string currentIp)
+    private async Task VerifyZoneAsync(string apiToken, DnsProvider provider, List<DnsRecord> records, string currentIp)
     {
         if (provider.ProviderType != "Cloudflare")
         {
@@ -85,7 +96,7 @@ public class DnsVerificationService : IDnsVerificationService
         List<CloudflareDnsRecord> zone;
         try
         {
-            zone = await _cloudflareService.GetDnsRecordsAsync(provider.ApiToken, provider.ZoneId ?? "");
+            zone = await _cloudflareService.GetDnsRecordsAsync(apiToken, provider.ZoneId ?? "");
         }
         catch (Exception ex)
         {
@@ -120,7 +131,7 @@ public class DnsVerificationService : IDnsVerificationService
                 // The listing has the record's current ID, which may differ from ours if it
                 // was deleted and recreated in Cloudflare.
                 record.RecordId = cloudflareRecord.Id;
-                await _cloudflareService.UpdateDnsRecordAsync(provider, record, currentIp);
+                await _cloudflareService.UpdateDnsRecordAsync(apiToken, provider, record, currentIp);
             }
             catch (Exception ex)
             {

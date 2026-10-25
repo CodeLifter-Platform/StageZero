@@ -159,6 +159,44 @@ namespace StageZero.Data.Migrations.Postgres
                     b.ToTable("AppSettings");
                 });
 
+            modelBuilder.Entity("StageZero.Models.CloudflareCredential", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AccountName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("ExpiresOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProtectedApiToken")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CloudflareCredentials");
+                });
+
             modelBuilder.Entity("StageZero.Models.DnsProvider", b =>
                 {
                     b.Property<int>("Id")
@@ -180,10 +218,6 @@ namespace StageZero.Data.Migrations.Postgres
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ProtectedApiToken")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("ProviderType")
                         .IsRequired()
@@ -292,11 +326,6 @@ namespace StageZero.Data.Migrations.Postgres
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("CloudflareAccountId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("CloudflareZoneId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -304,10 +333,6 @@ namespace StageZero.Data.Migrations.Postgres
                     b.Property<string>("CloudflareZoneName")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<string>("ProtectedApiToken")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("TunnelId")
                         .HasMaxLength(100)
