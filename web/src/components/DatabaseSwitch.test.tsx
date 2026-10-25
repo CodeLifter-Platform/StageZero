@@ -21,6 +21,7 @@ function signedIn(status: () => DatabaseStatus) {
       status: { isConfigured: false, isReadable: false, accountId: null, accountName: null, tokenId: null, expiresOn: null, verifiedAt: null, updatedAt: null },
       required: [], checks: null,
     })),
+    http.get('/api/settings/email-updates', () => HttpResponse.json({ enabled: false, email: null, choices: [] })),
     http.get('/api/settings/database', () => HttpResponse.json(status())),
   );
 }

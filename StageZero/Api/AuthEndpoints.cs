@@ -1,6 +1,7 @@
 using Lifted.BlazorAuth.Basic.DataAdapters;
 using Lifted.BlazorAuth.Basic.Models;
 using Lifted.BlazorAuth.Basic.Services;
+using StageZero.Services.CodeLifter;
 
 namespace StageZero.Api;
 
@@ -36,7 +37,7 @@ public static class AuthEndpoints
     public sealed record SessionResponse(
         bool SetupRequired,
         SessionUser? User,
-        IReadOnlyList<SignupOptInChoice> SignupChoices,
+        bool CodeLifterRegistration,
         string PasswordResetCodeHeading,
         string VerificationCodeHeading);
 
@@ -48,9 +49,10 @@ public static class AuthEndpoints
             new(user.Email, user.RequiresPasswordChange, !user.EmailVerified);
     }
 
-    public sealed record SetupRequest(string Email, string Password, IReadOnlyList<string>? OptIns);
+    /// <param name="RegisterWithCodeLifter">The first-run page's "Register this install with codelifter.net", on unless unticked.</param>
+    public sealed record SetupRequest(string Email, string Password, bool? RegisterWithCodeLifter);
 
-    public sealed record SetupResponse(SignupOptInResult? Signup);
+    public sealed record SetupResponse(bool RegisteredWithCodeLifter);
 
     public sealed record LoginRequest(string Email, string Password);
 
@@ -65,21 +67,21 @@ public static class AuthEndpoints
     // ── handlers ─────────────────────────────────────────────────
 
     private static async Task<SessionResponse> GetSessionAsync(
-        HttpContext http, IUserReader users, IAuthService auth, IEmailService codes, IServiceProvider services)
+        HttpContext http, IUserReader users, IAuthService auth, IEmailService codes, ICodeLifterRegistration registration)
     {
         var anyUser = (await users.GetAllAsync()).Count > 0;
         var user = http.User.Identity?.IsAuthenticated == true ? await auth.GetCurrentUserAsync() : null;
         return new SessionResponse(
             SetupRequired: !anyUser,
             User: user is null ? null : SessionUser.From(user),
-            // The opt-ins are only offered on the setup form, so only before there is a user.
-            SignupChoices: anyUser ? [] : services.GetService<ISignupOptIn>()?.Choices ?? [],
+            // Offered on the setup form only, so only before there is a user.
+            CodeLifterRegistration: !anyUser && registration.Enabled,
             PasswordResetCodeHeading: codes.LoggedPasswordResetCodeHeading,
             VerificationCodeHeading: codes.LoggedVerificationCodeHeading);
     }
 
     private static async Task<IResult> SetupAsync(
-        SetupRequest request, IUserReader users, IUserWriter writer, IServiceProvider services, ILogger<SetupRequest> logger)
+        SetupRequest request, IUserReader users, IUserWriter writer, ICodeLifterRegistration registration, ILogger<SetupRequest> logger)
     {
         var email = request.Email?.Trim() ?? string.Empty;
         if (email.Length == 0 || !email.Contains('@'))
@@ -105,27 +107,11 @@ public static class AuthEndpoints
         });
         logger.LogInformation("First-run setup created the admin account {Email}", email);
 
-        // Best-effort, after the account exists: the signup is a courtesy, and its outcome is
-        // reported but can never fail setup.
-        SignupOptInResult? signup = null;
-        var optIn = services.GetService<ISignupOptIn>();
-        var selected = request.OptIns?
-            .Where(k => optIn?.Choices.Any(c => c.Key == k) == true)
-            .Distinct(StringComparer.Ordinal).ToArray() ?? [];
-        if (optIn is not null && selected.Length > 0)
-        {
-            try
-            {
-                signup = await optIn.SubmitAsync(email, selected);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "The signup opt-in failed");
-                signup = new SignupOptInResult(false, "Couldn't send the signup. You can subscribe later on codelifter.net.");
-            }
-        }
+        // Best-effort, after the account exists: who runs StageZero, for codelifter.net. It
+        // subscribes the person to nothing; the email options are on Settings. Never fails setup.
+        var registered = request.RegisterWithCodeLifter != false && await registration.RegisterAsync(email);
 
-        return Results.Ok(new SetupResponse(signup));
+        return Results.Ok(new SetupResponse(registered));
     }
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext http, IAuthService auth)

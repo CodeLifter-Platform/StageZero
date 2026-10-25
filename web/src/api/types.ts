@@ -15,12 +15,18 @@ export interface SessionUser {
 export interface SessionInfo {
   setupRequired: boolean;
   user: SessionUser | null;
-  signupChoices: SignupChoice[];
+  /** First run only: offer "Register this install with codelifter.net". */
+  codeLifterRegistration: boolean;
   passwordResetCodeHeading: string;
   verificationCodeHeading: string;
 }
 
-export interface SetupResult { signup: { sent: boolean; message: string } | null }
+export interface SetupResult { registeredWithCodeLifter: boolean }
+
+/** Settings → Email from CodeLifter: the newsletter and StageZero updates, for the signed-in address. */
+export interface EmailUpdates { enabled: boolean; email: string | null; choices: SignupChoice[] }
+
+export interface EmailUpdateResult { sent: boolean; message: string }
 
 export interface CurrentIp { ipAddress: string | null; lastChecked: string | null }
 

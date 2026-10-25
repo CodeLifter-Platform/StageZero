@@ -172,7 +172,7 @@ public class CodeLifterSubscriptionsTests
         var downResult = await Create(down).SubmitAsync("ada@example.test", new[] { "newsletter" });
         Assert.False(downResult.Sent);
         Assert.Contains("Couldn't reach codelifter.net", downResult.Message);
-        Assert.Contains("Your account is fine", downResult.Message);
+        Assert.Contains("Try again later", downResult.Message);
     }
 
     [Fact]
@@ -186,5 +186,38 @@ public class CodeLifterSubscriptionsTests
         var result = await Create(handler).SubmitAsync("ada@example.test", new[] { "newsletter" });
 
         Assert.False(result.Sent);
+    }
+
+    // ── registration (POST /api/app-users/register) ─────────────
+
+    private static CodeLifterRegistration CreateRegistration(FakeHandler handler, string? url = "https://example.test/api/subscriptions") =>
+        new(new CodeLifterSubscriptionsOptions { SubscriptionsUrl = url }, new FakeFactory(handler), NullLogger<CodeLifterRegistration>.Instance);
+
+    [Fact]
+    public async Task Registration_posts_the_address_app_and_version_to_the_same_site()
+    {
+        var handler = new FakeHandler { Respond = _ => FakeHandler.JsonResponse(HttpStatusCode.OK, """{"ok":true}""") };
+
+        var registered = await CreateRegistration(handler).RegisterAsync("owner@example.com");
+
+        Assert.True(registered);
+        Assert.Equal("https://example.test/api/app-users/register", handler.Request!.RequestUri!.ToString());
+        using var body = JsonDocument.Parse(handler.RequestBody!);
+        Assert.Equal("owner@example.com", body.RootElement.GetProperty("email").GetString());
+        Assert.Equal("stagezero", body.RootElement.GetProperty("app").GetString());
+        Assert.Equal(["email", "app", "appVersion"], body.RootElement.EnumerateObject().Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task Registration_is_off_with_a_blank_url_and_never_throws()
+    {
+        var off = CreateRegistration(new FakeHandler(), url: "");
+        var failing = CreateRegistration(new FakeHandler { Respond = _ => throw new HttpRequestException("down") });
+        var refused = CreateRegistration(new FakeHandler { Respond = _ => FakeHandler.JsonResponse(HttpStatusCode.TooManyRequests, "{}") });
+
+        Assert.False(off.Enabled);
+        Assert.False(await off.RegisterAsync("owner@example.com"));
+        Assert.False(await failing.RegisterAsync("owner@example.com"));
+        Assert.False(await refused.RegisterAsync("owner@example.com"));
     }
 }

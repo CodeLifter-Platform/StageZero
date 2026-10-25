@@ -5,6 +5,7 @@ import { formatDateTime } from '../../app/format';
 import { useToast } from '../../app/toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { DatabaseSwitch } from '../../components/DatabaseSwitch';
+import { EmailUpdates } from '../../components/EmailUpdates';
 import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
@@ -97,7 +98,7 @@ export function SettingsPage() {
 
   return (
     <div className="sz-page sz-page-narrow">
-      <PageHeader title="Settings">Your StageZero install's connection to Cloudflare, and where it keeps its data.</PageHeader>
+      <PageHeader title="Settings">Your StageZero install's connection to Cloudflare, the email you get from CodeLifter, and where StageZero keeps its data.</PageHeader>
 
       {loadError ? <Notice tone="danger" title="Couldn't load settings">{loadError}</Notice> : null}
 
@@ -196,6 +197,13 @@ export function SettingsPage() {
           </div>
         </Card>
       ) : null}
+
+      <Card>
+        <div className="sz-stack">
+          <h2>Email from CodeLifter</h2>
+          <EmailUpdates />
+        </div>
+      </Card>
 
       <Card>
         <div className="sz-stack">

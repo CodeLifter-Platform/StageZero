@@ -214,6 +214,7 @@ try
     builder.Services.AddSingleton(CodeLifterSubscriptionsOptions.FromConfiguration(builder.Configuration));
     builder.Services.AddHttpClient(CodeLifterSubscriptions.HttpClientName);
     builder.Services.AddScoped<ISignupOptIn, CodeLifterSubscriptions>();
+    builder.Services.AddScoped<ICodeLifterRegistration, CodeLifterRegistration>();
     builder.Services.AddSingleton<IIpChangeNotifier, IpChangeNotifier>();
     builder.Services.TryAddSingleton(TimeProvider.System);
     builder.Services.AddSingleton<IIpMonitorStatus, IpMonitorStatus>();

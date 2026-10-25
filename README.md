@@ -129,10 +129,12 @@ cp .env.example .env
 ```
 
 **First run:** open the app (it goes to `/setup` on a fresh install), enter an email and a password, and that is the admin
-account. No verification code; StageZero never sends email. The form has two optional boxes, the CodeLifter
-newsletter and StageZero update news, which post to codelifter.net and get one
-confirmation email; unticked, nothing is sent. To hide them (a fork, an air-gapped
-install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
+account. No verification code; StageZero never sends email. The form's **Register this
+install with codelifter.net** box (ticked by default) sends the admin email and StageZero's
+version to codelifter.net so CodeLifter knows who runs it; it signs you up for nothing and
+sends no email. The CodeLifter newsletter and StageZero update emails are separate, optional
+choices on **Settings** (click your email), each with its own confirmation email. To switch
+all of it off (a fork, an air-gapped install), set `CodeLifter__SubscriptionsUrl=` to blank in `.env`.
 
 **Password reset without email:** StageZero does not send email, on purpose. The only
 flow that ever needed it, "forgot password", writes its code to the server log instead,

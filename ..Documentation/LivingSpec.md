@@ -111,11 +111,16 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   and a per-address sliding window (10 per 15 minutes) throttles failed sign-ins and every
   reset request or wrong reset code. The address is the request's, after
   forwarded headers.
-- **Optional signups on the setup form.** Two unchecked boxes (CodeLifter newsletter,
-  StageZero update news) post once to codelifter.net's subscriptions API
-  (`Services/CodeLifter/`, the library's `ISignupOptIn` extension point), which sends a
-  single double-opt-in confirmation email. Best-effort: an unreachable site is a notice,
-  never a failed setup. A blank `CodeLifter__SubscriptionsUrl` hides the boxes.
+- **Registration with codelifter.net, and optional email from it.** The first-run page has
+  *Register this install with codelifter.net*, ticked by default with a line saying what it
+  sends: setup then posts the admin email, the app id and the version to
+  `/api/app-users/register` (`Services/CodeLifter/CodeLifterRegistration.cs`), which records
+  who runs StageZero and subscribes nobody. Best-effort with a 5-second timeout; a failure
+  never fails setup. The newsletter and StageZero updates are on **Settings → Email from
+  CodeLifter** (`/api/settings/email-updates`), each its own request to the site's
+  double-opt-in subscriptions API for the signed-in address (the library's `ISignupOptIn`
+  extension point), so each gets its own confirmation email. A blank
+  `CodeLifter__SubscriptionsUrl` switches both off and hides them.
 - **The API refuses anyone not signed in.** Every `/api/ip`, `/api/dns`, `/api/tunnel` and
   `/api/settings` route answers 401 without the cookie (tested route by route, and that no 401 body carries
   the IP). Only `/api/auth/*` and `/healthz` are open, and `GET /api/auth/session` says
@@ -284,8 +289,8 @@ credentials stamp, encrypted with the same key ring; no session state is kept se
 
 ## External services
 
-Cloudflare (DNS, Tunnel, Access), a public-IP lookup, codelifter.net (optional signups on
-first run), NuGet.org and GitHub Packages for the library, and codelifter.net for release
+Cloudflare (DNS, Tunnel, Access), a public-IP lookup, codelifter.net (install registration
+and optional email signups), NuGet.org and GitHub Packages for the library, and codelifter.net for release
 notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 
 ## Platform matrix

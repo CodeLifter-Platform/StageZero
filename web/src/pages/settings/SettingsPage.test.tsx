@@ -39,6 +39,7 @@ function signedIn(initial: CloudflareCredential) {
     http.get('/api/auth/session', () => HttpResponse.json(sessionInfo({ user: owner }))),
     http.get('/api/ip/current', () => HttpResponse.json({ ipAddress: null, lastChecked: null })),
     http.get('/api/settings/cloudflare', () => HttpResponse.json(initial)),
+    http.get('/api/settings/email-updates', () => HttpResponse.json({ enabled: false, email: null, choices: [] })),
     http.get('/api/settings/database', () => HttpResponse.json(
       { provider: 'sqlite', source: 'default', description: 'SQLite /app-data/stagezero.db', canSwitch: true })),
   );

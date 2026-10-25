@@ -68,8 +68,9 @@ start. `/` answers 200 and `docker ps` shows the container `healthy` within a mi
 
 Go to `/setup` first — with no users, that is the only useful page. It asks for the admin
 email and a password, and that is the account. No verification code; StageZero never sends
-email. The two optional boxes (CodeLifter newsletter, StageZero update news) post to
-codelifter.net, which sends one confirmation email; unticked, nothing is sent.
+email. *Register this install with codelifter.net* (ticked by default) sends the admin email
+and version to codelifter.net; it subscribes nobody and sends no email. The newsletter and
+StageZero update emails are optional choices on Settings.
 
 "Forgot password" writes a 6-digit code to the container log as a banner headed
 `STAGEZERO PASSWORD RESET CODE`, with the account and the code on their own lines. See
@@ -232,5 +233,5 @@ Full steps: [README.md](../README.md#configuration).
 - **`.env` only reaches the container if you pass it.** The compose files do so with
   `env_file`; a plain `docker run` needs `--env-file .env`. `.env` itself is excluded from
   the image by `.dockerignore`, on purpose. Nothing in it is required: the one thing it can
-  change for the login flow is hiding the optional signup boxes
-  (`CodeLifter__SubscriptionsUrl=`).
+  change for the login flow is switching codelifter.net off: the first-run registration
+  and the Settings email options (`CodeLifter__SubscriptionsUrl=`).
