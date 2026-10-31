@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { CloudflareCredential, CloudflarePermission } from '../../api/types';
 import { server } from '../../test/server';
 import { owner, renderApp, sessionInfo } from '../../test/render';
+import { sectionFrom } from './SettingsPage';
 
 const required: CloudflarePermission[] = [
   { scope: 'Account', item: 'Cloudflare Tunnel', level: 'Edit', usedFor: 'Create or adopt the tunnel and push its routes' },
@@ -136,5 +137,37 @@ describe('the settings page', () => {
 
     await waitFor(() => expect(removed).toBe(true));
     expect(await screen.findByRole('button', { name: 'Save token' })).toBeInTheDocument();
+  });
+});
+
+describe('the settings sections', () => {
+  it('opens the section named in the address, and the nav switches between them', async () => {
+    server.use(
+      http.get('/api/auth/session', () => HttpResponse.json(sessionInfo({ user: owner }))),
+      http.get('/api/ip/current', () => HttpResponse.json({ ipAddress: null, lastChecked: null })),
+      http.get('/api/settings/cloudflare', () => HttpResponse.json(none)),
+      http.get('/api/settings/email-updates', () => HttpResponse.json({ enabled: false, email: null, choices: [] })),
+      http.get('/api/settings/database', () => HttpResponse.json(
+        { provider: 'sqlite', source: 'default', description: 'SQLite /app-data/stagezero.db', canSwitch: true })),
+    );
+    renderApp('/settings?section=database');
+    const user = userEvent.setup();
+
+    // One section at a time: the database card, not the Cloudflare one.
+    expect(await screen.findByRole('heading', { name: 'Database' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Cloudflare API token' })).not.toBeInTheDocument();
+
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    await user.click(within(nav).getByRole('button', { name: /Cloudflare/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Cloudflare API token' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Database' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('location').textContent).toBe('/settings?section=cloudflare');
+  });
+
+  it('falls back to Cloudflare for an unknown section', () => {
+    expect(sectionFrom(null)).toBe('cloudflare');
+    expect(sectionFrom('nonsense')).toBe('cloudflare');
+    expect(sectionFrom('email')).toBe('email');
   });
 });

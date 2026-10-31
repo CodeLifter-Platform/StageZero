@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { DatabaseApi, ProvisioningApi } from '../api/client';
 import type { CreatedPostgres, DatabaseStatus, PostgresTarget, PostgresTestResult } from '../api/types';
-import { Button, Input, Select } from '../ui';
+import { Button, Input, Segmented, Select } from '../ui';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Notice } from './Notice';
 import { PostgresProvision } from './PostgresProvision';
@@ -33,10 +33,13 @@ export async function waitForPostgres(
  * empty database only, then the app restarts onto it. Used by Settings and the first-run page.
  * With `provisioning` (Settings only), it first looks for a server on the machine, and can create
  * StageZero's own PostgreSQL container; either way the form below is filled in for it.
+ * With `offerChoice` (Settings), the card first asks SQLite or PostgreSQL and shows the PostgreSQL
+ * steps only once PostgreSQL is picked; the first-run page makes that choice with its own tick box.
  */
-export function DatabaseSwitch({ databases, provisioning, onSwitched }: {
-  databases: DatabaseApi; provisioning?: ProvisioningApi; onSwitched?: () => void;
+export function DatabaseSwitch({ databases, provisioning, offerChoice = false, onSwitched }: {
+  databases: DatabaseApi; provisioning?: ProvisioningApi; offerChoice?: boolean; onSwitched?: () => void;
 }) {
+  const [engine, setEngine] = useState<'sqlite' | 'postgres'>(offerChoice ? 'sqlite' : 'postgres');
   const [status, setStatus] = useState<DatabaseStatus | null>(null);
   const [target, setTarget] = useState<PostgresTarget>(EMPTY);
   const [tested, setTested] = useState<{ for: PostgresTarget; result: PostgresTestResult } | null>(null);
@@ -124,11 +127,31 @@ export function DatabaseSwitch({ databases, provisioning, onSwitched }: {
   const result = tested && tested.for === target ? tested.result : null;
   const disabled = busy !== null;
 
+  if (offerChoice && engine === 'sqlite') {
+    return (
+      <div className="sz-stack">
+        <dl className="sz-kv">
+          <dt>Database</dt><dd className="sz-break">{status.description}</dd>
+        </dl>
+        <Segmented name="Database engine" value="sqlite" onChange={(v) => setEngine(v as 'sqlite' | 'postgres')}
+          options={[{ value: 'sqlite', label: 'SQLite (default)' }, { value: 'postgres', label: 'PostgreSQL' }]} />
+        <p className="sz-small sz-muted">
+          Everything lives in one file in the data directory, with nothing to set up. Pick PostgreSQL to move it to a
+          server you run or to a container StageZero creates for you.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="sz-stack">
       <dl className="sz-kv">
         <dt>Database</dt><dd className="sz-break">{status.description}</dd>
       </dl>
+      {offerChoice ? (
+        <Segmented name="Database engine" value="postgres" onChange={(v) => setEngine(v as 'sqlite' | 'postgres')}
+          options={[{ value: 'sqlite', label: 'SQLite (default)' }, { value: 'postgres', label: 'PostgreSQL' }]} />
+      ) : null}
       <p className="sz-small sz-muted">
         Move to PostgreSQL running outside StageZero, so nothing done to StageZero's container can touch the data. On a
         server with the platform Infra stack, create a database with <code>tools/create-app-db.sh prod stagezero</code> and
@@ -136,8 +159,7 @@ export function DatabaseSwitch({ databases, provisioning, onSwitched }: {
         restarts onto it. The SQLite file is kept as it was. This runs one way.
       </p>
       {provisioning ? (
-        <PostgresProvision provisioning={provisioning} disabled={disabled} onUseServer={useServer} onCreated={(c, pw) => void adoptCreated(c, pw)}
-          onError={setError} />
+        <PostgresProvision provisioning={provisioning} disabled={disabled} onUseServer={useServer} onCreated={(c, pw) => void adoptCreated(c, pw)} />
       ) : null}
       <div className="sz-grid">
         <Input label="Host" placeholder="host.docker.internal" value={target.host} disabled={disabled} onChange={(e) => set('host', e.target.value)} />

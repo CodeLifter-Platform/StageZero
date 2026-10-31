@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { CloudflareCredential, CloudflarePermission, CloudflarePermissionCheck } from '../../api/types';
 import { formatDateTime } from '../../app/format';
@@ -10,11 +11,24 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, DataTable, Input, type DataColumn } from '../../ui';
+import { Badge, Button, Card, DataTable, Input, Sidebar, type DataColumn } from '../../ui';
 
 const CLOUDFLARE_TOKENS_URL = 'https://dash.cloudflare.com/profile/api-tokens';
 
 interface PermissionRow { permission: CloudflarePermission; check: CloudflarePermissionCheck | undefined }
+
+/** The page's sections, one on screen at a time; `?section=` opens one directly. */
+export const SETTINGS_SECTIONS = [
+  { id: 'cloudflare', label: 'Cloudflare', icon: '☁' },
+  { id: 'email', label: 'Email', icon: '✉' },
+  { id: 'database', label: 'Database', icon: '▤' },
+] as const;
+
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]['id'];
+
+export function sectionFrom(value: string | null): SettingsSection {
+  return SETTINGS_SECTIONS.some((s) => s.id === value) ? (value as SettingsSection) : 'cloudflare';
+}
 
 /** The required permissions, each with what the last save or check found for it. */
 export function permissionRows(credential: CloudflareCredential): PermissionRow[] {
@@ -28,6 +42,8 @@ export function permissionRows(credential: CloudflareCredential): PermissionRow[
 export function SettingsPage() {
   useDocumentTitle('Settings');
   const notify = useToast();
+  const [params, setParams] = useSearchParams();
+  const section = sectionFrom(params.get('section'));
   const [credential, setCredential] = useState<CloudflareCredential | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -97,12 +113,18 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="sz-page sz-page-narrow">
+    <div className="sz-page sz-page-wide">
       <PageHeader title="Settings">Your StageZero install's connection to Cloudflare, the email you get from CodeLifter, and where StageZero keeps its data.</PageHeader>
 
-      {loadError ? <Notice tone="danger" title="Couldn't load settings">{loadError}</Notice> : null}
+      <div className="sz-settings">
+        <Sidebar className="sz-settings-nav" aria-label="Settings sections" width={220}
+          sections={[{ items: SETTINGS_SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon })) }]}
+          value={section} onSelect={(id) => setParams({ section: id })} />
 
-      {credential ? (
+        <div className="sz-settings-body">
+      {section === 'cloudflare' && loadError ? <Notice tone="danger" title="Couldn't load settings">{loadError}</Notice> : null}
+
+      {section === 'cloudflare' && credential ? (
         <Card>
           <div className="sz-stack">
             <h2>Cloudflare API token</h2>
@@ -198,20 +220,26 @@ export function SettingsPage() {
         </Card>
       ) : null}
 
-      <Card>
-        <div className="sz-stack">
-          <h2>Email from CodeLifter</h2>
-          <EmailUpdates />
-        </div>
-      </Card>
+      {section === 'email' ? (
+        <Card>
+          <div className="sz-stack">
+            <h2>Email from CodeLifter</h2>
+            <EmailUpdates />
+          </div>
+        </Card>
+      ) : null}
 
-      <Card>
-        <div className="sz-stack">
-          <h2>Database</h2>
-          <DatabaseSwitch databases={api.database} provisioning={api.databaseProvisioning}
-            onSwitched={() => notify('StageZero is now on PostgreSQL', 'success')} />
+      {section === 'database' ? (
+        <Card>
+          <div className="sz-stack">
+            <h2>Database</h2>
+            <DatabaseSwitch databases={api.database} provisioning={api.databaseProvisioning} offerChoice
+              onSwitched={() => notify('StageZero is now on PostgreSQL', 'success')} />
+          </div>
+        </Card>
+      ) : null}
         </div>
-      </Card>
+      </div>
 
       <ConfirmDialog open={confirmingRemove} busy={busy === 'remove'} title="Remove the Cloudflare token" confirmLabel="Remove"
         message={'Remove the token from StageZero? DNS updates, tunnel route changes and Access stop until you add one again; '

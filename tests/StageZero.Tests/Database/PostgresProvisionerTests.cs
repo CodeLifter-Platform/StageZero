@@ -118,6 +118,21 @@ public sealed class PostgresProvisionerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_data_folder_that_already_holds_a_cluster_is_refused_before_anything_is_created()
+    {
+        Directory.CreateDirectory(Path.Combine(_appData, "postgres", "18"));
+        File.WriteAllText(Path.Combine(_appData, "postgres", "18", "PG_VERSION"), "18");
+
+        var error = await Assert.ThrowsAsync<UserFacingException>(() => OnHost().CreateAsync(Request()));
+
+        Assert.Equal(StatusCodes.Status409Conflict, error.StatusCode);
+        Assert.Contains("already holds a PostgreSQL cluster", error.Message);
+        Assert.Contains("docker start stagezero-postgres", error.Message);
+        Assert.Empty(_docker.Pulled);
+        Assert.Empty(_docker.Created);
+    }
+
+    [Fact]
     public async Task Without_an_engine_nothing_is_attempted()
     {
         _docker.Engine = null;
