@@ -64,7 +64,7 @@ public sealed class PostgresProvisionerTests : IDisposable
     public async Task Inside_a_container_the_folders_are_host_paths_and_the_new_server_joins_the_stack_network()
     {
         _docker.Containers["abc123"] = new ContainerInspection("abc123", "stagezero", "running", true,
-            [new ContainerMount(_appData, "/srv/stagezero-data", "bind")], ["stagezero_default"], new Dictionary<string, int>());
+            [new ContainerMount(_appData, "/srv/stagezero-data", "bind")], ["stagezero_default"], new Dictionary<string, int>(), []);
         var provisioner = new PostgresProvisioner(_docker, _sql,
             new AppContainer(_appData, inContainer: true, hostname: "abc123"), NullLogger<PostgresProvisioner>.Instance);
 
@@ -108,7 +108,7 @@ public sealed class PostgresProvisionerTests : IDisposable
     public async Task An_existing_container_of_that_name_is_a_conflict_that_names_it()
     {
         _docker.Containers[PostgresProvisioner.ContainerName] =
-            new ContainerInspection("old", PostgresProvisioner.ContainerName, "exited", false, [], [], new Dictionary<string, int>());
+            new ContainerInspection("old", PostgresProvisioner.ContainerName, "exited", false, [], [], new Dictionary<string, int>(), []);
 
         var error = await Assert.ThrowsAsync<UserFacingException>(() => OnHost().CreateAsync(Request()));
 

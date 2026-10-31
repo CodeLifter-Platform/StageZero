@@ -34,7 +34,7 @@ public sealed class FakeDocker : IDockerApi
 
         Created.Add((name, spec));
         var id = $"id-{name}";
-        Containers[name] = new ContainerInspection(id, name, "created", false, [], [], new Dictionary<string, int>());
+        Containers[name] = new ContainerInspection(id, name, "created", false, [], [], new Dictionary<string, int>(), []);
         return Task.FromResult(id);
     }
 

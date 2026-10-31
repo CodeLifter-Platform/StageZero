@@ -54,6 +54,16 @@ public sealed class PostgresProvisionerDockerTests : IAsyncLifetime
         var inspected = await _docker.InspectContainerAsync(_name);
         Assert.True(inspected!.Running);
         Assert.Equal(port, inspected.PublishedPorts["5432/tcp"]);
+
+        // The environment anyone with the socket can read holds only the bootstrap password,
+        // and that one no longer opens the server (the published port is where SCRAM applies;
+        // inside the image, localhost is trusted, so this is the only honest place to check).
+        var bootstrap = Assert.Single(inspected.Env, e => e.StartsWith("POSTGRES_PASSWORD=", StringComparison.Ordinal))["POSTGRES_PASSWORD=".Length..];
+        Assert.NotEqual(admin, bootstrap);
+        Assert.DoesNotContain(inspected.Env, e => e.Contains(admin, StringComparison.Ordinal) || e.Contains(app, StringComparison.Ordinal));
+        await using var asBootstrap = new NpgsqlConnection($"Host=localhost;Port={port};Database=postgres;Username=postgres;Password={bootstrap};Pooling=false");
+        var refused = await Assert.ThrowsAsync<PostgresException>(() => asBootstrap.OpenAsync());
+        Assert.Equal(PostgresErrorCodes.InvalidPassword, refused.SqlState);
     }
 
     private static int FreePort()

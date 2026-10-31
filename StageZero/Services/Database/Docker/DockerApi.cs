@@ -39,7 +39,9 @@ public sealed record ContainerInspection(
     IReadOnlyList<ContainerMount> Mounts,
     IReadOnlyList<string> Networks,
     /// <summary>Published host ports by container port, e.g. "5432/tcp" → 55432.</summary>
-    IReadOnlyDictionary<string, int> PublishedPorts);
+    IReadOnlyDictionary<string, int> PublishedPorts,
+    /// <summary>The container's environment, as anyone with the socket can read it.</summary>
+    IReadOnlyList<string> Env);
 
 /// <summary>What to create, in the engine's own terms.</summary>
 public sealed record ContainerSpec(
@@ -294,6 +296,12 @@ public sealed class DockerApi : IDockerApi, IDisposable
             }
         }
 
+        var env = new List<string>();
+        if (root.TryGetProperty("Config", out var config) && config.TryGetProperty("Env", out var envElement) && envElement.ValueKind == JsonValueKind.Array)
+        {
+            env.AddRange(envElement.EnumerateArray().Select(e => e.GetString() ?? ""));
+        }
+
         return new ContainerInspection(
             root.GetProperty("Id").GetString() ?? "",
             (root.GetProperty("Name").GetString() ?? "").TrimStart('/'),
@@ -301,6 +309,7 @@ public sealed class DockerApi : IDockerApi, IDisposable
             state.TryGetProperty("Running", out var running) && running.GetBoolean(),
             mounts,
             networks,
-            ports);
+            ports,
+            env);
     }
 }

@@ -56,7 +56,7 @@ public sealed class PostgresDiscoveryTests
     public async Task StageZeros_own_container_is_reported_with_its_published_port()
     {
         _docker.Containers[PostgresProvisioner.ContainerName] = new ContainerInspection("x", PostgresProvisioner.ContainerName, "running", true,
-            [], ["stagezero_default"], new Dictionary<string, int> { ["5432/tcp"] = 5434 });
+            [], ["stagezero_default"], new Dictionary<string, int> { ["5432/tcp"] = 5434 }, []);
 
         var found = await OnHost().DiscoverAsync();
 
