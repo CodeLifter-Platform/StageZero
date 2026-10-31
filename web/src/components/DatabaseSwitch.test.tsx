@@ -26,7 +26,13 @@ function signedIn(status: () => DatabaseStatus) {
   );
 }
 
+/** Settings shows the PostgreSQL steps only once PostgreSQL is picked over the SQLite default. */
+async function choosePostgres(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('radio', { name: 'PostgreSQL' }));
+}
+
 async function fillIn(user: ReturnType<typeof userEvent.setup>) {
+  await choosePostgres(user);
   await user.type(await screen.findByLabelText(/^Host/), 'host.docker.internal');
   await user.type(screen.getByLabelText(/^Password/), 'pg-secret');
 }
@@ -56,7 +62,7 @@ describe('the Settings database card', () => {
       tested = await request.json() as Record<string, unknown>;
       return HttpResponse.json(usable);
     }));
-    renderApp('/settings');
+    renderApp('/settings?section=database');
 
     const user = userEvent.setup();
     await fillIn(user);
@@ -69,7 +75,7 @@ describe('the Settings database card', () => {
     });
     expect(screen.getByRole('button', { name: 'Copy and switch' })).toBeEnabled();
 
-    await user.type(screen.getByLabelText(/^Database/), '2'); // a changed detail needs a new test
+    await user.type(screen.getByLabelText(/^Database$/), '2'); // a changed detail needs a new test
     expect(screen.getByRole('button', { name: 'Copy and switch' })).toBeDisabled();
   });
 
@@ -78,7 +84,7 @@ describe('the Settings database card', () => {
     server.use(http.post('/api/settings/database/test', () => HttpResponse.json({
       ...usable, ok: false, hasData: true, problem: 'This database already has StageZero data.',
     })));
-    renderApp('/settings');
+    renderApp('/settings?section=database');
 
     const user = userEvent.setup();
     await fillIn(user);
@@ -100,7 +106,7 @@ describe('the Settings database card', () => {
         return HttpResponse.json({ description: postgres.description, restarting: true, copiedTables: [] });
       }),
     );
-    renderApp('/settings');
+    renderApp('/settings?section=database');
 
     const user = userEvent.setup();
     await fillIn(user);
@@ -118,9 +124,10 @@ describe('the Settings database card', () => {
 
   it('says a database set in the environment can\'t be changed here', async () => {
     signedIn(() => ({ ...postgres, source: 'environment' }));
-    renderApp('/settings');
+    renderApp('/settings?section=database');
 
     expect(await screen.findByText(/Set in the environment/)).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'PostgreSQL' })).not.toBeInTheDocument(); // nothing to choose
     expect(screen.queryByLabelText(/^Host/)).not.toBeInTheDocument();
   });
 });

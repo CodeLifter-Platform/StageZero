@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { DatabaseStatus, PostgresDiscovery, PostgresTestResult } from '../api/types';
 import { server } from '../test/server';
 import { owner, renderApp, sessionInfo } from '../test/render';
-import { createProblem, generatePassword } from './PostgresProvision';
+import { createProblem, createProblems, generatePassword } from './PostgresProvision';
 
 const sqlite: DatabaseStatus = { provider: 'sqlite', source: 'default', description: 'SQLite /app-data/stagezero.db', canSwitch: true };
 const usable: PostgresTestResult = { ok: true, problem: null, serverVersion: '18.0', tableCount: 0, hasData: false, warnings: [] };
@@ -36,6 +36,14 @@ function settingsPage() {
   );
 }
 
+/** The Database section with PostgreSQL picked, which is where the two provisioning steps live. */
+async function openPostgres() {
+  renderApp('/settings?section=database');
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('radio', { name: 'PostgreSQL' }));
+  return user;
+}
+
 describe('finding a PostgreSQL on the machine', () => {
   it('lists what it finds and fills the form in for the chosen server', async () => {
     settingsPage();
@@ -45,8 +53,7 @@ describe('finding a PostgreSQL on the machine', () => {
       container: { name: 'stagezero-postgres', status: 'running', running: true, hostPort: 5434 },
       suggestedPort: 5435,
     })));
-    renderApp('/settings');
-    const user = userEvent.setup();
+    const user = await openPostgres();
 
     await user.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
 
@@ -79,24 +86,27 @@ describe('finding a PostgreSQL on the machine', () => {
         return HttpResponse.json(usable);
       }),
     );
-    renderApp('/settings');
-    const user = userEvent.setup();
+    const user = await openPostgres();
 
     // Nothing found and Docker there: the card moves to "create" by itself.
     await user.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
     expect(await screen.findByText(/No PostgreSQL server answered/)).toBeInTheDocument();
     expect(screen.getByText(/Record both passwords now/)).toBeInTheDocument();
     const create = screen.getByRole('button', { name: 'Create the container' });
-    expect(create).toBeDisabled();
+
+    // An empty form, submitted: every field says what is wrong, and nothing is sent.
+    await user.click(create);
+    expect(screen.getAllByText('At least 12 characters.')).toHaveLength(2);
+    expect(screen.getByText('Confirm that you have recorded both passwords.')).toBeInTheDocument();
+    expect(screen.getByText('Fix the fields marked above.')).toBeInTheDocument();
+    expect(sent).toBeUndefined();
 
     await user.type(screen.getByLabelText(/^Admin password/), GOOD_ADMIN);
     await user.type(screen.getByLabelText(/^StageZero password/), GOOD_APP);
     await user.clear(screen.getByLabelText(/^Backups folder/));
     await user.type(screen.getByLabelText(/^Backups folder/), '/mnt/safe/backups');
-    expect(create).toBeDisabled(); // still not recorded
-    expect(screen.getByText('Confirm that you have recorded both passwords.')).toBeInTheDocument();
     await user.click(screen.getByLabelText('I have recorded both passwords'));
-    expect(create).toBeEnabled();
+    expect(screen.queryByText('Fix the fields marked above.')).not.toBeInTheDocument();
     await user.click(create);
 
     expect(await screen.findByText('Container stagezero-postgres is running')).toBeInTheDocument();
@@ -115,8 +125,7 @@ describe('finding a PostgreSQL on the machine', () => {
     server.use(http.get('/api/settings/database/postgres/discover', () => HttpResponse.json({
       ...nothingFound, docker: { available: false, detail: 'The Docker socket /var/run/docker.sock is mounted, but StageZero\'s container user may not use it. It belongs to group 101: put DOCKER_GID=101 in .env and run the compose command again.' },
     })));
-    renderApp('/settings');
-    const user = userEvent.setup();
+    const user = await openPostgres();
 
     await user.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
     await screen.findByText(/No PostgreSQL server answered/);
@@ -124,6 +133,37 @@ describe('finding a PostgreSQL on the machine', () => {
 
     expect(await screen.findByText(/DOCKER_GID=101/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create the container' })).toBeDisabled();
+  });
+
+  it('shows progress while the container is built, and the server\'s reason when it refuses', async () => {
+    settingsPage();
+    let release: (() => void) | undefined;
+    server.use(
+      http.get('/api/settings/database/postgres/discover', () => HttpResponse.json(nothingFound)),
+      http.post('/api/settings/database/postgres/create', async () => {
+        await new Promise<void>((resolve) => { release = resolve; });
+        return HttpResponse.json(
+          { title: 'The data folder /srv/stagezero/postgres already holds a PostgreSQL cluster, from an earlier container.' }, { status: 409 });
+      }),
+    );
+    const user = await openPostgres();
+    await user.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
+    await screen.findByText(/No PostgreSQL server answered/);
+    await user.type(screen.getByLabelText(/^Admin password/), GOOD_ADMIN);
+    await user.type(screen.getByLabelText(/^StageZero password/), GOOD_APP);
+    await user.click(screen.getByLabelText('I have recorded both passwords'));
+
+    await user.click(screen.getByRole('button', { name: 'Create the container' }));
+
+    expect(await screen.findByText('Creating the PostgreSQL container')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Creating…' })).toBeDisabled();
+    await waitFor(() => expect(release).toBeDefined());
+    release?.();
+
+    expect(await screen.findByText('The container was not created')).toBeInTheDocument();
+    expect(screen.getByText(/already holds a PostgreSQL cluster/)).toBeInTheDocument();
+    expect(screen.queryByText('Creating the PostgreSQL container')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create the container' })).toBeEnabled();
   });
 
   it('is not offered on the first-run page', async () => {
@@ -144,14 +184,14 @@ describe('finding a PostgreSQL on the machine', () => {
 describe('the create form', () => {
   const good = { port: '5432', adminPassword: GOOD_ADMIN, appPassword: GOOD_APP, recorded: true };
 
-  it('refuses what the server would refuse, before the round trip', () => {
+  it('refuses what the server would refuse, field by field, before the round trip', () => {
     expect(createProblem(good)).toBeNull();
-    expect(createProblem({ ...good, port: '80' })).toMatch(/between 1024/);
-    expect(createProblem({ ...good, adminPassword: 'short' })).toMatch(/admin password needs at least 12/);
-    expect(createProblem({ ...good, appPassword: 'has a space in it' })).toMatch(/StageZero password can't contain/);
-    expect(createProblem({ ...good, appPassword: 'semi;colon-password' })).toMatch(/can't contain/);
-    expect(createProblem({ ...good, appPassword: GOOD_ADMIN })).toMatch(/two different/);
-    expect(createProblem({ ...good, recorded: false })).toMatch(/recorded both/);
+    expect(createProblems({ ...good, port: '80' })).toEqual({ port: 'Choose a port between 1024 and 65535.' });
+    expect(createProblems({ ...good, adminPassword: 'short' })).toEqual({ adminPassword: 'At least 12 characters.' });
+    expect(createProblems({ ...good, appPassword: 'has a space in it' }).appPassword).toMatch(/No spaces/);
+    expect(createProblems({ ...good, appPassword: 'semi;colon-password' }).appPassword).toMatch(/No spaces, ;/);
+    expect(createProblems({ ...good, appPassword: GOOD_ADMIN })).toEqual({ appPassword: 'Use a different password from the admin one.' });
+    expect(createProblems({ ...good, recorded: false })).toEqual({ recorded: 'Confirm that you have recorded both passwords.' });
   });
 
   it('generates passwords the server, the connection string and a shell all accept', () => {

@@ -37,7 +37,7 @@ describe('Settings → Email from CodeLifter', () => {
       sent.push(await request.json());
       return HttpResponse.json({ sent: true, message: 'Check owner@example.com to confirm StageZero updates.' });
     }));
-    renderApp('/settings');
+    renderApp('/settings?section=email');
 
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Subscribe to StageZero updates' }));
@@ -52,7 +52,7 @@ describe('Settings → Email from CodeLifter', () => {
     signedIn(offered);
     server.use(http.post('/api/settings/email-updates', () =>
       HttpResponse.json({ sent: false, message: "You're already subscribed. Nothing to confirm." })));
-    renderApp('/settings');
+    renderApp('/settings?section=email');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Subscribe to The CodeLifter newsletter' }));
 
@@ -66,7 +66,7 @@ describe('Settings → Email from CodeLifter', () => {
       sent.push(await request.json());
       return HttpResponse.json({ sent: true, message: 'Check owner@example.com: the link to manage your emails works for an hour.' });
     }));
-    renderApp('/settings');
+    renderApp('/settings?section=email');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Manage email preferences' }));
 
@@ -76,7 +76,7 @@ describe('Settings → Email from CodeLifter', () => {
 
   it('says when codelifter.net is switched off on this install', async () => {
     signedIn({ enabled: false, email: 'owner@example.com', choices: [] });
-    renderApp('/settings');
+    renderApp('/settings?section=email');
 
     const card = (await screen.findByRole('heading', { name: 'Email from CodeLifter' })).closest('div');
     expect(within(card as HTMLElement).getByText(/Switched off on this install/)).toBeInTheDocument();
