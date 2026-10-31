@@ -123,6 +123,25 @@ in `/app-data/database.json`, and stops the container, which `restart: unless-st
 straight back on PostgreSQL. The variables, when set, always win over that file, and the
 page then only shows the database. `/app-data` stays mounted either way.
 
+The Database page can also **create** a PostgreSQL container for you, which needs the Docker
+socket in the StageZero container:
+
+```bash
+# Linux only: the socket's group, so the container's unprivileged user may use it
+echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
+docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d
+```
+
+Read the header of `docker-compose.provision.yml` first: whoever holds the socket holds the
+host, so use this only behind Cloudflare Access or on a machine nobody else reaches. The page
+then creates `stagezero-postgres` (PostgreSQL 18) on the port you choose, joined to the
+stack's network, with its data in `<STAGEZERO_DATA_DIR>/postgres` and a backups folder of
+your choice (default `<STAGEZERO_DATA_DIR>/backups`), both bind mounts: `docker compose
+down`, `down -v` and `docker volume prune` never touch them. It asks for two passwords, the
+`postgres` superuser's and the `stagezero` role's, shows them once and stores neither:
+record both. The container is not part of the compose project; `docker rm -f
+stagezero-postgres` removes it (the folders stay).
+
 ## Debug
 
 ```bash

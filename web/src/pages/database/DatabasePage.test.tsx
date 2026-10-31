@@ -2,10 +2,10 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import type { ConnectionTest, DatabaseStatus } from '../../api/types';
+import type { ConnectionTest, DatabaseStatus, PostgresDiscovery } from '../../api/types';
 import { server } from '../../test/server';
 import { owner, renderApp, sessionInfo } from '../../test/render';
-import { sourceExplanation, testSummary, waitForDatabase } from './DatabasePage';
+import { connectionStringFor, createProblem, generatePassword, sourceExplanation, testSummary, waitForDatabase } from './DatabasePage';
 
 const sqlite: DatabaseStatus = {
   provider: 'sqlite',
@@ -40,6 +40,19 @@ function last<T>(items: T[]): T {
 }
 
 const signedIn = () => http.get('/api/auth/session', () => HttpResponse.json(sessionInfo({ user: owner })));
+
+const nothingFound: PostgresDiscovery = {
+  servers: [],
+  docker: { available: true, detail: 'Docker 28.0.0 via /var/run/docker.sock' },
+  container: null,
+  suggestedPort: 5432,
+  dataFolder: '/srv/stagezero/postgres',
+  backupFolder: '/srv/stagezero/backups',
+  inContainer: true,
+};
+
+const GOOD_ADMIN = 'admin-password-123456';
+const GOOD_APP = 'stagezero-password-1234';
 
 describe('the Database page', () => {
   it('switches to PostgreSQL after a successful test, then follows the restart', { timeout: 10000 }, async () => {
@@ -84,6 +97,91 @@ describe('the Database page', () => {
     expect(await screen.findByText('PostgreSQL stagezero on db:5432 as stagezero', {}, { timeout: 6000 })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Go back to SQLite' })).toBeInTheDocument();
     expect(screen.queryByText(/restarting on it now/)).not.toBeInTheDocument();
+  });
+
+  it('lists the servers it finds and fills the connection in for the chosen one', async () => {
+    server.use(
+      signedIn(),
+      http.get('/api/database', () => HttpResponse.json(sqlite)),
+      http.get('/api/database/postgres/discover', () => HttpResponse.json({
+        ...nothingFound,
+        servers: [{ host: 'host.docker.internal', port: 5433, label: 'this machine' }],
+        container: { name: 'stagezero-postgres', status: 'running', running: true, hostPort: 5434 },
+        suggestedPort: 5435,
+      })),
+    );
+    renderApp('/database');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
+
+    expect(await screen.findByText('PostgreSQL on this machine')).toBeInTheDocument();
+    expect(screen.getByText(/StageZero's own container \(running, host port 5434\)/)).toBeInTheDocument();
+    const useButtons = screen.getAllByRole('button', { name: 'Use this server' });
+    expect(useButtons).toHaveLength(2);
+    await userEvent.click(useButtons[1] as HTMLElement);
+
+    expect(screen.getByLabelText(/^Connection string/)).toHaveValue('Host=host.docker.internal;Port=5433;Database=stagezero;Username=stagezero;Password=');
+  });
+
+  it('creates a container only after both passwords are recorded, then tests the new connection', async () => {
+    let sent: unknown;
+    let tests = 0;
+    server.use(
+      signedIn(),
+      http.get('/api/database', () => HttpResponse.json(sqlite)),
+      http.get('/api/database/postgres/discover', () => HttpResponse.json(nothingFound)),
+      http.post('/api/database/postgres/create', async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({
+          containerName: 'stagezero-postgres', host: 'stagezero-postgres', port: 5432, hostPort: 5432, database: 'stagezero',
+          username: 'stagezero', dataFolder: '/srv/stagezero/postgres', backupFolder: '/mnt/safe/backups',
+        });
+      }),
+      http.post('/api/database/test', () => { tests++; return HttpResponse.json(connected); }),
+    );
+    renderApp('/database');
+
+    // Nothing found and Docker there: the page moves to "create" by itself.
+    await userEvent.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
+    expect(await screen.findByText(/No PostgreSQL server answered/)).toBeInTheDocument();
+    expect(screen.getByText(/Record both passwords now/)).toBeInTheDocument();
+    const create = screen.getByRole('button', { name: 'Create the container' });
+    expect(create).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText(/^Admin password/), GOOD_ADMIN);
+    await userEvent.type(screen.getByLabelText(/^StageZero password/), GOOD_APP);
+    await userEvent.clear(screen.getByLabelText(/^Backups folder/));
+    await userEvent.type(screen.getByLabelText(/^Backups folder/), '/mnt/safe/backups');
+    expect(create).toBeDisabled(); // still not recorded
+    expect(screen.getByText('Confirm that you have recorded both passwords.')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('I have recorded both passwords'));
+    expect(create).toBeEnabled();
+    await userEvent.click(create);
+
+    expect(await screen.findByText('Container stagezero-postgres is running')).toBeInTheDocument();
+    expect(sent).toEqual({ port: 5432, adminPassword: GOOD_ADMIN, appPassword: GOOD_APP, backupFolder: '/mnt/safe/backups', publishOnAllInterfaces: false });
+    expect(screen.getByLabelText(/^Connection string/)).toHaveValue(connectionStringFor('stagezero-postgres', 5432, GOOD_APP));
+    await waitFor(() => expect(tests).toBe(1));
+    expect(await screen.findByText('Connected to PostgreSQL 18.0 on db:5432')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Switch and restart' })).toBeEnabled();
+  });
+
+  it('explains when Docker is out of reach instead of offering to create', async () => {
+    server.use(
+      signedIn(),
+      http.get('/api/database', () => HttpResponse.json(sqlite)),
+      http.get('/api/database/postgres/discover', () => HttpResponse.json({
+        ...nothingFound, docker: { available: false, detail: 'StageZero can\'t see the Docker engine. Start the stack with docker-compose.provision.yml as well.' },
+      })),
+    );
+    renderApp('/database');
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Look for PostgreSQL on this machine' }));
+    await screen.findByText(/No PostgreSQL server answered/);
+    await userEvent.click(screen.getByRole('radio', { name: 'Create a new container' }));
+
+    expect(await screen.findByText(/docker-compose.provision.yml/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create the container' })).toBeDisabled();
   });
 
   it('shows a refused test as the server put it', async () => {
@@ -131,6 +229,31 @@ describe('the words on the page', () => {
     expect(testSummary({ ...connected, isEmpty: false }, true)).toMatchObject({ tone: 'warning' });
     expect(testSummary({ ...connected, isEmpty: false, hasStageZeroSchema: true }, false)).toMatchObject({ tone: 'success' });
     expect(testSummary({ ...connected, isEmpty: false, hasStageZeroSchema: true }, true).text).toMatch(/untick/);
+  });
+});
+
+describe('the create form', () => {
+  const good = { port: '5432', adminPassword: GOOD_ADMIN, appPassword: GOOD_APP, recorded: true };
+
+  it('refuses what the server would refuse, before the round trip', () => {
+    expect(createProblem(good)).toBeNull();
+    expect(createProblem({ ...good, port: '80' })).toMatch(/between 1024/);
+    expect(createProblem({ ...good, adminPassword: 'short' })).toMatch(/admin password needs at least 12/);
+    expect(createProblem({ ...good, appPassword: 'has a space in it' })).toMatch(/StageZero password can't contain/);
+    expect(createProblem({ ...good, appPassword: 'semi;colon-password' })).toMatch(/can't contain/);
+    expect(createProblem({ ...good, appPassword: GOOD_ADMIN })).toMatch(/two different/);
+    expect(createProblem({ ...good, recorded: false })).toMatch(/recorded both/);
+  });
+
+  it('generates passwords the server, the connection string and a shell all accept', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      const password = generatePassword();
+      expect(password).toHaveLength(24);
+      expect(createProblem({ ...good, adminPassword: password })).toBeNull();
+      seen.add(password);
+    }
+    expect(seen.size).toBe(50);
   });
 });
 

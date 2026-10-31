@@ -78,7 +78,10 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
 - **Two databases.** SQLite (default) or PostgreSQL via `STAGEZERO_DB_PROVIDER` /
   `STAGEZERO_DB_CONNECTION`, or via the Database page, which stores the choice encrypted in
   `database.json` in the data directory (`Data/DatabaseSettingsFile.cs`; the variables win
-  over it, and a switch is a restart). A model change needs a migration for **each**:
+  over it, and a switch is a restart). The page can also create StageZero's own PostgreSQL
+  container through the Docker socket (`Services/Database/PostgresProvisioner.cs`), but
+  only when `docker-compose.provision.yml` mounted it: that mount is root on the host, so it
+  stays opt-in and documented as such. A model change needs a migration for **each**:
   `dotnet ef migrations add <Name> --project StageZero --context ApplicationDbContext` and
   `... --context PostgresApplicationDbContext --output-dir Data/Migrations/Postgres`
   (move the Postgres snapshot if EF drops it in a nested `StageZero/StageZero/`). Run the

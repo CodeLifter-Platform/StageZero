@@ -289,8 +289,15 @@ only reads the SQLite file, so going back is unsetting `STAGEZERO_DB_PROVIDER`.
 restarts StageZero on PostgreSQL (under Docker the container restarts itself; a `dotnet run`
 has to be started again). The choice is kept in `database.json` in the data directory with
 the connection string encrypted; the environment variables above always win over it, and
-"Go back to SQLite" removes it. The page needs a PostgreSQL server to point at: your own,
-or the compose add-on above (which sets the variables itself, so the page is then read-only).
+"Go back to SQLite" removes it. The page first looks for a PostgreSQL server on the machine
+(the standard ports 5432–5439) and offers each one it finds; it can also **create
+StageZero's own PostgreSQL container** when it can reach Docker: the port of your choice,
+an admin password for the `postgres` superuser and a separate password for the `stagezero`
+role (shown once, never stored by StageZero: record both), the data in a `postgres` folder
+and backups in a folder you choose, both beside StageZero's data directory as bind mounts
+that no compose command owns. Under Docker that needs the socket mounted:
+`docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d`, after reading
+that file's header, since the socket is root on the host.
 
 ## Documentation
 

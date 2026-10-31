@@ -22,6 +22,15 @@ public static class DatabaseEndpoints
             service.SwitchToPostgresAsync(input.ConnectionString, input.CopyData, cancellation));
 
         database.MapPost("/revert", (IDatabaseSwitchService service) => service.RevertToSqlite());
+
+        // "Use PostgreSQL": what is on the machine, and a new container when there is nothing.
+        database.MapGet("/postgres/discover", (PostgresDiscovery discovery, CancellationToken cancellation) =>
+            discovery.DiscoverAsync(cancellation));
+
+        // Both passwords go in here once and never come back; the response names the host,
+        // port, database and role so the page can build the connection string itself.
+        database.MapPost("/postgres/create", (CreatePostgresRequest request, PostgresProvisioner provisioner, CancellationToken cancellation) =>
+            provisioner.CreateAsync(request, cancellation));
     }
 
     public sealed record ConnectionInput(string ConnectionString);

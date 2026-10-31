@@ -3,10 +3,10 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareDnsRecord, CloudflareZone, ConnectionTest, CurrentIp, DatabaseStatus,
-  DeleteRouteResult, DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
-  RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView, SwitchResult,
-  TunnelConfig, TunnelRoute, TunnelRouteInput,
+  AccessStatus, AccountResult, CloudflareDnsRecord, CloudflareZone, ConnectionTest, CreatedPostgres, CreatePostgresInput,
+  CurrentIp, DatabaseStatus, DeleteRouteResult, DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult,
+  IpGroup, PostgresDiscovery, RouteAccess, RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser,
+  SetupResult, SetupView, SwitchResult, TunnelConfig, TunnelRoute, TunnelRouteInput,
 } from './types';
 
 export class ApiError extends Error {
@@ -150,6 +150,9 @@ export const api = {
     switchToPostgres: (connectionString: string, copyData: boolean) =>
       post<SwitchResult>('/api/database/switch', { connectionString, copyData }),
     revertToSqlite: () => post<SwitchResult>('/api/database/revert'),
+    discoverPostgres: () => get<PostgresDiscovery>('/api/database/postgres/discover'),
+    // Both passwords go in once and are never returned.
+    createPostgres: (input: CreatePostgresInput) => post<CreatedPostgres>('/api/database/postgres/create', input),
   },
 };
 

@@ -15,6 +15,7 @@ using StageZero.Services.Access;
 using StageZero.Services.Cli;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Database;
+using StageZero.Services.Database.Docker;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
 using StageZero.Services.Health;
@@ -139,6 +140,15 @@ try
     builder.Services.AddSingleton(sp => new DatabaseSettingsFile(storedDatabase.Path, sp.GetRequiredService<IDataProtectionProvider>()));
     builder.Services.AddSingleton<IAppRestart, AppRestart>();
     builder.Services.AddScoped<IDatabaseSwitchService, DatabaseSwitchService>();
+
+    // "Use PostgreSQL": find servers on the machine, or create StageZero's own container. The
+    // Docker socket is there only when the operator mounted it (docker-compose.provision.yml).
+    builder.Services.AddSingleton<IDockerApi>(new DockerApi(DockerEndpoint.Discover()));
+    builder.Services.AddSingleton(AppContainer.Detect());
+    builder.Services.AddSingleton<IPostgresProber, NpgsqlProber>();
+    builder.Services.AddSingleton<IPostgresAdmin, NpgsqlAdmin>();
+    builder.Services.AddScoped<PostgresDiscovery>();
+    builder.Services.AddScoped<PostgresProvisioner>();
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>

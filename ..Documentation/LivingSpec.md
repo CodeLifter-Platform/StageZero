@@ -258,6 +258,33 @@ fresh install. `reset-password` resolves the database the same way, so it reache
 the app runs on. The web app polls `/api/database` through the restart and reports when
 the app is back on the expected provider, or that it gave up.
 
+**Finding or creating a PostgreSQL** (`Services/Database/PostgresDiscovery.cs`,
+`PostgresProvisioner.cs`, `Services/Database/Docker/`). "Use PostgreSQL" first probes the
+standard ports 5432–5439 on the machine — from a container that is `host.docker.internal`
+(mapped by the compose files), plus the names `stagezero-postgres` and `postgres` — with a
+throwaway login: a server that answers at all, even refusing the password, is listed with
+"Use this server", which prefills the connection string for the `stagezero` role. It also
+reports whether Docker is reachable and whether StageZero's own container already exists.
+Docker is the engine API over its Unix socket (`DockerApi`, no CLI, no package): the path
+comes from `DOCKER_HOST`, else the Docker CLI's current context, else the well-known
+desktop-engine paths (`DockerEndpoint`); in a container it exists only when
+`docker-compose.provision.yml` mounted it, which the page says plainly is root on the host.
+"Create a new container" takes a port (the first standard one nothing answers on is
+suggested), an admin password for the `postgres` superuser, a separate password for the
+`stagezero` role, a backups folder (default `<data dir>/backups`) and whether to publish
+the port beyond 127.0.0.1. It pulls `postgres:18-alpine`, creates `stagezero-postgres`
+with the data in `<data dir>/postgres` and the backups folder as bind mounts (host paths
+found by inspecting StageZero's own container's `/app-data` mount, so no compose command
+owns them), joins it to the stack's network, publishes the port, sets `restart:
+unless-stopped`, starts it with a random bootstrap superuser password, waits for it, then
+replaces that password with the operator's, creates the role and the database it owns, and
+returns host, port, database and role, never a password. The page builds the connection
+string with the StageZero password it still holds and tests it; the admin password exists
+only in PostgreSQL from then on, and the page tells the operator to record both before the
+button enables. A step that fails after the container exists removes the container and
+leaves the folders. The passwords must be printable ASCII without spaces, `;`, quotes or
+backslashes, at least 12 characters, and different from each other.
+
 The SQLite schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
 and then migrated like any other. So is one migrated by the retired pre-#18 migration set
