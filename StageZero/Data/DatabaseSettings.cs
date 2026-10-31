@@ -11,16 +11,32 @@ public enum DatabaseProvider
     Postgres
 }
 
+/// <summary>Where the running database choice came from; the Database page shows it and acts on it.</summary>
+public enum DatabaseSettingsSource
+{
+    /// <summary>Nothing chosen: SQLite in the data directory.</summary>
+    Default,
+
+    /// <summary>The Database page's choice, kept in <see cref="DatabaseSettingsFile"/>.</summary>
+    Settings,
+
+    /// <summary>The environment variables, which the Database page cannot change.</summary>
+    Environment
+}
+
 /// <summary>
 /// Which database StageZero keeps its data in. SQLite, one file in the data directory, unless
 /// <c>STAGEZERO_DB_PROVIDER=postgres</c> and <c>STAGEZERO_DB_CONNECTION</c> name a PostgreSQL
-/// database. Either way the data directory still holds the logs and the Data Protection keys
-/// that decrypt the stored Cloudflare tokens.
+/// database, or the Database page chose one (<see cref="DatabaseSettingsFile"/>). Either way
+/// the data directory still holds the logs and the Data Protection keys that decrypt the
+/// stored Cloudflare tokens.
 /// </summary>
 public sealed record DatabaseSettings(DatabaseProvider Provider, string ConnectionString)
 {
     public const string ProviderVariable = "STAGEZERO_DB_PROVIDER";
     public const string ConnectionVariable = "STAGEZERO_DB_CONNECTION";
+
+    public DatabaseSettingsSource Source { get; init; } = DatabaseSettingsSource.Default;
 
     public static DatabaseSettings Sqlite(string databasePath) =>
         new(DatabaseProvider.Sqlite, new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString());
@@ -39,13 +55,34 @@ public sealed record DatabaseSettings(DatabaseProvider Provider, string Connecti
     }
 
     /// <summary>
-    /// Reads the two variables. A misspelt provider, or postgres without a connection string,
-    /// stops startup rather than quietly falling back to a SQLite file nobody is backing up.
+    /// What the app (and the CLI commands that must find the same database) runs on: the
+    /// environment variables when either is set, else the Database page's stored choice, else
+    /// SQLite in the data directory.
     /// </summary>
-    public static DatabaseSettings FromEnvironment() =>
-        From(Environment.GetEnvironmentVariable(ProviderVariable),
-             Environment.GetEnvironmentVariable(ConnectionVariable),
-             DataPathService.GetDatabasePath);
+    public static DatabaseSettings Resolve(DatabaseSettingsFile stored) =>
+        Resolve(Environment.GetEnvironmentVariable(ProviderVariable),
+                Environment.GetEnvironmentVariable(ConnectionVariable),
+                stored,
+                DataPathService.GetDatabasePath);
+
+    /// <summary>
+    /// A misspelt provider, or postgres without a connection string, stops startup rather than
+    /// quietly falling back to a SQLite file nobody is backing up (<see cref="From"/>).
+    /// </summary>
+    public static DatabaseSettings Resolve(string? provider, string? connection, DatabaseSettingsFile stored, Func<string> sqlitePath)
+    {
+        if (!string.IsNullOrWhiteSpace(provider) || !string.IsNullOrWhiteSpace(connection))
+        {
+            return From(provider, connection, sqlitePath) with { Source = DatabaseSettingsSource.Environment };
+        }
+
+        if (stored.Read() is { } choice)
+        {
+            return Postgres(choice.ConnectionString) with { Source = DatabaseSettingsSource.Settings };
+        }
+
+        return Sqlite(sqlitePath());
+    }
 
     public static DatabaseSettings From(string? provider, string? connection, Func<string> sqlitePath)
     {

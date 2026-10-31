@@ -285,6 +285,13 @@ Moving an existing install from SQLite to PostgreSQL: set the two variables, run
 copy-to-postgres`), then restart. It copies every row into an empty PostgreSQL database and
 only reads the SQLite file, so going back is unsetting `STAGEZERO_DB_PROVIDER`.
 
+**Or from the app:** the **Database** page tests a connection string, copies the data, and
+restarts StageZero on PostgreSQL (under Docker the container restarts itself; a `dotnet run`
+has to be started again). The choice is kept in `database.json` in the data directory with
+the connection string encrypted; the environment variables above always win over it, and
+"Go back to SQLite" removes it. The page needs a PostgreSQL server to point at: your own,
+or the compose add-on above (which sets the variables itself, so the page is then read-only).
+
 ## Documentation
 
 Everything beyond this README lives in [`..Documentation/`](..Documentation/) (a hidden

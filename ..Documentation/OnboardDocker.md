@@ -117,7 +117,11 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d
 ```
 
 For a PostgreSQL server you already run, skip the add-on and set `STAGEZERO_DB_PROVIDER=postgres`
-and `STAGEZERO_DB_CONNECTION` in `.env`.
+and `STAGEZERO_DB_CONNECTION` in `.env` — or leave `.env` alone and use the app's **Database**
+page: it tests the connection, copies the SQLite data, saves the connection string encrypted
+in `/app-data/database.json`, and stops the container, which `restart: unless-stopped` brings
+straight back on PostgreSQL. The variables, when set, always win over that file, and the
+page then only shows the database. `/app-data` stays mounted either way.
 
 ## Debug
 

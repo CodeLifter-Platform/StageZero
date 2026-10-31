@@ -25,6 +25,8 @@ public static class DataPathService
     /// <summary>
     /// Checks if the application is running inside a Docker container.
     /// </summary>
+    public static bool IsRunningInContainer() => IsRunningInDocker();
+
     private static bool IsRunningInDocker()
     {
         // Check for Docker-specific environment variable

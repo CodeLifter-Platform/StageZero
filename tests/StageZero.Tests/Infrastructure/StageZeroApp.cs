@@ -24,8 +24,7 @@ namespace StageZero.Tests.Infrastructure;
 /// </summary>
 public sealed class StageZeroApp : WebApplicationFactory<Program>
 {
-    public string DataDirectory { get; } =
-        Directory.CreateTempSubdirectory("stagezero-tests-").FullName;
+    public string DataDirectory { get; }
 
     /// <summary>What every outbound HTTP request gets instead of the internet.</summary>
     public FakeHttp Http { get; } = new();
@@ -38,14 +37,27 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
     public bool IsPostgres => Database.Provider == DatabaseProvider.Postgres;
 
     private readonly string _environment;
+    private readonly bool _ownsDataDirectory;
 
-    public StageZeroApp(string environment = "Development")
+    /// <param name="environment">The ASP.NET environment name.</param>
+    /// <param name="dataDirectory">
+    /// An existing data directory to start on (a second start of the same install), instead
+    /// of a fresh throwaway one. It is left in place when this instance is disposed.
+    /// </param>
+    /// <param name="fromDataDirectory">
+    /// Start the way the product does with nothing in the environment: SQLite, or whatever
+    /// database.json in the data directory says — even on the PostgreSQL leg, which otherwise
+    /// puts every instance on its own PostgreSQL database through the variables.
+    /// </param>
+    public StageZeroApp(string environment = "Development", string? dataDirectory = null, bool fromDataDirectory = false)
     {
         _environment = environment;
+        _ownsDataDirectory = dataDirectory is null;
+        DataDirectory = dataDirectory ?? Directory.CreateTempSubdirectory("stagezero-tests-").FullName;
         Environment.SetEnvironmentVariable(DataPathService.HomeVariable, DataDirectory);
 
         var server = Environment.GetEnvironmentVariable(PostgresServerVariable);
-        if (string.IsNullOrWhiteSpace(server))
+        if (fromDataDirectory || string.IsNullOrWhiteSpace(server))
         {
             Database = DatabaseSettings.Sqlite(Path.Combine(DataDirectory, "stagezero.db"));
             Environment.SetEnvironmentVariable(DatabaseSettings.ProviderVariable, null);
@@ -115,6 +127,11 @@ public sealed class StageZeroApp : WebApplicationFactory<Program>
         if (IsPostgres)
         {
             await DropPostgresDatabaseAsync();
+        }
+
+        if (!_ownsDataDirectory)
+        {
+            return;
         }
 
         try

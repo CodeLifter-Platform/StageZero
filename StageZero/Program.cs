@@ -14,6 +14,7 @@ using StageZero.Services;
 using StageZero.Services.Access;
 using StageZero.Services.Cli;
 using StageZero.Services.CodeLifter;
+using StageZero.Services.Database;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
 using StageZero.Services.Health;
@@ -64,10 +65,13 @@ for (int i = 0; loadDotEnv && i <= 5; i++)
 }
 
 // Account recovery from the server: `StageZero reset-password <email>`. After .env, so a
-// STAGEZERO_HOME or STAGEZERO_DB_* set there finds the same database the app uses.
+// STAGEZERO_HOME or STAGEZERO_DB_* set there finds the same database the app uses — and
+// through the same resolution, so a choice made on the Database page is honoured too.
 if (args is [ResetPasswordCommand.Name, ..])
 {
-    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DatabaseSettings.FromEnvironment(), args, Console.Out);
+    var appData = DataPathService.GetAppDataDirectory();
+    var stored = DatabaseSettingsFile.Open(appData, DataProtectionKeys.Prepare(appData));
+    Environment.ExitCode = await ResetPasswordCommand.RunAsync(DatabaseSettings.Resolve(stored), args, Console.Out);
     return;
 }
 
@@ -115,11 +119,26 @@ try
     builder.Services.AddStageZeroApi();
     builder.Services.AddStageZeroSession();
 
+    // One key ring, on the data volume rather than the user profile (ephemeral in a
+    // container). Without it every restart would sign everyone out and make the stored
+    // Cloudflare tokens and TOTP secrets undecryptable. Prepared before the database is
+    // chosen: the Database page's stored choice is encrypted with it. See DataProtectionKeys.
+    var appDataDirectory = DataPathService.GetAppDataDirectory();
+    var keyRing = DataProtectionKeys.Prepare(appDataDirectory);
+
     // Entity Framework with DbContextFactory: SQLite in the data directory by default, or
-    // PostgreSQL when STAGEZERO_DB_PROVIDER says so (DatabaseSettings).
-    var database = DatabaseSettings.FromEnvironment();
-    Log.Information("Database: {Database}", database.Describe());
+    // PostgreSQL when STAGEZERO_DB_PROVIDER says so or the Database page chose it
+    // (DatabaseSettings.Resolve: the environment wins, then database.json, then the default).
+    var storedDatabase = DatabaseSettingsFile.Open(appDataDirectory, keyRing);
+    var database = DatabaseSettings.Resolve(storedDatabase);
+    Log.Information("Database: {Database} (from {Source})", database.Describe(), database.Source);
     database.AddDbContextFactory(builder.Services);
+
+    // The Database page: what the app runs on, and the switch, which takes a restart.
+    builder.Services.AddSingleton(database);
+    builder.Services.AddSingleton(sp => new DatabaseSettingsFile(storedDatabase.Path, sp.GetRequiredService<IDataProtectionProvider>()));
+    builder.Services.AddSingleton<IAppRestart, AppRestart>();
+    builder.Services.AddScoped<IDatabaseSwitchService, DatabaseSwitchService>();
 
     // Register BasicAuthDbContext factory for the auth library (wrapper around ApplicationDbContext factory)
     builder.Services.AddScoped<IDbContextFactory<Lifted.BlazorAuth.Basic.Data.BasicAuthDbContext>>(sp =>
@@ -135,10 +154,6 @@ try
     // ═══════════════════════════════════════════════════════════════
     // DATA PROTECTION
     // ═══════════════════════════════════════════════════════════════
-    // One key ring, on the data volume rather than the user profile (ephemeral in a
-    // container). Without it every restart would sign everyone out and make the stored
-    // Cloudflare tokens and TOTP secrets undecryptable. See DataProtectionKeys.
-    var keyRing = DataProtectionKeys.Prepare(DataPathService.GetAppDataDirectory());
     builder.Services.AddDataProtection()
         .PersistKeysToFileSystem(keyRing)
         .SetApplicationName("StageZero");
@@ -301,6 +316,7 @@ try
     api.MapIpEndpoints();
     api.MapDnsEndpoints();
     api.MapTunnelEndpoints();
+    api.MapDatabaseEndpoints();
 
     // Everything else is the React app's: deep links and reloads get index.html.
     app.MapSpaFallback();

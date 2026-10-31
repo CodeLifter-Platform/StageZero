@@ -56,16 +56,51 @@ public static class CopyToPostgresCommand
             return 2;
         }
 
-        if (!File.Exists(sqlitePath))
-        {
-            await output.WriteLineAsync($"No SQLite database at {sqlitePath}; nothing to copy.");
-            return 1;
-        }
-
         var source = DatabaseSettings.Sqlite(sqlitePath);
         var target = DatabaseSettings.Postgres(targetConnection);
         await output.WriteLineAsync($"From: {source.Describe()}");
         await output.WriteLineAsync($"To:   {target.Describe()}");
+
+        List<CopiedTable> copied;
+        try
+        {
+            copied = await CopyAsync(sqlitePath, targetConnection, cancellationToken);
+        }
+        catch (UserFacingException ex)
+        {
+            await output.WriteLineAsync(ex.Message);
+            return 1;
+        }
+
+        foreach (var table in copied)
+        {
+            await output.WriteLineAsync($"  {table.Table}: {table.Rows} row(s)");
+        }
+
+        await output.WriteLineAsync(
+            $"Done. Set {DatabaseSettings.ProviderVariable}=postgres and {DatabaseSettings.ConnectionVariable} for the app, " +
+            "keep the data directory mounted (it holds the keys), and restart.");
+        return 0;
+    }
+
+    /// <summary>One table's share of a copy, for the CLI's output and the Database page's report.</summary>
+    public sealed record CopiedTable(string Table, int Rows);
+
+    /// <summary>
+    /// The copy itself, shared with the Database page: migrates both ends, refuses a target
+    /// that already has data (<see cref="UserFacingException"/>, so the reason reaches whoever
+    /// asked), and copies every table with its ids in one transaction.
+    /// </summary>
+    public static async Task<List<CopiedTable>> CopyAsync(
+        string sqlitePath, string targetConnection, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(sqlitePath))
+        {
+            throw new UserFacingException($"No SQLite database at {sqlitePath}; nothing to copy.");
+        }
+
+        var source = DatabaseSettings.Sqlite(sqlitePath);
+        var target = DatabaseSettings.Postgres(targetConnection);
 
         await DatabaseInitializer.InitializeAsync(source, NullLogger.Instance, cancellationToken);
         await DatabaseInitializer.InitializeAsync(target, NullLogger.Instance, cancellationToken);
@@ -86,19 +121,18 @@ public static class CopyToPostgresCommand
         {
             if (await HasRowsAsync(to, table.GetTableName()!, cancellationToken))
             {
-                await output.WriteLineAsync(
+                throw UserFacingException.Conflict(
                     $"The PostgreSQL database already has data (in {table.GetTableName()}). " +
                     "Copy into an empty database, so nothing there is overwritten.");
-                return 1;
             }
         }
 
+        var copied = new List<CopiedTable>();
         await using (var transaction = await to.Database.BeginTransactionAsync(cancellationToken))
         {
             for (var i = 0; i < Tables.Length; i++)
             {
-                var copied = await Tables[i](from, to, cancellationToken);
-                await output.WriteLineAsync($"  {CopiedTypes[i].Name}: {copied} row(s)");
+                copied.Add(new CopiedTable(CopiedTypes[i].Name, await Tables[i](from, to, cancellationToken)));
             }
 
             // Explicit ids leave each identity sequence at 1; the next insert would collide.
@@ -114,10 +148,7 @@ public static class CopyToPostgresCommand
             await transaction.CommitAsync(cancellationToken);
         }
 
-        await output.WriteLineAsync(
-            $"Done. Set {DatabaseSettings.ProviderVariable}=postgres and {DatabaseSettings.ConnectionVariable} for the app, " +
-            "keep the data directory mounted (it holds the keys), and restart.");
-        return 0;
+        return copied;
     }
 
     private static async Task<int> Copy<T>(ApplicationDbContext from, ApplicationDbContext to, CancellationToken cancellationToken)

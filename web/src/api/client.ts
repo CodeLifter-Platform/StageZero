@@ -3,9 +3,9 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareDnsRecord, CloudflareZone, CurrentIp, DeleteRouteResult,
-  DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
-  RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView,
+  AccessStatus, AccountResult, CloudflareDnsRecord, CloudflareZone, ConnectionTest, CurrentIp, DatabaseStatus,
+  DeleteRouteResult, DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
+  RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView, SwitchResult,
   TunnelConfig, TunnelRoute, TunnelRouteInput,
 } from './types';
 
@@ -142,6 +142,14 @@ export const api = {
     accessStatus: (id: number) => get<AccessStatus>(`/api/tunnel/routes/${id}/access-status`),
     identityProviders: () => get<IdentityProvider[]>('/api/tunnel/access/identity-providers'),
     serviceTokens: () => get<ServiceTokenInfo[]>('/api/tunnel/access/service-tokens'),
+  },
+  database: {
+    status: () => get<DatabaseStatus>('/api/database'),
+    // The connection string carries a password: it goes in here and is never returned.
+    test: (connectionString: string) => post<ConnectionTest>('/api/database/test', { connectionString }),
+    switchToPostgres: (connectionString: string, copyData: boolean) =>
+      post<SwitchResult>('/api/database/switch', { connectionString, copyData }),
+    revertToSqlite: () => post<SwitchResult>('/api/database/revert'),
   },
 };
 

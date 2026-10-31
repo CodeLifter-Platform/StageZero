@@ -13,6 +13,7 @@ export const NAV = [
   { id: '/dns-config', label: 'DNS Configuration', icon: '⇄' },
   { id: '/tunnel-routes', label: 'Tunnel Routes', icon: '⑂' },
   { id: '/tunnel-settings', label: 'Tunnel Setup', icon: '⚙' },
+  { id: '/database', label: 'Database', icon: '▤' },
 ];
 
 /** Which nav item a path belongs to: /tunnel-routes/edit/3 is under Tunnel Routes. */

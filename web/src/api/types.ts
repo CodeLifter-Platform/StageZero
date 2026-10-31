@@ -148,3 +148,37 @@ export interface AccessStatus {
   warnings: string[];
   isUnprotected: boolean;
 }
+
+export type DatabaseProvider = 'sqlite' | 'postgres';
+
+/** Who decided the database: nobody (the SQLite default), the Database page, or the environment. */
+export type DatabaseSettingsSource = 'default' | 'settings' | 'environment';
+
+export interface DatabaseStatus {
+  provider: DatabaseProvider;
+  /** Where the data is, never the password. */
+  description: string;
+  source: DatabaseSettingsSource;
+  /** The page may switch: not the environment's choice, and no restart under way. */
+  canChange: boolean;
+  restartPending: boolean;
+  sqliteFileExists: boolean;
+  /** In a container, which the compose files restart on their own. */
+  restartsAutomatically: boolean;
+}
+
+export interface ConnectionTest {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  serverVersion: string;
+  /** False when the server is reached but the database is not there yet; the switch creates it. */
+  databaseExists: boolean;
+  isEmpty: boolean;
+  hasStageZeroSchema: boolean;
+}
+
+export interface CopiedTable { table: string; rows: number }
+
+export interface SwitchResult { message: string; copied: CopiedTable[] }

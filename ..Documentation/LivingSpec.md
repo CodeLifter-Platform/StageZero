@@ -158,8 +158,8 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
 Three projects and a web app:
 
 - **`StageZero/`** — the ASP.NET Core host. `Api/` holds the HTTP surface: thin minimal-API
-  endpoint groups (`AuthEndpoints`, `IpEndpoints`, `DnsEndpoints`, `TunnelEndpoints`) that
-  bind a request, call a service and shape the response; `Session.cs` (cookie auth and the
+  endpoint groups (`AuthEndpoints`, `IpEndpoints`, `DnsEndpoints`, `TunnelEndpoints`,
+  `DatabaseEndpoints`) that bind a request, call a service and shape the response; `Session.cs` (cookie auth and the
   per-request user check); `ApiPipeline.cs` (JSON conventions, the request-header guard,
   `no-store`, problem details); `SpaHosting.cs` (static files and the deep-link fallback).
   Business logic lives in `Services/`; data access in `DataAdapters/` as Reader/Writer
@@ -186,8 +186,10 @@ Files worth opening first:
 
 - `StageZero/Program.cs` — DI registrations, the pipeline, data directory, the
   `healthcheck`, `reset-password` and `copy-to-postgres` commands;
-  `Data/DatabaseSettings.cs` picks SQLite or PostgreSQL; `Data/DatabaseInitializer.cs`
-  applies the EF Core migrations (and adopts a pre-migration database once).
+  `Data/DatabaseSettings.cs` picks SQLite or PostgreSQL (`Resolve`: the environment, then
+  the Database page's `Data/DatabaseSettingsFile.cs`, then the default);
+  `Data/DatabaseInitializer.cs` applies the EF Core migrations (and adopts a pre-migration
+  database once); `Services/Database/` is the Database page's switch and the restart it asks for.
 - `StageZero/Api/Session.cs` and `StageZero/Api/ApiPipeline.cs` — the trust boundary.
 - `web/src/App.tsx`, `web/src/app/guards.tsx`, `web/src/app/Shell.tsx` — routes, who may
   see what, and the signed-in frame.
@@ -233,6 +235,28 @@ with its ids in one transaction, and moves the identity sequences past them; the
 file is only read. The test suite runs on both: `STAGEZERO_TEST_POSTGRES` gives each
 in-process app test its own throwaway PostgreSQL database, and CI's `api` job runs once per
 provider.
+
+**The Database page** (`/database`, `Api/DatabaseEndpoints.cs`,
+`Services/Database/DatabaseSwitchService.cs`) does the same move from the browser. It shows
+the running database and who chose it; tests a PostgreSQL connection string (opens it, reads
+the server version, says whether the database exists, is empty, or already holds a
+StageZero schema; a missing database counts as reachable, since the switch creates it);
+and switches: copies the SQLite data with the same code as `copy-to-postgres` when asked
+(the target must be empty), otherwise just migrates the target, then records the choice and
+asks for a restart (`AppRestart`, which stops the host a second later: under the compose
+files' `restart: unless-stopped` the container comes straight back; a host process must be
+started again by hand, and the page says which). The choice lives in `database.json` in the
+data directory — the provider in clear, the connection string encrypted with the Data
+Protection ring (`Data/DatabaseSettingsFile.cs`), so neither the file nor the API ever
+shows the password; the page gets `Describe()` only. Precedence is fixed: the two
+environment variables win when either is set (the page is then read-only and says so),
+then `database.json`, then SQLite. "Go back to SQLite" deletes the file and restarts on
+the SQLite file as it was left; data written since the switch stays in PostgreSQL. A
+`database.json` that cannot be read (not JSON, or encrypted under a lost ring) stops
+startup with the way out, rather than starting on an empty SQLite that would look like a
+fresh install. `reset-password` resolves the database the same way, so it reaches the one
+the app runs on. The web app polls `/api/database` through the restart and reports when
+the app is back on the expected provider, or that it gave up.
 
 The SQLite schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)

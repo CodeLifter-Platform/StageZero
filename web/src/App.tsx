@@ -7,6 +7,7 @@ import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { SetupPage } from './pages/auth/SetupPage';
+import { DatabasePage } from './pages/database/DatabasePage';
 import { DnsConfigPage } from './pages/dns/DnsConfigPage';
 import { HomePage } from './pages/HomePage';
 import { IpMonitorPage } from './pages/IpMonitorPage';
@@ -43,6 +44,7 @@ export function AppRoutes() {
       <Route path="/tunnel-routes/edit/:id" element={<RequireOperator><TunnelRouteEditPage /></RequireOperator>} />
       <Route path="/tunnel-routes/access/:id" element={<RequireOperator><AccessStatusPage /></RequireOperator>} />
       <Route path="/tunnel-settings" element={<RequireOperator><TunnelSettingsPage /></RequireOperator>} />
+      <Route path="/database" element={<RequireOperator><DatabasePage /></RequireOperator>} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
