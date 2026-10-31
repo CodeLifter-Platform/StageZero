@@ -127,10 +127,14 @@ The Database page can also **create** a PostgreSQL container for you, which need
 socket in the StageZero container:
 
 ```bash
-# Linux only: the socket's group, so the container's unprivileged user may use it
+# Linux: the socket's group, so the container's unprivileged user may use it
 echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
 docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d
 ```
+
+On a VM engine (Docker Desktop, BoxCar, Colima, OrbStack) the group is the VM's, so the
+`stat` above gives the wrong number: start the stack without `DOCKER_GID`, press "Look for
+PostgreSQL" on the Database page, and it names the group to put in `.env` (BoxCar: 101).
 
 Read the header of `docker-compose.provision.yml` first: whoever holds the socket holds the
 host, so use this only behind Cloudflare Access or on a machine nobody else reaches. The page

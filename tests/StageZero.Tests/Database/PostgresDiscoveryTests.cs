@@ -64,6 +64,21 @@ public sealed class PostgresDiscoveryTests
     }
 
     [Fact]
+    public async Task A_socket_nobody_mounted_and_a_socket_the_user_may_not_open_are_told_apart()
+    {
+        using var none = new DockerApi(null);
+        Assert.Contains("docker-compose.provision.yml", await none.ExplainUnavailableAsync(inContainer: true));
+        Assert.Contains("Is Docker running?", await none.ExplainUnavailableAsync(inContainer: false));
+
+        Assert.Equal(
+            "The Docker socket /var/run/docker.sock is mounted, but StageZero's container user may not use it. " +
+            "It belongs to group 101: put DOCKER_GID=101 in .env and run the compose command again.",
+            DockerApi.PermissionAdvice("/var/run/docker.sock", 101, inContainer: true));
+        Assert.Contains("add your user to that group", DockerApi.PermissionAdvice("/var/run/docker.sock", 999, inContainer: false));
+        Assert.Contains("Set DOCKER_GID", DockerApi.PermissionAdvice("/var/run/docker.sock", null, inContainer: true));
+    }
+
+    [Fact]
     public void The_Docker_socket_comes_from_DOCKER_HOST_the_CLI_context_or_the_usual_places()
     {
         var present = new HashSet<string> { "/Users/a/.colima/default/docker.sock", "/custom/docker.sock", "/Users/a/.boxcar/docker.sock" };

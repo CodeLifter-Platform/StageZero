@@ -16,6 +16,11 @@ public sealed class FakeDocker : IDockerApi
 
     public Task<DockerEngine?> PingAsync(CancellationToken cancellationToken = default) => Task.FromResult(Engine);
 
+    public Task<string> ExplainUnavailableAsync(bool inContainer, CancellationToken cancellationToken = default) =>
+        Task.FromResult(inContainer
+            ? "StageZero can't see the Docker engine. Start the stack with docker-compose.provision.yml as well."
+            : "No Docker socket found. Is Docker running?");
+
     public Task<ContainerInspection?> InspectContainerAsync(string nameOrId, CancellationToken cancellationToken = default) =>
         Task.FromResult(Containers.TryGetValue(nameOrId, out var c) ? c : Containers.Values.FirstOrDefault(c => c.Id == nameOrId));
 

@@ -18,9 +18,12 @@
 # It is not part of this compose project: `docker compose down` leaves it running, and
 # `docker rm -f stagezero-postgres` removes it (the folders stay).
 #
-# Linux: the socket is owned by group docker; the container's unprivileged user needs that
-# group. Put its id in .env:   DOCKER_GID=$(stat -c %g /var/run/docker.sock)
-# Docker Desktop (macOS/Windows) hands the socket out as root, which DOCKER_GID=0 covers.
+# The socket belongs to the engine's docker group, and the container's unprivileged user
+# needs that group: put its id in .env as DOCKER_GID. On a Linux host that is
+#   DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+# On a VM engine (Docker Desktop, BoxCar, Colima, OrbStack) the group is the VM's, not the
+# Mac's: start the stack once without it, and the Database page's "Look for PostgreSQL"
+# tells you the number to set. Docker Desktop usually needs none (0, the default).
 
 services:
   stagezero:

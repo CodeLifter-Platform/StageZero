@@ -117,9 +117,7 @@ public sealed class PostgresDiscovery
         }
 
         var docker = engine is null
-            ? new DockerAvailability(false, inContainer
-                ? "StageZero can't see the Docker engine. Start the stack with docker-compose.provision.yml as well, which mounts the Docker socket into the container (and grants it the host: read the file's header first)."
-                : $"No Docker socket found ({DockerEndpoint.DefaultSocket} or a desktop engine's). Is Docker running?")
+            ? new DockerAvailability(false, await _docker.ExplainUnavailableAsync(inContainer, cancellationToken))
             : new DockerAvailability(true, $"Docker {engine.Version} via {engine.Socket}");
 
         var hostDataDirectory = await _self.HostDataDirectoryAsync(_docker, cancellationToken);

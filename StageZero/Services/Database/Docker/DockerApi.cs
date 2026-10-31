@@ -14,6 +14,12 @@ public interface IDockerApi
     /// <summary>The engine behind the socket, or null when there is no socket or it doesn't answer.</summary>
     Task<DockerEngine?> PingAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Why <see cref="PingAsync"/> answered null, for the operator: no socket, a socket this
+    /// process may not open (and the group that may), or an engine that doesn't answer.
+    /// </summary>
+    Task<string> ExplainUnavailableAsync(bool inContainer, CancellationToken cancellationToken = default);
+
     /// <summary>A container by name or id, or null when there is none.</summary>
     Task<ContainerInspection?> InspectContainerAsync(string nameOrId, CancellationToken cancellationToken = default);
 
@@ -158,6 +164,80 @@ public sealed class DockerApi : IDockerApi, IDisposable
             return new DockerEngine(document.RootElement.GetProperty("Version").GetString() ?? "?", _socket!);
         }
         catch (Exception ex) when (ex is HttpRequestException or SocketException or IOException or OperationCanceledException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<string> ExplainUnavailableAsync(bool inContainer, CancellationToken cancellationToken = default)
+    {
+        if (_socket is null || !File.Exists(_socket))
+        {
+            return inContainer
+                ? "StageZero can't see the Docker engine. Start the stack with docker-compose.provision.yml as well, which mounts the Docker socket into the container (and grants it the host: read the file's header first)."
+                : $"No Docker socket found ({DockerEndpoint.DefaultSocket} or a desktop engine's). Is Docker running?";
+        }
+
+        if (!await CanOpenSocketAsync(cancellationToken))
+        {
+            var group = await SocketGroupAsync(cancellationToken);
+            return PermissionAdvice(_socket, group, inContainer);
+        }
+
+        return $"The Docker socket {_socket} is there but the engine did not answer. Is Docker running?";
+    }
+
+    /// <summary>The words for a socket this process may not open.</summary>
+    public static string PermissionAdvice(string socket, int? group, bool inContainer)
+    {
+        var who = inContainer ? "StageZero's container user" : "this process";
+        var fix = group is { } gid
+            ? inContainer
+                ? $"It belongs to group {gid}: put DOCKER_GID={gid} in .env and run the compose command again."
+                : $"It belongs to group {gid}: add your user to that group, or run StageZero as a user in it."
+            : inContainer
+                ? "Set DOCKER_GID in .env to the socket's group id (as seen inside the container) and run the compose command again."
+                : "Add your user to the group that owns it.";
+        return $"The Docker socket {socket} is mounted, but {who} may not use it. {fix}";
+    }
+
+    private async Task<bool> CanOpenSocketAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var connection = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await connection.ConnectAsync(new UnixDomainSocketEndPoint(_socket!), cancellationToken);
+            return true;
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.AccessDenied)
+        {
+            return false;
+        }
+        catch (SocketException)
+        {
+            return true; // reachable in principle; something else is wrong
+        }
+    }
+
+    /// <summary>The socket's owning group, via coreutils (the runtime image has it); null when that fails.</summary>
+    private async Task<int?> SocketGroupAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var stat = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("stat", ["-c", "%g", _socket!])
+            {
+                RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
+            });
+            if (stat is null)
+            {
+                return null;
+            }
+
+            var output = await stat.StandardOutput.ReadToEndAsync(cancellationToken);
+            await stat.WaitForExitAsync(cancellationToken);
+            return stat.ExitCode == 0 && int.TryParse(output.Trim(), out var gid) ? gid : null;
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {
             return null;
         }
