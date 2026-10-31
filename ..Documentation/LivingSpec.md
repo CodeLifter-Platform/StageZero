@@ -282,6 +282,36 @@ file is only read. The test suite runs on both: `STAGEZERO_TEST_POSTGRES` gives 
 in-process app test its own throwaway PostgreSQL database, and CI's `api` job runs once per
 provider.
 
+**Finding or creating a PostgreSQL** (`Services/Database/PostgresDiscovery.cs`,
+`PostgresProvisioner.cs`, `Services/Database/Docker/`; Settings only, never the first-run
+page, since creating drives the Docker engine). *Look for PostgreSQL on this machine* probes
+the standard ports 5432–5439 — from a container that is `host.docker.internal` (mapped by
+the compose files), plus the names `stagezero-postgres` and `postgres` — with a throwaway
+login: a server that answers at all, even refusing the password, is listed with *Use this
+server*, which fills in host and port. It also reports whether Docker is reachable and
+whether StageZero's own container already exists. Docker is the engine API over its Unix
+socket (`DockerApi`, no CLI, no package); the path comes from `DOCKER_HOST`, else the Docker
+CLI's current context, else the well-known desktop-engine paths (`DockerEndpoint`). In a
+container it exists only when `docker-compose.provision.yml` mounted it, and when the
+mounted socket belongs to a group the app user lacks, the page names the group to set as
+`DOCKER_GID`. *Create a new container* takes a port (the first standard one nothing answers
+on is suggested), an admin password for the `postgres` superuser, a separate password for
+the `stagezero` role, a backups folder (default `<data dir>/backups`) and whether to publish
+the port beyond 127.0.0.1. It pulls `postgres:18-alpine`, creates `stagezero-postgres` with
+the data in `<data dir>/postgres` and the backups folder as bind mounts (host paths found
+by inspecting StageZero's own container's `/app-data` mount, so no compose command owns
+them), joins it to the stack's network, publishes the port, sets `restart: unless-stopped`,
+starts it with a random bootstrap superuser password, waits for it, then replaces that
+password with the operator's over the wire, creates the role and the database it owns, and
+returns host, port, database and role, never a password. The form is filled in with the
+StageZero password the browser still holds and tested; the admin password exists only in
+PostgreSQL from then on, and the card tells the operator to record both before the button
+enables. A step that fails after the container exists removes the container and leaves the
+folders. Passwords must be printable ASCII without spaces, `;`, quotes or backslashes, at
+least 12 characters, and different from each other. The Docker-gated test
+(`STAGEZERO_TEST_DOCKER`, set on CI's Linux leg) creates a real container and proves the
+bootstrap password is refused over the published port.
+
 The SQLite schema is EF Core migrations (`Data/Migrations/`), applied at startup; a database from
 before migrations existed is adopted once (`DatabaseInitializer`, `LegacyDatabaseAdopter`)
 and then migrated like any other. So is one migrated by the retired pre-#18 migration set

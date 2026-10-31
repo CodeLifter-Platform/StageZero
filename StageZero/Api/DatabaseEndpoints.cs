@@ -15,6 +15,16 @@ public static class DatabaseEndpoints
         var settings = api.MapGroup("/settings/database").RequireAuthorization(Session.OperatorPolicy).WithUserFacingErrors();
         Map(settings);
 
+        // Signed in only, never on the first-run page: finding servers is harmless, but
+        // creating a container means driving the Docker engine, which is root on the host.
+        settings.MapGet("/postgres/discover", (PostgresDiscovery discovery, CancellationToken cancellationToken) =>
+            discovery.DiscoverAsync(cancellationToken));
+
+        // Both passwords go in here once and never come back; the response names the host,
+        // port, database and role so the form can be filled in.
+        settings.MapPost("/postgres/create", (CreatePostgresRequest request, PostgresProvisioner provisioner, CancellationToken cancellationToken) =>
+            provisioner.CreateAsync(request, cancellationToken));
+
         // First run: whoever reaches a fresh install first creates its admin, and may first
         // point it at PostgreSQL. Closed for good once any user exists.
         var setup = api.MapGroup("/setup/database").WithUserFacingErrors()

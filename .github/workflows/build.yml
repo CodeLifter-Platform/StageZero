@@ -198,6 +198,8 @@ jobs:
           --health-retries 10
     env:
       STAGEZERO_TEST_POSTGRES: ${{ matrix.database == 'postgres' && 'Host=localhost;Port=5432;Username=stagezero;Password=stagezero-ci;Database=postgres' || '' }}
+      # The runner's own Docker engine: the test that creates a real PostgreSQL container runs here.
+      STAGEZERO_TEST_DOCKER: 'true'
     steps:
       - uses: actions/checkout@v4
         with:

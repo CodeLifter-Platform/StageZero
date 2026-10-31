@@ -208,7 +208,8 @@ export function SettingsPage() {
       <Card>
         <div className="sz-stack">
           <h2>Database</h2>
-          <DatabaseSwitch databases={api.database} onSwitched={() => notify('StageZero is now on PostgreSQL', 'success')} />
+          <DatabaseSwitch databases={api.database} provisioning={api.databaseProvisioning}
+            onSwitched={() => notify('StageZero is now on PostgreSQL', 'success')} />
         </div>
       </Card>
 

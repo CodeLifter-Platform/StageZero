@@ -142,6 +142,37 @@ echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> .env
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build
 ```
 
+### Finding or creating a PostgreSQL from Settings
+
+**Settings → Database** first offers **Look for PostgreSQL on this machine**: it probes the
+standard ports 5432–5439 on the Docker host and lists every server that answers, with a
+*Use this server* button that fills in the host and port (the password stays yours to
+enter). It also says whether StageZero can reach Docker.
+
+With Docker reachable, **Create a new container** makes StageZero's own PostgreSQL:
+`stagezero-postgres` (PostgreSQL 18) on the port you choose (the first free standard one is
+suggested), joined to the stack's network, with its data in `<STAGEZERO_DATA_DIR>/postgres`
+and a **backups folder** of your choice (default `<STAGEZERO_DATA_DIR>/backups`), both bind
+mounts: `docker compose down`, `down -v` and `docker volume prune` never touch them. It asks
+for two passwords, the `postgres` superuser's and the `stagezero` role's, shows them once and
+stores neither: **record both** before the button enables. The form is then filled in and
+tested, and *Copy and switch* finishes the move. The container is not part of the compose
+project; `docker rm -f stagezero-postgres` removes it (the folders stay).
+
+Creating needs the Docker socket in the StageZero container, which is **root on the host**:
+read the header of `docker-compose.provision.yml`, then
+
+```bash
+# Linux: the socket's group, so the container's unprivileged user may use it
+echo "DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> .env
+docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d
+```
+
+On a VM engine (Docker Desktop, BoxCar, Colima, OrbStack) the group is the VM's, so the
+`stat` above gives the wrong number: start the stack without `DOCKER_GID`, press *Look for
+PostgreSQL*, and it names the group to put in `.env` (BoxCar: 101). Use the overlay only
+behind Cloudflare Access or on a machine nobody else reaches.
+
 ## Debug
 
 ```bash
