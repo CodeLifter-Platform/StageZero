@@ -1,0 +1,33 @@
+# StageZero, provisioning: lets the Database page create and manage StageZero's own
+# PostgreSQL container. An add-on to docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d
+#
+# READ THIS FIRST. It mounts the Docker engine's socket into the StageZero container.
+# Whoever holds that socket can start any container with any mount on this machine, which
+# is the same as root on the host. StageZero uses it for exactly one thing — the
+# "Create a new PostgreSQL container" button — but the grant is total, so leave this file
+# out when you don't need the button, and never expose a StageZero that has it without
+# Cloudflare Access (or a sign-in you trust) in front.
+#
+# What the page creates: a container named stagezero-postgres from postgres:18-alpine, with
+# its data in <STAGEZERO_DATA_DIR>/postgres and a backups folder (default
+# <STAGEZERO_DATA_DIR>/backups, or one you choose) as bind mounts — host folders that no
+# compose command owns, so `down`, `down -v` and `docker volume prune` never touch them —
+# on the port you choose, joined to this stack's network so the app reaches it by name.
+# It is not part of this compose project: `docker compose down` leaves it running, and
+# `docker rm -f stagezero-postgres` removes it (the folders stay).
+#
+# The socket belongs to the engine's docker group, and the container's unprivileged user
+# needs that group: put its id in .env as DOCKER_GID. On a Linux host that is
+#   DOCKER_GID=$(stat -c %g /var/run/docker.sock)
+# On a VM engine (Docker Desktop, BoxCar, Colima, OrbStack) the group is the VM's, not the
+# Mac's: start the stack once without it, and the Database page's "Look for PostgreSQL"
+# tells you the number to set. Docker Desktop usually needs none (0, the default).
+
+services:
+  stagezero:
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "${DOCKER_GID:-0}"

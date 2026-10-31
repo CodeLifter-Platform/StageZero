@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { DatabaseApi } from '../api/client';
-import type { DatabaseStatus, PostgresTarget, PostgresTestResult } from '../api/types';
+import type { DatabaseApi, ProvisioningApi } from '../api/client';
+import type { CreatedPostgres, DatabaseStatus, PostgresTarget, PostgresTestResult } from '../api/types';
 import { Button, Input, Select } from '../ui';
 import { ConfirmDialog } from './ConfirmDialog';
 import { Notice } from './Notice';
+import { PostgresProvision } from './PostgresProvision';
 
 const EMPTY: PostgresTarget = { host: '', port: 5432, database: 'stagezero', username: 'stagezero', password: '', sslMode: 'Prefer' };
 
@@ -30,8 +31,12 @@ export async function waitForPostgres(
  * Moving StageZero from its SQLite file onto a PostgreSQL database that runs outside the
  * app (the platform Infra stack, or any server). Test, then copy and switch: one way, into an
  * empty database only, then the app restarts onto it. Used by Settings and the first-run page.
+ * With `provisioning` (Settings only), it first looks for a server on the machine, and can create
+ * StageZero's own PostgreSQL container; either way the form below is filled in for it.
  */
-export function DatabaseSwitch({ databases, onSwitched }: { databases: DatabaseApi; onSwitched?: () => void }) {
+export function DatabaseSwitch({ databases, provisioning, onSwitched }: {
+  databases: DatabaseApi; provisioning?: ProvisioningApi; onSwitched?: () => void;
+}) {
   const [status, setStatus] = useState<DatabaseStatus | null>(null);
   const [target, setTarget] = useState<PostgresTarget>(EMPTY);
   const [tested, setTested] = useState<{ for: PostgresTarget; result: PostgresTestResult } | null>(null);
@@ -48,16 +53,31 @@ export function DatabaseSwitch({ databases, onSwitched }: { databases: DatabaseA
     setTested(null);
   };
 
-  const test = async () => {
+  const test = async (what: PostgresTarget = target) => {
     setBusy('test');
     setError(null);
     try {
-      setTested({ for: target, result: await databases.test(target) });
+      setTested({ for: what, result: await databases.test(what) });
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(null);
     }
+  };
+
+  /** A server found on the machine: the form takes its address, the password is still the operator's. */
+  const useServer = (host: string, port: number) => {
+    setTarget((t) => ({ ...t, host, port }));
+    setTested(null);
+  };
+
+  /** A container StageZero just created: the form is complete, so test it straight away. */
+  const adoptCreated = async (created: CreatedPostgres, password: string) => {
+    const next: PostgresTarget = {
+      host: created.host, port: created.port, database: created.database, username: created.username, password, sslMode: 'Prefer',
+    };
+    setTarget(next);
+    await test(next);
   };
 
   const switchTo = async () => {
@@ -115,6 +135,10 @@ export function DatabaseSwitch({ databases, onSwitched }: { databases: DatabaseA
         use host <code>host.docker.internal</code>. The database must be empty: StageZero copies everything into it, then
         restarts onto it. The SQLite file is kept as it was. This runs one way.
       </p>
+      {provisioning ? (
+        <PostgresProvision provisioning={provisioning} disabled={disabled} onUseServer={useServer} onCreated={(c, pw) => void adoptCreated(c, pw)}
+          onError={setError} />
+      ) : null}
       <div className="sz-grid">
         <Input label="Host" placeholder="host.docker.internal" value={target.host} disabled={disabled} onChange={(e) => set('host', e.target.value)} />
         <Input label="Port" type="number" value={String(target.port)} disabled={disabled} onChange={(e) => set('port', Number(e.target.value) || 0)} />

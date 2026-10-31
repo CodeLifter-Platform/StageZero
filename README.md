@@ -296,6 +296,16 @@ Cloudflare token and the saved connection, so back it up with the database.
 `docker-compose.postgres.yml` runs a database inside StageZero's own stack; it is for CI and
 trying PostgreSQL out, not for data you keep.
 
+**Or let StageZero find or create one.** Settings → Database first looks for a PostgreSQL
+server on the machine (the standard ports 5432–5439) and fills the form in for the one you
+pick. With Docker reachable it can also **create StageZero's own PostgreSQL container**: the
+port of your choice, an admin password for the `postgres` superuser and a separate password
+for the `stagezero` role (shown once, stored by nothing: record both), its data in a
+`postgres` folder and backups in a folder you choose, both beside StageZero's data directory
+as bind mounts that no compose command owns. Under Docker that needs the socket mounted:
+`docker compose -f docker-compose.yml -f docker-compose.provision.yml up -d`, after reading
+that file's header, since the socket is root on the host.
+
 ## Documentation
 
 Everything beyond this README lives in [`..Documentation/`](..Documentation/) (a hidden

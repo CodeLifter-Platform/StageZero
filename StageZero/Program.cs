@@ -16,6 +16,7 @@ using StageZero.Services.Access;
 using StageZero.Services.Cli;
 using StageZero.Services.Cloudflare;
 using StageZero.Services.Database;
+using StageZero.Services.Database.Docker;
 using StageZero.Services.CodeLifter;
 using StageZero.Services.Dns;
 using StageZero.Services.Auth;
@@ -238,6 +239,16 @@ try
     builder.Services.AddScoped<ICloudflareCredentialService, CloudflareCredentialService>();
     builder.Services.AddScoped<IDatabaseSwitchService, DatabaseSwitchService>();
     builder.Services.AddSingleton<IAppRestarter, HostAppRestarter>();
+
+    // Settings → Database, "Use PostgreSQL": find servers on the machine, or create StageZero's
+    // own container. The Docker socket is there only when the operator mounted it
+    // (docker-compose.provision.yml), and the page says what that grants.
+    builder.Services.AddSingleton<IDockerApi>(new DockerApi(DockerEndpoint.Discover()));
+    builder.Services.AddSingleton(AppContainer.Detect());
+    builder.Services.AddSingleton<IPostgresProber, NpgsqlProber>();
+    builder.Services.AddSingleton<IPostgresAdmin, NpgsqlAdmin>();
+    builder.Services.AddScoped<PostgresDiscovery>();
+    builder.Services.AddScoped<PostgresProvisioner>();
     builder.Services.AddScoped<ICloudflareTunnelService, CloudflareTunnelService>();
     builder.Services.AddScoped<ITunnelSyncService, TunnelSyncService>();
     builder.Services.AddScoped<ITunnelSetupService, TunnelSetupService>();

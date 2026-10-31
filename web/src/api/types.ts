@@ -211,3 +211,43 @@ export interface PostgresTestResult {
 }
 
 export interface DatabaseSwitchResult { description: string; restarting: boolean; copiedTables: string[] }
+
+export interface DiscoveredServer { host: string; port: number; label: string }
+
+export interface DockerAvailability { available: boolean; detail: string }
+
+export interface ExistingContainer { name: string; status: string; running: boolean; hostPort: number | null }
+
+/** What "Look for PostgreSQL" found on the machine. */
+export interface PostgresDiscovery {
+  servers: DiscoveredServer[];
+  docker: DockerAvailability;
+  /** StageZero's own PostgreSQL container, if one exists already. */
+  container: ExistingContainer | null;
+  suggestedPort: number;
+  /** Host paths a new container would use. */
+  dataFolder: string;
+  backupFolder: string;
+  inContainer: boolean;
+}
+
+export interface CreatePostgresInput {
+  port: number;
+  adminPassword: string;
+  appPassword: string;
+  backupFolder: string | null;
+  publishOnAllInterfaces: boolean;
+}
+
+export interface CreatedPostgres {
+  containerName: string;
+  /** How StageZero reaches it. */
+  host: string;
+  port: number;
+  /** The port published on the host, for tools. */
+  hostPort: number;
+  database: string;
+  username: string;
+  dataFolder: string;
+  backupFolder: string;
+}

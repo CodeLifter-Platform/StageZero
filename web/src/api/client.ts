@@ -3,11 +3,11 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareCredential, EmailUpdateResult, EmailUpdates, CloudflareDnsRecord, DatabaseStatus, DatabaseSwitchResult,
-  PostgresTarget, PostgresTestResult, CloudflareZone, CurrentIp, DeleteRouteResult,
-  DnsProvider, DnsRecord, DnsRecordInput, IdentityProvider, ImportResult, IpGroup, RouteAccess,
-  RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView,
-  TunnelConfig, TunnelRoute, TunnelRouteInput,
+  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CreatedPostgres,
+  CreatePostgresInput, CurrentIp, DatabaseStatus, DatabaseSwitchResult, DeleteRouteResult, DnsProvider, DnsRecord,
+  DnsRecordInput, EmailUpdateResult, EmailUpdates, IdentityProvider, ImportResult, IpGroup, PostgresDiscovery,
+  PostgresTarget, PostgresTestResult, RouteAccess, RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo,
+  SessionUser, SetupResult, SetupView, TunnelConfig, TunnelRoute, TunnelRouteInput
 } from './types';
 
 export class ApiError extends Error {
@@ -158,7 +158,15 @@ export const api = {
   database: databaseApi('/api/settings/database'),
   /** The same calls on the first-run page, open only while no user exists. */
   setupDatabase: databaseApi('/api/setup/database'),
+  /** Finding a PostgreSQL on the machine, or creating StageZero's own container. Settings only, never first run. */
+  databaseProvisioning: {
+    discover: () => get<PostgresDiscovery>('/api/settings/database/postgres/discover'),
+    // Both passwords go in once and are never returned.
+    create: (input: CreatePostgresInput) => post<CreatedPostgres>('/api/settings/database/postgres/create', input),
+  },
 };
+
+export type ProvisioningApi = typeof api.databaseProvisioning;
 
 export type DatabaseApi = ReturnType<typeof databaseApi>;
 
