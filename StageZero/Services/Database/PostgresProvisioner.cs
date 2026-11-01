@@ -27,6 +27,15 @@ public sealed class NpgsqlAdmin : IPostgresAdmin
                 await connection.OpenAsync(cancellationToken);
                 return;
             }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.InvalidPassword)
+            {
+                // The server is up and says no: waiting longer won't change its mind. The one
+                // way this happens is a data folder that already held a cluster, whose
+                // superuser password is not the bootstrap one the new container was given.
+                throw new InvalidOperationException(
+                    "The server came up but refused the password it was started with, so its data folder already held a " +
+                    "PostgreSQL cluster from before. Move or delete that folder, or point the form at the existing server instead.", ex);
+            }
             catch (Exception ex) when (ex is NpgsqlException or System.Net.Sockets.SocketException or IOException or TimeoutException)
             {
                 last = ex;
@@ -169,6 +178,18 @@ public sealed class PostgresProvisioner
         var backupFolder = string.IsNullOrWhiteSpace(request.BackupFolder)
             ? Path.Combine(hostDataDirectory, BackupFolderName)
             : request.BackupFolder.Trim();
+
+        // A data folder with a cluster in it belongs to an earlier container: the image would
+        // start that cluster, with its own passwords, instead of the one being asked for.
+        var localData = Path.Combine(_self.LocalDataDirectory, DataFolderName);
+        if (Directory.Exists(localData) && Directory.EnumerateFileSystemEntries(localData).Any())
+        {
+            throw UserFacingException.Conflict(
+                $"The data folder {dataFolder} already holds a PostgreSQL cluster, from an earlier container. " +
+                "Start that container again (docker start stagezero-postgres) and use it from the list of servers, or move the folder " +
+                "aside or delete it, then create again. Nothing was changed.");
+        }
+
         PrepareFolders(hostDataDirectory, dataFolder, backupFolder);
 
         var network = await _self.NetworkAsync(_docker, cancellationToken);
@@ -217,7 +238,8 @@ public sealed class PostgresProvisioner
             await _admin.ExecuteAsync(admin, $"CREATE ROLE {RoleName} LOGIN PASSWORD {Literal(request.AppPassword)};", cancellationToken);
             await _admin.ExecuteAsync(admin, $"CREATE DATABASE {DatabaseName} OWNER {RoleName};", cancellationToken);
         }
-        catch (Exception ex) when (ex is DockerException or NpgsqlException or TimeoutException or IOException or System.Net.Sockets.SocketException)
+        catch (Exception ex) when (ex is DockerException or NpgsqlException or TimeoutException or IOException
+                                       or System.Net.Sockets.SocketException or InvalidOperationException)
         {
             _logger.LogError(ex, "Setting up {Name} failed; removing the container", _containerName);
             try

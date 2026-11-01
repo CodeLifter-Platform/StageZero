@@ -193,7 +193,9 @@ Three projects and a web app:
   operator should read; anything else is a 500 with a reference.
 - **`web/`** — the React 18 + TypeScript (strict) app, built by Vite into
   `StageZero/wwwroot`. `src/api/client.ts` is the only way it talks to the API;
-  `src/app/` holds the session, guards, shell and toasts; `src/pages/` the screens.
+  `src/app/` holds the session, guards, shell and toasts; `src/pages/` the screens. Settings
+  (`pages/settings/SettingsPage.tsx`) is wide (80% of the content width) with a section nav on
+  the left — Cloudflare, Email, Database — showing one section at a time; `?section=` opens one.
   UI is built only from the CodeLifter Design System, vendored verbatim in `src/design/`
   (`npm run design:sync` copies it from the sibling `Platform-Design` checkout, and
   `design:check` fails CI on drift) and imported through `src/ui.ts`.
@@ -262,7 +264,8 @@ data directory, its connection string encrypted with the Data Protection ring. A
 that can't be read or decrypted stops startup rather than falling back to the stale SQLite
 file. The web app's choice is made on the first-run page (`/api/setup/database/*`, open only
 while no user exists) or in **Settings → Database** (`/api/settings/database/*`,
-`Services/Database/DatabaseSwitchService.cs`): *Test* connects and reports the version,
+`Services/Database/DatabaseSwitchService.cs`; the Settings card first asks SQLite or
+PostgreSQL and shows the PostgreSQL steps only once PostgreSQL is picked): *Test* connects and reports the version,
 whether the user can create tables, and whether any StageZero table already has a row;
 *Copy and switch* runs the same copy as `copy-to-postgres` into an empty database only, saves
 the choice after the copy commits, and stops the host (`IAppRestarter`) so the container's
@@ -307,8 +310,13 @@ returns host, port, database and role, never a password. The form is filled in w
 StageZero password the browser still holds and tested; the admin password exists only in
 PostgreSQL from then on, and the card tells the operator to record both before the button
 enables. A step that fails after the container exists removes the container and leaves the
-folders. Passwords must be printable ASCII without spaces, `;`, quotes or backslashes, at
-least 12 characters, and different from each other. The Docker-gated test
+folders; a data folder that already holds a cluster (an earlier container's) is refused up
+front, since the image would start that cluster with its own passwords, and a server that
+comes up but refuses the bootstrap password fails at once rather than after the 90-second
+wait. Passwords must be printable ASCII without spaces, `;`, quotes or backslashes, at
+least 12 characters, and different from each other; the form checks the same rules field by
+field when *Create* is pressed, shows an indeterminate progress bar while the container is
+built, and puts the server's refusal beside the button. The Docker-gated test
 (`STAGEZERO_TEST_DOCKER`, set on CI's Linux leg) creates a real container and proves the
 bootstrap password is refused over the published port.
 
