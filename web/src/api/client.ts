@@ -3,11 +3,12 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CreatedPostgres,
+  AccessStatus, AccountResult, BucketDomains, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CreateBucketInput, CreatedPostgres,
   CreatePostgresInput, CurrentIp, DatabaseStatus, DatabaseSwitchResult, DeleteRouteResult, DnsProvider, DnsRecord,
   DnsRecordInput, EmailUpdateResult, EmailUpdates, IdentityProvider, ImportResult, IpGroup, PostgresDiscovery,
-  PostgresTarget, PostgresTestResult, RouteAccess, RoutesResult, SaveRouteResult, ServiceTokenInfo, SessionInfo,
-  SessionUser, SetupResult, SetupView, TunnelConfig, TunnelRoute, TunnelRouteInput
+  CustomDomainInput, PostgresTarget, PostgresTestResult, R2Bucket, R2CustomDomain, R2ManagedDomain, RouteAccess, RoutesResult,
+  SaveRouteResult, ServiceTokenInfo, SessionInfo, SessionUser, SetupResult, SetupView, StorageOptions, TunnelConfig, TunnelRoute,
+  TunnelRouteInput
 } from './types';
 
 export class ApiError extends Error {
@@ -154,6 +155,22 @@ export const api = {
     subscribe: (key: string) => post<EmailUpdateResult>('/api/settings/email-updates', { key }),
     /** Asks codelifter.net to email the signed-in address a one-hour link to manage its lists. */
     manageLink: () => post<EmailUpdateResult>('/api/settings/email-updates/manage-link', {}),
+  },
+  /** R2 buckets and the hostnames in front of them. Objects are not here yet. */
+  storage: {
+    options: () => get<StorageOptions>('/api/storage/options'),
+    buckets: () => get<{ buckets: R2Bucket[] }>('/api/storage/buckets'),
+    createBucket: (input: CreateBucketInput) => post<R2Bucket>('/api/storage/buckets', input),
+    deleteBucket: (bucket: string) => del<undefined>(`/api/storage/buckets/${encodeURIComponent(bucket)}`),
+    domains: (bucket: string) => get<BucketDomains>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains`),
+    setPublicAccess: (bucket: string, enabled: boolean) =>
+      put<R2ManagedDomain>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/managed`, { enabled }),
+    addDomain: (bucket: string, input: CustomDomainInput) =>
+      post<R2CustomDomain>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/custom`, input),
+    updateDomain: (bucket: string, domain: string, enabled: boolean, minTls: string | null) =>
+      put<R2CustomDomain>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/custom/${encodeURIComponent(domain)}`, { enabled, minTls }),
+    removeDomain: (bucket: string, domain: string) =>
+      del<undefined>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/custom/${encodeURIComponent(domain)}`),
   },
   database: databaseApi('/api/settings/database'),
   /** The same calls on the first-run page, open only while no user exists. */

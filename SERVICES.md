@@ -5,7 +5,7 @@ file in the same change that adds, removes, or reconfigures a service. Platform-
 map: `Platform-Standards/services/registry.md` (sibling repo,
 github.com/CodeLifter-Platform/Platform-Standards).
 
-Last reviewed: 2026-09-27.
+Last reviewed: 2026-11-02.
 
 ## PostgreSQL (optional database)
 
@@ -88,6 +88,17 @@ Last reviewed: 2026-09-27.
   account-scoped Access permissions. Service-token client secrets are shown once and never
   stored.
 - **Detail:** [..Documentation/CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md).
+
+## Cloudflare R2 (object storage: buckets and their domains)
+
+- **Usage:** The **Storage** page lists, creates and deletes R2 buckets on the account and
+  manages the hostnames in front of each: the r2.dev public address (on or off) and custom
+  domains in the account's zones (`StageZero/Services/Storage/CloudflareR2Service.cs`,
+  `StorageService.cs`, `Api/StorageEndpoints.cs`). Objects are not managed yet; that needs
+  R2's S3 credentials and is a later feature.
+- **Managed at:** End-user Cloudflare accounts, the same API token as DNS, Tunnel and Access,
+  plus the account-scoped **Workers R2 Storage → Edit** permission. A custom domain is only
+  attached in a zone the token can see; Cloudflare writes its DNS record and certificate.
 
 ## ipify (public IP lookup)
 

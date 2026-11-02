@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 import { AccessStatusPage } from './pages/tunnel/AccessStatusPage';
 import { TunnelRouteEditPage } from './pages/tunnel/TunnelRouteEditPage';
 import { TunnelRoutesPage } from './pages/tunnel/TunnelRoutesPage';
+import { StoragePage } from './pages/storage/StoragePage';
 import { TunnelSettingsPage } from './pages/tunnel/TunnelSettingsPage';
 
 export function App() {
@@ -44,6 +45,7 @@ export function AppRoutes() {
       <Route path="/tunnel-routes/edit/:id" element={<RequireOperator><TunnelRouteEditPage /></RequireOperator>} />
       <Route path="/tunnel-routes/access/:id" element={<RequireOperator><AccessStatusPage /></RequireOperator>} />
       <Route path="/tunnel-settings" element={<RequireOperator><TunnelSettingsPage /></RequireOperator>} />
+      <Route path="/storage" element={<RequireOperator><StoragePage /></RequireOperator>} />
       <Route path="/settings" element={<RequireOperator><SettingsPage /></RequireOperator>} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

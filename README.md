@@ -1,3 +1,4 @@
+| Account | Workers R2 Storage → Edit | The Storage page: R2 buckets and their domains |
 # StageZero
 
 **Self-hosting control panel for Cloudflare DNS and Cloudflare Tunnels**
@@ -201,7 +202,7 @@ This is useful for:
 
 ### Cloudflare API Token
 
-One token drives all three features. Create it at **My Profile → API Tokens**, then save it
+One token drives every feature. Create it at **My Profile → API Tokens**, then save it
 on StageZero's **Settings** page (click your email at the top right), which lists the same
 permissions and checks the token has each one:
 

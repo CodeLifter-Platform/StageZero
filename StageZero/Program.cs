@@ -23,6 +23,7 @@ using StageZero.Services.Auth;
 using StageZero.Services.Health;
 using StageZero.Services.IpMonitoring;
 using StageZero.Services.Tunnel;
+using StageZero.Services.Storage;
 using Microsoft.AspNetCore.HttpOverrides;
 using Lifted.BlazorAuth.Basic.Services;
 using Lifted.BlazorAuth.Basic.DataAdapters;
@@ -266,6 +267,12 @@ try
     builder.Services.AddScoped<IAccessSecretSink, LoggingAccessSecretSink>();
 
     // ═══════════════════════════════════════════════════════════════
+    // CLOUDFLARE R2 (buckets and their domains; objects are a later feature)
+    // ═══════════════════════════════════════════════════════════════
+    builder.Services.AddScoped<ICloudflareR2Service, CloudflareR2Service>();
+    builder.Services.AddScoped<IStorageService, StorageService>();
+
+    // ═══════════════════════════════════════════════════════════════
     // BACKGROUND SERVICES REGISTRATION
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddHostedService<IpMonitorBackgroundService>();
@@ -331,6 +338,7 @@ try
     api.MapIpEndpoints();
     api.MapDnsEndpoints();
     api.MapTunnelEndpoints();
+    api.MapStorageEndpoints();
     api.MapSettingsEndpoints();
     api.MapDatabaseEndpoints();
 

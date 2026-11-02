@@ -251,3 +251,37 @@ export interface CreatedPostgres {
   dataFolder: string;
   backupFolder: string;
 }
+
+// ── R2 storage: buckets and the domains in front of them (StageZero/Api/StorageEndpoints.cs) ──
+
+export interface R2Bucket {
+  name: string;
+  createdAt: string | null;
+  /** Cloudflare's location hint (wnam, enam, weur, eeur, apac, oc), or null when it chose. */
+  location: string | null;
+  storageClass: string | null;
+  jurisdiction: string | null;
+}
+
+export interface CreateBucketInput { name: string; locationHint: string | null; storageClass: string | null }
+
+/** The bucket's r2.dev hostname and whether the public is let in through it. */
+export interface R2ManagedDomain { domain: string; enabled: boolean }
+
+export interface R2CustomDomain {
+  domain: string;
+  enabled: boolean;
+  zoneId: string | null;
+  zoneName: string | null;
+  minTls: string | null;
+  /** pending, active, deactivated, blocked, error or unknown. */
+  ownershipStatus: string | null;
+  /** initializing, pending, active, deactivated, error or unknown. */
+  sslStatus: string | null;
+}
+
+export interface BucketDomains { managed: R2ManagedDomain; custom: R2CustomDomain[]; zones: CloudflareZone[] }
+
+export interface CustomDomainInput { domain: string; enabled: boolean; minTls: string | null }
+
+export interface StorageOptions { locationHints: string[]; storageClasses: string[]; minTlsVersions: string[] }

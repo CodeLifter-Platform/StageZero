@@ -378,7 +378,26 @@ Access in depth (policies, idempotency, teardown, the `IAccessSecretSink` vault 
 
 ---
 
-## 8. Day to day
+## 8. R2 storage
+
+The **Storage** page in the sidebar lists the R2 buckets on the account the Settings token
+reaches. It needs one more permission on that token, **Account → Workers R2 Storage → Edit**;
+Settings shows whether the token has it.
+
+- **Create bucket** asks for a name (Cloudflare's rule: 3 to 63 lowercase letters, digits and
+  hyphens; it cannot be renamed later), an optional location hint and the storage class.
+- **Delete** removes an empty bucket. Cloudflare refuses a bucket that still holds objects, and
+  the page shows its message.
+- **Domains** on a bucket opens its hostnames. The **Public r2.dev access** switch lets anyone
+  read the bucket at its r2.dev address, which Cloudflare rate-limits and means for testing.
+  **Attach a domain** takes a hostname in one of your zones; Cloudflare creates the DNS record
+  and the certificate, and the row reads *active* for ownership and TLS once both are done. A
+  domain can be paused with its switch, given a minimum TLS version, or removed, which deletes
+  the DNS record and leaves the bucket alone.
+
+Objects in a bucket are not shown or uploaded yet.
+
+## 9. Day to day
 
 - **Logs**: `docker compose logs -f stagezero`, and `logs/` in the data directory (one file
   a day, 31 kept). `STAGEZERO_LOG_LEVEL=Debug` in `.env` for more detail.

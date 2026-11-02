@@ -49,9 +49,9 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   `web/src/pages/settings/`). The signed-in email in the top bar opens **Settings**, where the
   operator adds, checks, replaces and removes the single token every feature uses — DNS,
   the tunnel and Access — kept in the single-row `CloudflareCredentials` table with its
-  account. The page always shows the five permissions it needs (Account → Cloudflare Tunnel,
-  Access: Apps and Policies, Access: Service Tokens, all Edit; Zone → DNS → Edit; Zone → Zone
-  → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
+  account. The page always shows the six permissions it needs (Account → Cloudflare Tunnel,
+  Access: Apps and Policies, Access: Service Tokens, Workers R2 Storage, all Edit; Zone → DNS →
+  Edit; Zone → Zone → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
   Cloudflare's verify endpoint (user token, then account token) and refuses a disabled,
   expired or not-yet-valid token, naming the start date; works out the account from
   `GET /accounts` (the given Account ID if the token sees it, else the only one; several
@@ -77,6 +77,17 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   create or adopt a tunnel, then map hostnames to local services; `TunnelSyncService` pushes ingress rules and
   proxied CNAMEs to Cloudflare. The setup page prints the connector install command for
   macOS, Windows, Linux, and Docker. UI: **Tunnel Setup** and **Tunnel Routes**, in that order in the nav.
+- **R2 Storage** (`Services/Storage/`, `Api/StorageEndpoints.cs`, `web/src/pages/storage/`). The
+  **Storage** page lists the account's R2 buckets and creates and deletes them (name checked
+  against Cloudflare's rule before the call, location hint and storage class from fixed lists,
+  a duplicate refused as a conflict), and for a chosen bucket manages the hostnames in front of
+  it: the r2.dev public address switched on or off, and custom domains attached, paused, given a
+  minimum TLS version and removed. A custom domain must sit in a zone the saved token can see;
+  the zone is worked out on the server (the most specific match), never taken from the caller,
+  and Cloudflare writes the DNS record and certificate itself, reporting ownership and TLS
+  status which the page shows. Everything uses the Settings token with the account permission
+  **Workers R2 Storage → Edit**, probed on save like the others. Objects are not managed: that
+  needs R2's S3 credentials and is the next feature.
 - **Cloudflare Access** (`Services/Access/`). Every new route gets an Access application,
   default mode `identity` (owner email). Modes: `identity`, `service_token`, `both`, `none`.
   Minted service-token secrets are shown once in a dialog and never logged or stored;
@@ -184,7 +195,8 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
 Three projects and a web app:
 
 - **`StageZero/`** — the ASP.NET Core host. `Api/` holds the HTTP surface: thin minimal-API
-  endpoint groups (`AuthEndpoints`, `IpEndpoints`, `DnsEndpoints`, `TunnelEndpoints`) that
+  endpoint groups (`AuthEndpoints`, `IpEndpoints`, `DnsEndpoints`, `TunnelEndpoints`,
+  `StorageEndpoints`, `SettingsEndpoints`, `DatabaseEndpoints`) that
   bind a request, call a service and shape the response; `Session.cs` (cookie auth and the
   per-request user check); `ApiPipeline.cs` (JSON conventions, the request-header guard,
   `no-store`, problem details); `SpaHosting.cs` (static files and the deep-link fallback).
@@ -339,7 +351,7 @@ credentials stamp, encrypted with the same key ring; no session state is kept se
 
 ## External services
 
-Cloudflare (DNS, Tunnel, Access), a public-IP lookup, codelifter.net (install registration
+Cloudflare (DNS, Tunnel, Access, R2), a public-IP lookup, codelifter.net (install registration
 and optional email signups), NuGet.org and GitHub Packages for the library, and codelifter.net for release
 notes. Canonical inventory: [`SERVICES.md`](../SERVICES.md).
 

@@ -57,6 +57,7 @@ is the most common setup mistake.
 | **Cloudflare Tunnel** | Zone | Zone → **Read** | Lists zones during Tunnel Setup |
 | | Account | Cloudflare Tunnel → **Edit** | Lists, creates and adopts tunnels, fetches the connector token, pushes ingress rules (`/accounts/{account}/cfd_tunnel/...`) |
 | | Zone | DNS → **Edit** | Creates, updates and deletes each route's proxied CNAME to `<tunnel-id>.cfargotunnel.com` |
+| **R2 Storage** | Account | Workers R2 Storage → **Edit** | Lists, creates and deletes buckets and manages their r2.dev and custom domains on the **Storage** page (`/accounts/{account}/r2/buckets/...`) |
 | **Cloudflare Access** (on by default for new routes) | Account | Access: Apps and Policies → **Edit** | Creates, updates and deletes the Access application (`/access/apps`) and the account-level reusable policies (`/access/policies`) |
 | | Account | Access: Service Tokens → **Edit** | Lists, mints and deletes service tokens (`/access/service_tokens`). Needed for the `service_token` and `both` modes |
 | | Account | Access: Organizations, Identity Providers, and Groups → **Read** | *Optional.* Fills the identity-provider picker in the route editor (`/access/identity_providers`) |
@@ -78,7 +79,7 @@ with Cloudflare's own error.
 ### One token
 
 StageZero keeps exactly one token, on the **Settings** page, and every feature uses it. The
-page shows the five rows it needs and, after a save or **Check permissions**, which of them
+page shows the six rows it needs and, after a save or **Check permissions**, which of them
 this token has:
 
 | Scope | Item | Level | Without it |
@@ -86,6 +87,7 @@ this token has:
 | Account | Cloudflare Tunnel | Edit | No tunnel setup or route changes |
 | Account | Access: Apps and Policies | Edit | Routes in `identity` or `both` mode fail and roll back |
 | Account | Access: Service Tokens | Edit | Routes in `service_token` or `both` mode fail and roll back |
+| Account | Workers R2 Storage | Edit | No bucket or custom-domain changes on the Storage page |
 | Zone | DNS | Edit | No DNS updates, no tunnel CNAMEs |
 | Zone | Zone | Read | Nothing can find a zone |
 
@@ -124,9 +126,11 @@ every zone.
    | Account | Cloudflare Tunnel | Edit |
    | Account | Access: Apps and Policies | Edit |
    | Account | Access: Service Tokens | Edit |
+   | Account | Workers R2 Storage | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Read |
 
-   For a DNS-only token, stop after the first two rows.
+   For a DNS-only token, stop after the first two rows. Leave the R2 row off if you will not
+   use the Storage page; Settings then reports it as missing and nothing else is affected.
 5. Under **Account Resources**, choose **Include → your account**. (This only appears once
    an Account permission is added.)
 6. Under **Zone Resources**, choose **Include → Specific zone → your domain**, or

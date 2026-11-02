@@ -38,6 +38,8 @@ public class SettingsApiTests
         app.Http.OnGet($"{Api}/accounts?", CloudflareFakes.List(accounts));
         app.Http.OnGet($"{Api}/zones?", CloudflareFakes.List(new { id = CloudflareFakes.ZoneId, name = "example.com" }));
         app.Http.OnGet(CloudflareFakes.ZoneUrl, CloudflareFakes.List());
+        // The R2 probe lists the account's buckets; every account-scoped GET not faked elsewhere answers with none.
+        app.Http.OnGet($"{Api}/accounts/", """{"success":true,"result":{"buckets":[]}}""");
         return app;
     }
 
@@ -64,7 +66,7 @@ public class SettingsApiTests
         Assert.Equal(new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc), body.Status.ExpiresOn);
         Assert.All(body.Checks!, c => Assert.True(c.Granted, $"{c.Permission.Item}: {c.Detail}"));
         Assert.Equal(
-            ["Cloudflare Tunnel", "Access: Apps and Policies", "Access: Service Tokens", "DNS", "Zone"],
+            ["Cloudflare Tunnel", "Access: Apps and Policies", "Access: Service Tokens", "Workers R2 Storage", "DNS", "Zone"],
             body.Checks!.Select(c => c.Permission.Item));
         Assert.DoesNotContain(CloudflareFakes.Token, await saved.Content.ReadAsStringAsync());
         Assert.DoesNotContain(CloudflareFakes.Token, await read.Content.ReadAsStringAsync());
@@ -82,7 +84,7 @@ public class SettingsApiTests
         Assert.False(body.Status.IsConfigured);
         Assert.Null(body.Checks);
         Assert.Contains(body.Required, p => (p.Scope, p.Item, p.Level) == ("Account", "Cloudflare Tunnel", "Edit"));
-        Assert.Equal(5, body.Required.Count);
+        Assert.Equal(6, body.Required.Count);
     }
 
     [Fact]
@@ -134,7 +136,7 @@ public class SettingsApiTests
 
         Assert.Null(body.Status.AccountId);
         Assert.Equal(
-            [("Account", false), ("Account", false), ("Account", false), ("Zone", true), ("Zone", true)],
+            [("Account", false), ("Account", false), ("Account", false), ("Account", false), ("Zone", true), ("Zone", true)],
             body.Checks!.Select(c => (c.Permission.Scope, c.Granted)));
     }
 
@@ -165,7 +167,7 @@ public class SettingsApiTests
         var checkWithout = await client.PostJsonAsync($"{Url}/check");
 
         Assert.NotNull(checkedAgain.Status.VerifiedAt);
-        Assert.Equal(5, checkedAgain.Checks!.Count);
+        Assert.Equal(6, checkedAgain.Checks!.Count);
         Assert.Equal(HttpStatusCode.NoContent, removed.StatusCode);
         Assert.False(afterRemove.Status.IsConfigured);
         Assert.Contains("No Cloudflare API token is saved", await checkWithout.ProblemTitleAsync(HttpStatusCode.Conflict));

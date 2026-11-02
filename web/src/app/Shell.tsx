@@ -13,6 +13,7 @@ export const NAV = [
   { id: '/dns-config', label: 'DNS Configuration', icon: '⇄' },
   { id: '/tunnel-settings', label: 'Tunnel Setup', icon: '⚙' },
   { id: '/tunnel-routes', label: 'Tunnel Routes', icon: '⑂' },
+  { id: '/storage', label: 'Storage', icon: '▣' },
 ];
 
 /**
