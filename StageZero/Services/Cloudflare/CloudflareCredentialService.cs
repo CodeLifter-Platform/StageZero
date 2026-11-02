@@ -3,6 +3,7 @@ using StageZero.DataAdapters.TunnelConfigs;
 using StageZero.Models;
 using StageZero.Services.Access;
 using StageZero.Services.Dns;
+using StageZero.Services.Storage;
 using StageZero.Services.Tunnel;
 
 namespace StageZero.Services.Cloudflare;
@@ -84,6 +85,8 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         new("Account", "Access: Apps and Policies", "Edit", "Put Cloudflare Access in front of tunnel routes");
     public static readonly CloudflarePermission AccessServiceTokensEdit =
         new("Account", "Access: Service Tokens", "Edit", "Mint service tokens for machine access to routes");
+    public static readonly CloudflarePermission R2Edit =
+        new("Account", "Workers R2 Storage", "Edit", "List, create and delete R2 buckets and the domains in front of them");
     public static readonly CloudflarePermission DnsEdit =
         new("Zone", "DNS", "Edit", "Keep records on your public IP and write tunnel CNAMEs");
     public static readonly CloudflarePermission ZoneRead =
@@ -91,7 +94,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
 
     /// <summary>Everything StageZero does with one token. The Settings page shows this table.</summary>
     public static readonly IReadOnlyList<CloudflarePermission> RequiredPermissions =
-        [TunnelEdit, AccessAppsEdit, AccessServiceTokensEdit, DnsEdit, ZoneRead];
+        [TunnelEdit, AccessAppsEdit, AccessServiceTokensEdit, R2Edit, DnsEdit, ZoneRead];
 
     public const string MissingMessage =
         "No Cloudflare API token is saved. Add one on the Settings page (open your email at the top right).";
@@ -108,6 +111,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
     private readonly ICloudflareService _dns;
     private readonly ICloudflareTunnelService _tunnels;
     private readonly ICloudflareAccessService _access;
+    private readonly ICloudflareR2Service _r2;
     private readonly ITunnelConfigReader _tunnelConfig;
     private readonly TimeProvider _time;
 
@@ -120,6 +124,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         ICloudflareService dns,
         ICloudflareTunnelService tunnels,
         ICloudflareAccessService access,
+        ICloudflareR2Service r2,
         ITunnelConfigReader tunnelConfig,
         TimeProvider time)
     {
@@ -131,6 +136,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         _dns = dns;
         _tunnels = tunnels;
         _access = access;
+        _r2 = r2;
         _tunnelConfig = tunnelConfig;
         _time = time;
     }
@@ -362,6 +368,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
             results.Add(new(TunnelEdit, false, noAccount));
             results.Add(new(AccessAppsEdit, false, noAccount));
             results.Add(new(AccessServiceTokensEdit, false, noAccount));
+            results.Add(new(R2Edit, false, noAccount));
         }
         else
         {
@@ -387,6 +394,16 @@ public class CloudflareCredentialService : ICloudflareCredentialService
             {
                 results.Add(new(AccessAppsEdit, false, ex.Message));
                 results.Add(new(AccessServiceTokensEdit, false, ex.Message));
+            }
+
+            try
+            {
+                var buckets = await _r2.ListBucketsAsync(apiToken, accountId);
+                results.Add(new(R2Edit, true, $"{buckets.Count} bucket(s) on the account; write access is confirmed on the first change."));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new(R2Edit, false, ex.Message));
             }
         }
 

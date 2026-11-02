@@ -41,6 +41,11 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
   DNS, tunnel and Access code gets it from `ICloudflareCredentialService`; no route takes a
   token from a request. Its required permissions are `CloudflareCredentialService.RequiredPermissions`,
   which the Settings page renders — change the list there, not in copy.
+- **R2 Storage is buckets and domains only** (`Services/Storage/`, `Api/StorageEndpoints.cs`,
+  `web/src/pages/storage/`): list, create and delete buckets, switch the r2.dev address, attach
+  custom domains in a zone the token sees (the zone is resolved on the server). It needs the
+  account permission `Workers R2 Storage: Edit` on the one token. Objects need R2's S3
+  credentials and are not managed yet; the design system's `FileDrop` is waiting for that.
 - **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
   while DNS is zone-scoped, so the API token needs `Access: Apps and Policies Edit` and
   `Access: Service Tokens Edit` on top of the tunnel and DNS permissions
