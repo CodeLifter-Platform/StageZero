@@ -5,7 +5,7 @@ import { Card } from '../ui';
 const FEATURES = [
   { to: '/dns-config', glyph: '⇄', title: 'Dynamic DNS', text: "Watches your public IP and updates your Cloudflare A records when it changes, keeping each record's proxy setting." },
   { to: '/tunnel-routes', glyph: '⑂', title: 'Cloudflare Tunnel', text: 'Publish services on your network at your own hostnames, with no open ports and no certificates to manage.' },
-  { to: '/storage', glyph: '▣', title: 'R2 Storage', text: 'Create and remove R2 buckets, and put your own hostnames in front of them, with the same Cloudflare token.' },
+  { to: '/storage', glyph: '▣', title: 'R2 Storage', text: 'Buckets, the files in them and the hostnames in front of them, plus a scoped credential for each app that needs one, all with the same Cloudflare token.' },
   { to: '/tunnel-routes', glyph: '⚿', title: 'Secure', text: 'Cloudflare tokens encrypted at rest, an Access policy on every new hostname, and your home IP never shown to visitors.' },
 ];
 

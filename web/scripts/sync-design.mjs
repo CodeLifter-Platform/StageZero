@@ -19,8 +19,8 @@ const check = process.argv.includes('--check');
 // StageZero serves its own copies of Inter and JetBrains Mono (src/theme/stagezero.css).
 const COMPONENTS = [
   'forms/Button', 'forms/Input', 'forms/Select', 'forms/Checkbox', 'forms/Switch',
-  'forms/Textarea', 'forms/Segmented',
-  'data/Card', 'data/Badge', 'data/StatusDot', 'data/Tag', 'data/DataTable',
+  'forms/Textarea', 'forms/Segmented', 'forms/FileDrop',
+  'data/Card', 'data/Badge', 'data/StatusDot', 'data/Tag', 'data/DataTable', 'data/FileBrowser',
   'feedback/Dialog', 'feedback/Toast',
   'navigation/Tabs', 'navigation/Sidebar',
   'progress/ProgressBar',

@@ -18,6 +18,7 @@
   <!-- Password Hashing -->
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" />
+    <PackageReference Include="AWSSDK.S3" />
   </ItemGroup>
 
   <!-- Serilog -->

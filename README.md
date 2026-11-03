@@ -1,4 +1,3 @@
-| Account | Workers R2 Storage → Edit | The Storage page: R2 buckets and their domains |
 # StageZero
 
 **Self-hosting control panel for Cloudflare DNS and Cloudflare Tunnels**
@@ -213,6 +212,8 @@ permissions and checks the token has each one:
 | Account | Cloudflare Tunnel → Edit | Tunnel routes |
 | Account | Access: Apps and Policies → Edit | Access, any mode except `none` |
 | Account | Access: Service Tokens → Edit | Access, `service_token` and `both` modes |
+| Account | Workers R2 Storage → Edit | The Storage page: R2 buckets, their files and their domains |
+| Account | Account API Tokens → Edit | The Storage page: per-app R2 credentials |
 | Account | Access: Organizations, Identity Providers, and Groups → Read | Optional: listing identity providers |
 
 The Access permissions are **account-scoped**, unlike the zone-scoped DNS permissions — a

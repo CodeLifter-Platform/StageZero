@@ -3,7 +3,7 @@
 // (StageZero/Api/ApiPipeline.cs). Failures become an ApiError whose message is the server's
 // problem title: the server only ever puts text written for the operator there.
 import type {
-  AccessStatus, AccountResult, BucketDomains, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CreateBucketInput, CreatedPostgres,
+  AccessStatus, AccountResult, AppCredential, BucketDomains, CreateCredentialInput, CreatedCredential, DownloadLink, ObjectListing, R2Object, CloudflareCredential, CloudflareDnsRecord, CloudflareZone, CreateBucketInput, CreatedPostgres,
   CreatePostgresInput, CurrentIp, DatabaseStatus, DatabaseSwitchResult, DeleteRouteResult, DnsProvider, DnsRecord,
   DnsRecordInput, EmailUpdateResult, EmailUpdates, IdentityProvider, ImportResult, IpGroup, PostgresDiscovery,
   CustomDomainInput, PostgresTarget, PostgresTestResult, R2Bucket, R2CustomDomain, R2ManagedDomain, RouteAccess, RoutesResult,
@@ -86,6 +86,48 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 
   if (response.status === 204) return undefined as T;
   return await response.json() as T;
+}
+
+/** An object key as URL path segments: each segment escaped, the slashes kept as separators. */
+function objectPath(key: string): string {
+  return key.split('/').map(encodeURIComponent).join('/');
+}
+
+/**
+ * A raw PUT of a file, streamed as the request body. XMLHttpRequest rather than fetch for the
+ * one thing fetch cannot do: report upload progress. Same headers and error shape as request().
+ */
+export function upload<T>(path: string, body: Blob, contentType: string, onProgress?: (fraction: number) => void): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', path);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.setRequestHeader('X-Requested-With', 'StageZero');
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onerror = () => reject(new ApiError(0, "Can't reach StageZero. Check that the server is running."));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.responseText ? JSON.parse(xhr.responseText) as T : undefined as T);
+        return;
+      }
+      let title: string | undefined;
+      let reference: string | undefined;
+      try {
+        const problem = JSON.parse(xhr.responseText) as { title?: string; traceId?: string };
+        title = problem.title;
+        reference = problem.traceId;
+      } catch {
+        // Not a problem document.
+      }
+      const error = xhr.status >= 500 && xhr.status !== 502
+        ? new ApiError(xhr.status, 'StageZero hit an unexpected error. The upload did not complete; try again, and if it keeps happening, the server log has the details.', reference)
+        : new ApiError(xhr.status, title ?? `Upload failed (${xhr.status}).`, reference);
+      if (error.isSignedOut || error.isAccountSetupRequired) sessionListeners.forEach((l) => l(error));
+      reject(error);
+    };
+    xhr.send(body);
+  });
 }
 
 const get = <T>(path: string) => request<T>('GET', path);
@@ -171,6 +213,19 @@ export const api = {
       put<R2CustomDomain>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/custom/${encodeURIComponent(domain)}`, { enabled, minTls }),
     removeDomain: (bucket: string, domain: string) =>
       del<undefined>(`/api/storage/buckets/${encodeURIComponent(bucket)}/domains/custom/${encodeURIComponent(domain)}`),
+    objects: (bucket: string, prefix: string, cursor?: string | null) =>
+      get<ObjectListing>(`/api/storage/buckets/${encodeURIComponent(bucket)}/objects?prefix=${encodeURIComponent(prefix)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+    /** Streams the file as the request body; progress is 0..1 of the bytes sent. */
+    uploadObject: (bucket: string, key: string, file: Blob, onProgress?: (fraction: number) => void) =>
+      upload<R2Object>(`/api/storage/buckets/${encodeURIComponent(bucket)}/objects/${objectPath(key)}`, file, file.type || 'application/octet-stream', onProgress),
+    createFolder: (bucket: string, prefix: string) => post<R2Object>(`/api/storage/buckets/${encodeURIComponent(bucket)}/folders`, { prefix }),
+    deleteObjects: (bucket: string, keys: string[], folders: string[]) =>
+      post<{ deleted: number }>(`/api/storage/buckets/${encodeURIComponent(bucket)}/objects/delete`, { keys, folders }),
+    downloadUrl: (bucket: string, key: string) => get<DownloadLink>(`/api/storage/buckets/${encodeURIComponent(bucket)}/download?key=${encodeURIComponent(key)}`),
+    credentials: () => get<{ credentials: AppCredential[] }>('/api/storage/credentials'),
+    createCredential: (input: CreateCredentialInput) => post<CreatedCredential>('/api/storage/credentials', input),
+    rollCredential: (id: string) => post<CreatedCredential>(`/api/storage/credentials/${encodeURIComponent(id)}/roll`),
+    deleteCredential: (id: string) => del<undefined>(`/api/storage/credentials/${encodeURIComponent(id)}`),
   },
   database: databaseApi('/api/settings/database'),
   /** The same calls on the first-run page, open only while no user exists. */

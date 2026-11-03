@@ -8,7 +8,9 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Select, Switch, type DataColumn } from '../../ui';
+import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Select, Switch, Tabs, type DataColumn } from '../../ui';
+import { CredentialsCard } from './CredentialsCard';
+import { FilesPanel } from './FilesPanel';
 
 /** Cloudflare's bucket-name rule, checked here so the form can say so before a round trip. The server checks it again. */
 export function bucketNameProblem(name: string): string | null {
@@ -48,6 +50,7 @@ export function StoragePage() {
   const [options, setOptions] = useState<StorageOptions | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [tab, setTab] = useState<'files' | 'domains'>('files');
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<R2Bucket | null>(null);
   const [busy, setBusy] = useState(false);
@@ -91,7 +94,7 @@ export function StoragePage() {
       key: 'actions', label: 'Actions', width: 200,
       render: (b) => (
         <div className="sz-row" style={{ flexWrap: 'nowrap' }}>
-          <Button variant={selected === b.name ? 'outline' : 'ghost'} size="sm" onClick={() => setSelected(selected === b.name ? null : b.name)}>Domains</Button>
+          <Button variant={selected === b.name ? 'outline' : 'ghost'} size="sm" onClick={() => setSelected(selected === b.name ? null : b.name)}>{selected === b.name ? 'Close' : 'Open'}</Button>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDeleting(b)}>Delete</Button>
         </div>
       ),
@@ -106,8 +109,9 @@ export function StoragePage() {
   return (
     <div className="sz-page">
       <PageHeader title="R2 Storage" actions={<Button disabled={!!error} onClick={() => setCreating(true)}>Create bucket</Button>}>
-        Buckets on your Cloudflare account, and the hostnames in front of them. Uses the token saved in Settings; it needs
-        the account permission <strong>Workers R2 Storage → Edit</strong>.
+        Buckets on your Cloudflare account, the files in them, and the hostnames in front of them. Uses the token saved
+        in Settings; it needs the account permission <strong>Workers R2 Storage → Edit</strong>, and
+        <strong> Account API Tokens → Edit</strong> to mint per-app credentials.
       </PageHeader>
 
       {error ? (
@@ -124,7 +128,21 @@ export function StoragePage() {
         </Card>
       ) : null}
 
-      {selected && !error ? <DomainsCard key={selected} bucket={selected} options={options} /> : null}
+      {selected && !error ? (
+        <Card>
+          <div className="sz-stack">
+            <div className="sz-card-header">
+              <h2>Bucket <span className="sz-mono">{selected}</span></h2>
+            </div>
+            <Tabs tabs={[{ id: 'files', label: 'Files' }, { id: 'domains', label: 'Domains' }]} value={tab} onChange={(id) => setTab(id as 'files' | 'domains')} />
+            {tab === 'files'
+              ? <FilesPanel key={selected} bucket={selected} />
+              : <DomainsPanel key={selected} bucket={selected} options={options} />}
+          </div>
+        </Card>
+      ) : null}
+
+      {!error ? <CredentialsCard buckets={buckets} options={options} /> : null}
 
       <CreateBucketDialog open={creating} options={options} onClose={() => setCreating(false)}
         onCreated={async (b) => { setCreating(false); notify(`Bucket ${b.name} created`, 'success'); await load(); }} />
@@ -193,7 +211,7 @@ function CreateBucketDialog({ open, options, onClose, onCreated }: {
   );
 }
 
-function DomainsCard({ bucket, options }: { bucket: string; options: StorageOptions | null }) {
+function DomainsPanel({ bucket, options }: { bucket: string; options: StorageOptions | null }) {
   const notify = useToast();
   const [data, setData] = useState<BucketDomains | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -266,12 +284,7 @@ function DomainsCard({ bucket, options }: { bucket: string; options: StorageOpti
   ];
 
   return (
-    <Card>
-      <div className="sz-stack">
-        <div className="sz-card-header">
-          <h2>Domains for <span className="sz-mono">{bucket}</span></h2>
-        </div>
-
+    <div className="sz-stack">
         {error ? <Notice tone="danger" title="Couldn't load the domains" action={<Button size="sm" variant="outline" onClick={() => void load()}>Try again</Button>}>{error}</Notice> : null}
         {!data && !error ? <Loading /> : null}
 
@@ -319,12 +332,11 @@ function DomainsCard({ bucket, options }: { bucket: string; options: StorageOpti
             </div>
           </>
         ) : null}
-      </div>
 
       <ConfirmDialog open={removing !== null} busy={busy === 'remove'} title="Remove custom domain" confirmLabel="Remove"
         message={removing ? `Remove '${removing.domain}' from '${bucket}'? Cloudflare deletes its DNS record; the bucket and its objects are untouched.` : ''}
         onCancel={() => setRemoving(null)}
         onConfirm={() => { const d = removing; if (!d) return; void run('remove', async () => { await api.storage.removeDomain(bucket, d.domain); setRemoving(null); notify(`${d.domain} removed`, 'success'); }); }} />
-    </Card>
+    </div>
   );
 }

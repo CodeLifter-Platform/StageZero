@@ -10,7 +10,7 @@ export function Select({ label, children, style, id, ...rest }) {
         width: '100%',
         padding: 'var(--cl-ctrl-py) 14px',
         background: 'var(--cl-bg)',
-        border: '1px solid var(--cl-border)',
+        border: '1px solid var(--cl-border-strong)',
         borderRadius: 'var(--cl-radius-md)',
         color: 'var(--cl-text)',
         fontSize: 'var(--cl-ctrl-fs)',
@@ -20,7 +20,7 @@ export function Select({ label, children, style, id, ...rest }) {
         ...style,
       }}
       onFocus={(e) => { e.target.style.borderColor = 'var(--cl-primary)'; e.target.style.boxShadow = 'var(--cl-ring)'; }}
-      onBlur={(e) => { e.target.style.borderColor = 'var(--cl-border)'; e.target.style.boxShadow = 'none'; }}
+      onBlur={(e) => { e.target.style.borderColor = 'var(--cl-border-strong)'; e.target.style.boxShadow = 'none'; }}
       {...rest}
     >
       {children}

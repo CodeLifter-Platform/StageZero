@@ -89,16 +89,22 @@ Last reviewed: 2026-11-02.
   stored.
 - **Detail:** [..Documentation/CLOUDFLARE_ACCESS_SETUP.md](..Documentation/CLOUDFLARE_ACCESS_SETUP.md).
 
-## Cloudflare R2 (object storage: buckets and their domains)
+## Cloudflare R2 (object storage: buckets, their domains, their objects, per-app credentials)
 
 - **Usage:** The **Storage** page lists, creates and deletes R2 buckets on the account and
   manages the hostnames in front of each: the r2.dev public address (on or off) and custom
   domains in the account's zones (`StageZero/Services/Storage/CloudflareR2Service.cs`,
-  `StorageService.cs`, `Api/StorageEndpoints.cs`). Objects are not managed yet; that needs
-  R2's S3 credentials and is a later feature.
+  `StorageService.cs`, `Api/StorageEndpoints.cs`). Its **Files** tab lists, uploads, downloads
+  (ten-minute presigned links) and deletes objects over R2's **S3-compatible API**
+  (`R2ObjectStore.cs`, AWSSDK.S3, `https://<account>.r2.cloudflarestorage.com` or the `eu` /
+  `fedramp` host) with credentials derived on the server from the saved token (access key =
+  token id, secret = SHA-256 of the value). **App credentials** mints, rolls and revokes
+  account-owned API tokens scoped to buckets (`CloudflareAccountTokenService.cs`,
+  `/accounts/{id}/tokens`); their secrets are in exactly one response and are never stored.
 - **Managed at:** End-user Cloudflare accounts, the same API token as DNS, Tunnel and Access,
-  plus the account-scoped **Workers R2 Storage → Edit** permission. A custom domain is only
-  attached in a zone the token can see; Cloudflare writes its DNS record and certificate.
+  plus the account-scoped **Workers R2 Storage → Edit** and **Account API Tokens → Edit**
+  permissions. A custom domain is only attached in a zone the token can see; Cloudflare writes
+  its DNS record and certificate.
 
 ## ipify (public IP lookup)
 

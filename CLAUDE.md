@@ -41,11 +41,18 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
   DNS, tunnel and Access code gets it from `ICloudflareCredentialService`; no route takes a
   token from a request. Its required permissions are `CloudflareCredentialService.RequiredPermissions`,
   which the Settings page renders — change the list there, not in copy.
-- **R2 Storage is buckets and domains only** (`Services/Storage/`, `Api/StorageEndpoints.cs`,
-  `web/src/pages/storage/`): list, create and delete buckets, switch the r2.dev address, attach
-  custom domains in a zone the token sees (the zone is resolved on the server). It needs the
-  account permission `Workers R2 Storage: Edit` on the one token. Objects need R2's S3
-  credentials and are not managed yet; the design system's `FileDrop` is waiting for that.
+- **R2 Storage is buckets, their domains, their objects and per-app credentials**
+  (`Services/Storage/`, `Api/StorageEndpoints.cs`, `web/src/pages/storage/`). Buckets and
+  domains go through Cloudflare's REST API (`CloudflareR2Service`). Objects go through R2's S3
+  API (`R2ObjectStore`, AWSSDK.S3) with credentials **derived on the server from the saved
+  token** (access key = token id, secret = SHA-256 of the value; `R2S3Credentials`); never store
+  a separate S3 secret and never send one to the browser. Uploads are a raw `PUT` body streamed
+  to R2 (the endpoint lifts Kestrel's body limit per request); downloads are ten-minute
+  presigned links. Per-app credentials are **account-owned API tokens** scoped to buckets
+  (`CloudflareAccountTokenService`); the token value and derived S3 pair are in exactly one
+  response (create or roll) and the list never carries them. The one token needs
+  `Workers R2 Storage: Edit` and, for credentials, `Account API Tokens: Edit`. UI is the design
+  system's `FileBrowser` + `FileDrop`, vendored.
 - **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
   while DNS is zone-scoped, so the API token needs `Access: Apps and Policies Edit` and
   `Access: Service Tokens Edit` on top of the tunnel and DNS permissions

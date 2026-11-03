@@ -381,21 +381,41 @@ Access in depth (policies, idempotency, teardown, the `IAccessSecretSink` vault 
 ## 8. R2 storage
 
 The **Storage** page in the sidebar lists the R2 buckets on the account the Settings token
-reaches. It needs one more permission on that token, **Account → Workers R2 Storage → Edit**;
-Settings shows whether the token has it.
+reaches, the files in them, and a credential for each app that needs one. It needs two more
+permissions on that token, **Account → Workers R2 Storage → Edit** and, for app credentials,
+**Account → Account API Tokens → Edit**; Settings shows whether the token has them.
 
 - **Create bucket** asks for a name (Cloudflare's rule: 3 to 63 lowercase letters, digits and
   hyphens; it cannot be renamed later), an optional location hint and the storage class.
 - **Delete** removes an empty bucket. Cloudflare refuses a bucket that still holds objects, and
   the page shows its message.
-- **Domains** on a bucket opens its hostnames. The **Public r2.dev access** switch lets anyone
+- **Open** on a bucket shows two tabs, **Files** and **Domains**.
+- **Files** is one folder at a time: folders first, then files with size and date. Double-click
+  a folder to go into it (the path bar takes you back up), double-click a file to download it
+  through a link that works for ten minutes. Drop files on the zone under the list, or click it
+  to pick them; each goes straight into the folder you are looking at with its own progress bar,
+  up to 5 GB a file, and a file with the same name replaces the old one. **New folder** makes an
+  empty folder (object storage has no real folders; StageZero writes a marker so it shows up).
+  Select rows and **Delete** to remove them; a folder goes with everything in it, and there is
+  no undo.
+- **Domains** holds the bucket's hostnames. The **Public r2.dev access** switch lets anyone
   read the bucket at its r2.dev address, which Cloudflare rate-limits and means for testing.
   **Attach a domain** takes a hostname in one of your zones; Cloudflare creates the DNS record
   and the certificate, and the row reads *active* for ownership and TLS once both are done. A
   domain can be paused with its switch, given a minimum TLS version, or removed, which deletes
   the DNS record and leaves the bucket alone.
 
-Objects in a bucket are not shown or uploaded yet.
+### App credentials
+
+Under the buckets, **App credentials** is where each app gets its own way into R2 instead of
+sharing the Settings token. **New credential** asks for a name (use the app's), **Read** or
+**Read & write**, the buckets it may touch and an optional expiry, then shows, once, everything
+the app needs: the S3 access key ID, the S3 secret access key, the S3 endpoint and the Cloudflare
+API token value (the same credential for Cloudflare's own API). Put them in the app's settings or
+1Password before ticking **I have saved the secret**; StageZero keeps none of it. **Roll** issues
+a new secret for the same credential and the old one stops at once. **Revoke** cuts the app off;
+the buckets and files stay. Credentials made in the Cloudflare dashboard with R2 permissions
+appear in the list too, and the token StageZero itself runs on cannot be rolled or revoked here.
 
 ## 9. Day to day
 

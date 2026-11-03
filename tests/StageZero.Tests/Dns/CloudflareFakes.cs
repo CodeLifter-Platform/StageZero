@@ -17,13 +17,13 @@ internal static class CloudflareFakes
     public const string ZoneUrl = $"https://api.cloudflare.com/client/v4/zones/{ZoneId}/dns_records";
 
     /// <summary>Saves <see cref="Token"/> as the Settings page would, without asking Cloudflare.</summary>
-    public static async Task SaveTokenAsync(StageZeroApp app, string? accountId = null)
+    public static async Task SaveTokenAsync(StageZeroApp app, string? accountId = null, string? tokenId = null)
     {
         using var scope = app.Services.CreateScope();
         var protector = scope.ServiceProvider.GetRequiredService<ICloudflareTokenProtector>();
         await scope.ServiceProvider.GetRequiredService<ICloudflareCredentialWriter>().UpsertAsync(new CloudflareCredential
         {
-            ProtectedApiToken = protector.Protect(Token), AccountId = accountId
+            ProtectedApiToken = protector.Protect(Token), AccountId = accountId, TokenId = tokenId
         });
     }
 

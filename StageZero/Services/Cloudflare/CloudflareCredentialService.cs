@@ -48,7 +48,8 @@ public interface ICloudflareCredentialService
 // DTOs
 // ═══════════════════════════════════════════════════════════════
 
-public sealed record CloudflareCredentials(string ApiToken, string? AccountId);
+/// <summary>The token in the clear with the account it works in and its own id (the S3 access key for R2).</summary>
+public sealed record CloudflareCredentials(string ApiToken, string? AccountId, string? TokenId = null);
 
 /// <param name="IsReadable">False when a token is saved but the data-protection keys that decrypt it are gone.</param>
 public sealed record CloudflareCredentialStatus(
@@ -87,6 +88,8 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         new("Account", "Access: Service Tokens", "Edit", "Mint service tokens for machine access to routes");
     public static readonly CloudflarePermission R2Edit =
         new("Account", "Workers R2 Storage", "Edit", "List, create and delete R2 buckets and the domains in front of them");
+    public static readonly CloudflarePermission AccountTokensEdit =
+        new("Account", "Account API Tokens", "Edit", "Mint and revoke per-app R2 credentials on the Storage page");
     public static readonly CloudflarePermission DnsEdit =
         new("Zone", "DNS", "Edit", "Keep records on your public IP and write tunnel CNAMEs");
     public static readonly CloudflarePermission ZoneRead =
@@ -94,7 +97,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
 
     /// <summary>Everything StageZero does with one token. The Settings page shows this table.</summary>
     public static readonly IReadOnlyList<CloudflarePermission> RequiredPermissions =
-        [TunnelEdit, AccessAppsEdit, AccessServiceTokensEdit, R2Edit, DnsEdit, ZoneRead];
+        [TunnelEdit, AccessAppsEdit, AccessServiceTokensEdit, R2Edit, AccountTokensEdit, DnsEdit, ZoneRead];
 
     public const string MissingMessage =
         "No Cloudflare API token is saved. Add one on the Settings page (open your email at the top right).";
@@ -112,6 +115,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
     private readonly ICloudflareTunnelService _tunnels;
     private readonly ICloudflareAccessService _access;
     private readonly ICloudflareR2Service _r2;
+    private readonly ICloudflareAccountTokenService _accountTokens;
     private readonly ITunnelConfigReader _tunnelConfig;
     private readonly TimeProvider _time;
 
@@ -125,6 +129,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         ICloudflareTunnelService tunnels,
         ICloudflareAccessService access,
         ICloudflareR2Service r2,
+        ICloudflareAccountTokenService accountTokens,
         ITunnelConfigReader tunnelConfig,
         TimeProvider time)
     {
@@ -137,6 +142,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         _tunnels = tunnels;
         _access = access;
         _r2 = r2;
+        _accountTokens = accountTokens;
         _tunnelConfig = tunnelConfig;
         _time = time;
     }
@@ -198,7 +204,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
         if (saved is null) return null;
 
         var apiToken = Reveal(saved);
-        return apiToken is null ? null : new CloudflareCredentials(apiToken, saved.AccountId);
+        return apiToken is null ? null : new CloudflareCredentials(apiToken, saved.AccountId, saved.TokenId);
     }
 
     public async Task<CloudflareCredentials> RequireAsync(bool needsAccount = false)
@@ -212,7 +218,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
                 + "Replace it on the Settings page with one that includes the Account permissions listed there.");
         }
 
-        return new CloudflareCredentials(apiToken, saved.AccountId);
+        return new CloudflareCredentials(apiToken, saved.AccountId, saved.TokenId);
     }
 
     // ── helpers ──────────────────────────────────────────────────
@@ -369,6 +375,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
             results.Add(new(AccessAppsEdit, false, noAccount));
             results.Add(new(AccessServiceTokensEdit, false, noAccount));
             results.Add(new(R2Edit, false, noAccount));
+            results.Add(new(AccountTokensEdit, false, noAccount));
         }
         else
         {
@@ -404,6 +411,16 @@ public class CloudflareCredentialService : ICloudflareCredentialService
             catch (Exception ex)
             {
                 results.Add(new(R2Edit, false, ex.Message));
+            }
+
+            try
+            {
+                var groups = await _accountTokens.ListPermissionGroupsAsync(apiToken, accountId);
+                results.Add(new(AccountTokensEdit, true, $"{groups.Count} permission group(s) readable; minting is confirmed on the first credential."));
+            }
+            catch (Exception ex)
+            {
+                results.Add(new(AccountTokensEdit, false, ex.Message));
             }
         }
 

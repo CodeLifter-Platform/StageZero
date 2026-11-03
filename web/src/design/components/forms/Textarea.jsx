@@ -17,7 +17,7 @@ export function Textarea({ label, hint, error, mono, style, id, ...rest }) {
         width: '100%',
         padding: 'var(--cl-ctrl-py) 14px',
         background: 'var(--cl-bg)',
-        border: `1px solid ${error ? 'var(--cl-danger)' : 'var(--cl-border)'}`,
+        border: `1px solid ${error ? 'var(--cl-danger)' : 'var(--cl-border-strong)'}`,
         borderRadius: 'var(--cl-radius-md)',
         color: 'var(--cl-text)',
         fontSize: mono ? 'var(--cl-text-sm)' : 'var(--cl-ctrl-fs)',
@@ -35,7 +35,7 @@ export function Textarea({ label, hint, error, mono, style, id, ...rest }) {
         e.target.style.boxShadow = 'var(--cl-ring)';
       }}
       onBlur={(e) => {
-        e.target.style.borderColor = error ? 'var(--cl-danger)' : 'var(--cl-border)';
+        e.target.style.borderColor = error ? 'var(--cl-danger)' : 'var(--cl-border-strong)';
         e.target.style.boxShadow = error
           ? '0 0 0 3px color-mix(in srgb, var(--cl-danger) 18%, transparent)'
           : 'none';

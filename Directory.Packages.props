@@ -21,6 +21,7 @@
 
     <!-- Security -->
     <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />
 
     <!-- Configuration and logging -->
     <PackageVersion Include="dotenv.net" Version="4.0.0" />
