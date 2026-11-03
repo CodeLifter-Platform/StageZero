@@ -126,7 +126,7 @@ describe('the files in a bucket', () => {
       http.put('/api/storage/buckets/media/objects/*', async ({ request }) => {
         const key = decodeURIComponent(new URL(request.url).pathname.replace('/api/storage/buckets/media/objects/', ''));
         uploads.push({ key, type: request.headers.get('content-type'), requestedWith: request.headers.get('x-requested-with'), body: await request.text() });
-        objects['photos/'] = [...objects['photos/'], { name: 'notes.txt', key, isFolder: false, size: 5, modified: '2026-11-02T13:00:00Z' }];
+        objects['photos/'] = [...(objects['photos/'] ?? []), { name: 'notes.txt', key, isFolder: false, size: 5, modified: '2026-11-02T13:00:00Z' }];
         return HttpResponse.json({ name: 'notes.txt', key, isFolder: false, size: 5, modified: '2026-11-02T13:00:00Z' }, { status: 201 });
       }),
       http.get('/api/storage/buckets/media/download', ({ request }) => {
