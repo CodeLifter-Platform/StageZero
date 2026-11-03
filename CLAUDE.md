@@ -51,7 +51,7 @@ cd web && npm run build                        # into StageZero/wwwroot, served 
   presigned links. Per-app credentials are **account-owned API tokens** scoped to buckets
   (`CloudflareAccountTokenService`); the token value and derived S3 pair are in exactly one
   response (create or roll) and the list never carries them. The one token needs
-  `Workers R2 Storage: Edit` and, for credentials, `Account API Tokens: Edit`. UI is the design
+  `Workers R2 Storage: Edit` and, for credentials, `API Tokens: Edit`. UI is the design
   system's `FileBrowser` + `FileDrop`, vendored.
 - **Cloudflare Access is on by default for new tunnel routes.** Access is account-scoped
   while DNS is zone-scoped, so the API token needs `Access: Apps and Policies Edit` and

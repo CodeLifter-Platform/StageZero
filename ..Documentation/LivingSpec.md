@@ -50,7 +50,7 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   operator adds, checks, replaces and removes the single token every feature uses — DNS,
   the tunnel and Access — kept in the single-row `CloudflareCredentials` table with its
   account. The page always shows the seven permissions it needs (Account → Cloudflare Tunnel,
-  Access: Apps and Policies, Access: Service Tokens, Workers R2 Storage, Account API Tokens, all
+  Access: Apps and Policies, Access: Service Tokens, Workers R2 Storage, API Tokens, all
   Edit; Zone → DNS → Edit; Zone → Zone → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
   Cloudflare's verify endpoint (user token, then account token) and refuses a disabled,
   expired or not-yet-valid token, naming the start date; works out the account from
@@ -101,7 +101,7 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   pair, the page shows them once behind an "I have saved the secret" gate, and the list never
   does. Credentials can be rolled (new secret, same id) and revoked; the token StageZero itself
   runs on is refused. Everything uses the Settings token with the account permissions
-  **Workers R2 Storage → Edit** and, for credentials, **Account API Tokens → Edit**, both
+  **Workers R2 Storage → Edit** and, for credentials, **API Tokens → Edit**, both
   probed on save like the others.
 - **Cloudflare Access** (`Services/Access/`). Every new route gets an Access application,
   default mode `identity` (owner email). Modes: `identity`, `service_token`, `both`, `none`.

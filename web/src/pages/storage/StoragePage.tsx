@@ -111,7 +111,7 @@ export function StoragePage() {
       <PageHeader title="R2 Storage" actions={<Button disabled={!!error} onClick={() => setCreating(true)}>Create bucket</Button>}>
         Buckets on your Cloudflare account, the files in them, and the hostnames in front of them. Uses the token saved
         in Settings; it needs the account permission <strong>Workers R2 Storage → Edit</strong>, and
-        <strong> Account API Tokens → Edit</strong> to mint per-app credentials.
+        <strong> API Tokens → Edit</strong> to mint per-app credentials.
       </PageHeader>
 
       {error ? (

@@ -109,7 +109,7 @@ export function CredentialsCard({ buckets, options }: { buckets: R2Bucket[]; opt
     },
   ];
 
-  // A 502 whose detail is Cloudflare refusing the token list means the saved token lacks the Account API Tokens row.
+  // A 502 whose detail is Cloudflare refusing the token list means the saved token lacks the API Tokens row.
   const needsPermission = error !== null && (error.status === 502 || error.status === 409);
 
   return (
@@ -129,7 +129,7 @@ export function CredentialsCard({ buckets, options }: { buckets: R2Bucket[]; opt
           <Notice tone={needsPermission ? 'warning' : 'danger'} title={needsPermission ? 'Credentials need one more permission' : "Couldn't list the credentials"}
             action={<Button size="sm" variant="outline" onClick={() => void load()}>Try again</Button>}>
             {needsPermission
-              ? <>Add <strong>Account → Account API Tokens → Edit</strong> to the saved token in Cloudflare (editing keeps the same value), then try again. {error.message}</>
+              ? <>Add <strong>Account → API Tokens → Edit</strong> to the saved token in Cloudflare (editing keeps the same value), then try again. {error.message}</>
               : error.message}
           </Notice>
         ) : null}

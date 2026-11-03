@@ -102,7 +102,7 @@ Last reviewed: 2026-11-02.
   account-owned API tokens scoped to buckets (`CloudflareAccountTokenService.cs`,
   `/accounts/{id}/tokens`); their secrets are in exactly one response and are never stored.
 - **Managed at:** End-user Cloudflare accounts, the same API token as DNS, Tunnel and Access,
-  plus the account-scoped **Workers R2 Storage → Edit** and **Account API Tokens → Edit**
+  plus the account-scoped **Workers R2 Storage → Edit** and **API Tokens → Edit**
   permissions. A custom domain is only attached in a zone the token can see; Cloudflare writes
   its DNS record and certificate.
 

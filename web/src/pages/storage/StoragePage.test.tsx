@@ -246,7 +246,7 @@ describe('app credentials', () => {
     renderApp('/storage');
 
     const notice = await screen.findByText('Credentials need one more permission');
-    expect(notice.closest('[role="alert"]')).toHaveTextContent('Account API Tokens → Edit');
+    expect(notice.closest('[role="alert"]')).toHaveTextContent('API Tokens → Edit');
     expect(credentialNameProblem('')).toContain('required');
     expect(credentialNameProblem('x'.repeat(121))).toContain('120');
   });

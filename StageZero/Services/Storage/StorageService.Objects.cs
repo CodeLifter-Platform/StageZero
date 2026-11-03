@@ -190,7 +190,7 @@ public partial class StorageService
         var groups = await Cloudflare(() => _accountTokens.ListPermissionGroupsAsync(apiToken, accountId), "list the permission groups");
         var wanted = access == "readwrite" ? BucketItemWrite : BucketItemRead;
         var group = groups.FirstOrDefault(g => string.Equals(g.Name, wanted, StringComparison.Ordinal))
-                    ?? throw UserFacingException.Conflict($"Cloudflare does not offer the permission group \"{wanted}\" to this token. It needs Account → Account API Tokens → Edit.");
+                    ?? throw UserFacingException.Conflict($"Cloudflare does not offer the permission group \"{wanted}\" to this token. It needs Account → API Tokens → Edit.");
 
         var resources = chosen.ToDictionary(b => BucketResource(accountId, b.Jurisdiction, b.Name), _ => (object)"*", StringComparer.Ordinal);
         var policies = new[] { new CloudflareTokenPolicyRequest([group], resources) };

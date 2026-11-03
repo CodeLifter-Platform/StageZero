@@ -89,7 +89,7 @@ public class CloudflareCredentialService : ICloudflareCredentialService
     public static readonly CloudflarePermission R2Edit =
         new("Account", "Workers R2 Storage", "Edit", "List, create and delete R2 buckets and the domains in front of them");
     public static readonly CloudflarePermission AccountTokensEdit =
-        new("Account", "Account API Tokens", "Edit", "Mint and revoke per-app R2 credentials on the Storage page");
+        new("Account", "API Tokens", "Edit", "Mint and revoke per-app R2 credentials on the Storage page");
     public static readonly CloudflarePermission DnsEdit =
         new("Zone", "DNS", "Edit", "Keep records on your public IP and write tunnel CNAMEs");
     public static readonly CloudflarePermission ZoneRead =

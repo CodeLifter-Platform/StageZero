@@ -25,7 +25,7 @@ public class FakeCloudflareAccountTokenService : ICloudflareAccountTokenService
     public List<string> Deleted { get; } = new();
     public List<string> Rolled { get; } = new();
 
-    /// <summary>When set, Cloudflare refuses the permission-group list (no Account API Tokens permission).</summary>
+    /// <summary>When set, Cloudflare refuses the permission-group list (no API Tokens permission).</summary>
     public bool RefuseGroups { get; set; }
 
     private int _next;
