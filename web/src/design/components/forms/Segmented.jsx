@@ -14,7 +14,7 @@ export function Segmented({ options = [], value, onChange, name, size = 'md', st
       aria-label={name}
       style={{
         display: 'inline-flex', gap: 4, padding: 4,
-        background: 'var(--cl-bg)', border: '1px solid var(--cl-border)',
+        background: 'var(--cl-bg)', border: '1px solid var(--cl-border-strong)',
         borderRadius: 'var(--cl-radius-md)', ...style,
       }}
       {...rest}

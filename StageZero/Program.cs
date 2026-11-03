@@ -267,9 +267,11 @@ try
     builder.Services.AddScoped<IAccessSecretSink, LoggingAccessSecretSink>();
 
     // ═══════════════════════════════════════════════════════════════
-    // CLOUDFLARE R2 (buckets and their domains; objects are a later feature)
+    // CLOUDFLARE R2 (buckets, their domains, their objects, and per-app credentials)
     // ═══════════════════════════════════════════════════════════════
     builder.Services.AddScoped<ICloudflareR2Service, CloudflareR2Service>();
+    builder.Services.AddScoped<IR2ObjectStore, R2ObjectStore>();
+    builder.Services.AddScoped<ICloudflareAccountTokenService, CloudflareAccountTokenService>();
     builder.Services.AddScoped<IStorageService, StorageService>();
 
     // ═══════════════════════════════════════════════════════════════

@@ -1,6 +1,6 @@
 # Vendored from Platform-Design
 
-Copied verbatim from `CodeLifter-Platform/Platform-Design` at `2557f5b` by
+Copied verbatim from `CodeLifter-Platform/Platform-Design` at `91a424b` by
 `npm run design:sync`. **Do not edit these files**: change the design project, re-export
 it to Platform-Design, then sync again. `npm run design:check` fails on any drift.
 
@@ -18,6 +18,8 @@ it to Platform-Design, then sync again. `npm run design:check` fails on any drif
 - `components/forms/Textarea.d.ts`
 - `components/forms/Segmented.jsx`
 - `components/forms/Segmented.d.ts`
+- `components/forms/FileDrop.jsx`
+- `components/forms/FileDrop.d.ts`
 - `components/data/Card.jsx`
 - `components/data/Card.d.ts`
 - `components/data/Badge.jsx`
@@ -28,6 +30,8 @@ it to Platform-Design, then sync again. `npm run design:check` fails on any drif
 - `components/data/Tag.d.ts`
 - `components/data/DataTable.jsx`
 - `components/data/DataTable.d.ts`
+- `components/data/FileBrowser.jsx`
+- `components/data/FileBrowser.d.ts`
 - `components/feedback/Dialog.jsx`
 - `components/feedback/Dialog.d.ts`
 - `components/feedback/Toast.jsx`

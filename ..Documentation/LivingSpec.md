@@ -49,9 +49,9 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   `web/src/pages/settings/`). The signed-in email in the top bar opens **Settings**, where the
   operator adds, checks, replaces and removes the single token every feature uses — DNS,
   the tunnel and Access — kept in the single-row `CloudflareCredentials` table with its
-  account. The page always shows the six permissions it needs (Account → Cloudflare Tunnel,
-  Access: Apps and Policies, Access: Service Tokens, Workers R2 Storage, all Edit; Zone → DNS →
-  Edit; Zone → Zone → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
+  account. The page always shows the seven permissions it needs (Account → Cloudflare Tunnel,
+  Access: Apps and Policies, Access: Service Tokens, Workers R2 Storage, Account API Tokens, all
+  Edit; Zone → DNS → Edit; Zone → Zone → Read), served from `CloudflareCredentialService.RequiredPermissions`. Saving calls
   Cloudflare's verify endpoint (user token, then account token) and refuses a disabled,
   expired or not-yet-valid token, naming the start date; works out the account from
   `GET /accounts` (the given Account ID if the token sees it, else the only one; several
@@ -85,9 +85,24 @@ changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE B
   minimum TLS version and removed. A custom domain must sit in a zone the saved token can see;
   the zone is worked out on the server (the most specific match), never taken from the caller,
   and Cloudflare writes the DNS record and certificate itself, reporting ownership and TLS
-  status which the page shows. Everything uses the Settings token with the account permission
-  **Workers R2 Storage → Edit**, probed on save like the others. Objects are not managed: that
-  needs R2's S3 credentials and is the next feature.
+  status which the page shows. Opening a bucket shows two tabs. **Files** is the design
+  system's `FileBrowser` over R2's S3 API (`R2ObjectStore.cs`, AWSSDK.S3 against
+  `<account>.r2.cloudflarestorage.com`, or the `eu`/`fedramp` host for a jurisdiction bucket):
+  one folder at a time (prefix + delimiter), folders first, double-click to open a folder or to
+  download a file through a ten-minute signed link, a `FileDrop` that streams each file as a raw
+  `PUT` body through the API to R2 with a progress bar per file (up to 5 GB, the single-PUT
+  limit; same name replaces), **New folder** (a zero-byte marker object), and delete of the
+  selected files and folders (a folder goes with everything under it). The S3 credentials are
+  derived on the server from the saved token itself, Cloudflare's rule: access key = the token's
+  id, secret = SHA-256 of its value; nothing new is stored and nothing reaches the browser.
+  **App credentials** (`CloudflareAccountTokenService.cs`) mints one account-owned API token per
+  app, named for it, scoped to chosen buckets with *Workers R2 Storage Bucket Item Read* or
+  *… Write*, optionally expiring; the one response carries the token value and the derived S3
+  pair, the page shows them once behind an "I have saved the secret" gate, and the list never
+  does. Credentials can be rolled (new secret, same id) and revoked; the token StageZero itself
+  runs on is refused. Everything uses the Settings token with the account permissions
+  **Workers R2 Storage → Edit** and, for credentials, **Account API Tokens → Edit**, both
+  probed on save like the others.
 - **Cloudflare Access** (`Services/Access/`). Every new route gets an Access application,
   default mode `identity` (owner email). Modes: `identity`, `service_token`, `both`, `none`.
   Minted service-token secrets are shown once in a dialog and never logged or stored;

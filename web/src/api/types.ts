@@ -284,4 +284,40 @@ export interface BucketDomains { managed: R2ManagedDomain; custom: R2CustomDomai
 
 export interface CustomDomainInput { domain: string; enabled: boolean; minTls: string | null }
 
-export interface StorageOptions { locationHints: string[]; storageClasses: string[]; minTlsVersions: string[] }
+export interface StorageOptions { locationHints: string[]; storageClasses: string[]; minTlsVersions: string[]; accessLevels: string[] }
+
+// ── R2 objects and per-app credentials ──
+
+export interface R2Object {
+  /** The name within its folder; folders end with "/". */
+  name: string;
+  /** The full key (files) or prefix (folders). */
+  key: string;
+  isFolder: boolean;
+  size: number | null;
+  modified: string | null;
+}
+
+export interface ObjectListing { prefix: string; entries: R2Object[]; cursor: string | null }
+
+export interface DownloadLink { url: string; expiresAt: string }
+
+export interface AppCredentialBucket { name: string; endpoint: string }
+
+/** An account API token that reaches R2, as listed. Its value is never here. */
+export interface AppCredential {
+  id: string;
+  name: string;
+  status: string;
+  /** read, readwrite, or admin (a token made outside StageZero with account-wide R2 rights). */
+  access: string;
+  buckets: AppCredentialBucket[];
+  issuedOn: string | null;
+  expiresOn: string | null;
+  lastUsedOn: string | null;
+}
+
+/** A credential with its secrets: returned once, on create or roll, and kept nowhere. */
+export interface CreatedCredential { credential: AppCredential; token: string; accessKeyId: string; secretAccessKey: string }
+
+export interface CreateCredentialInput { name: string; buckets: string[]; access: string; expiresInDays: number | null }

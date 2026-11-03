@@ -27,6 +27,30 @@ public interface IStorageService
     Task<R2CustomDomain> AddCustomDomainAsync(string bucket, string domain, bool enabled, string? minTls);
     Task<R2CustomDomain> UpdateCustomDomainAsync(string bucket, string domain, bool enabled, string? minTls);
     Task RemoveCustomDomainAsync(string bucket, string domain);
+
+    // ── objects (R2's S3 API, with credentials derived from the saved token) ──
+
+    /// <summary>One folder of a bucket: sub-folders and the files directly under <paramref name="prefix"/>.</summary>
+    Task<R2ObjectListing> ListObjectsAsync(string bucket, string? prefix, string? cursor);
+
+    Task<R2ObjectEntry> UploadObjectAsync(string bucket, string key, Stream body, long length, string? contentType);
+    Task<R2ObjectEntry> CreateFolderAsync(string bucket, string prefix);
+
+    /// <summary>Deletes files by key and folders (everything under them) by prefix; returns how many objects went.</summary>
+    Task<int> DeleteObjectsAsync(string bucket, IReadOnlyList<string> keys, IReadOnlyList<string> folders);
+
+    /// <summary>A signed link that downloads one object for a few minutes, without credentials.</summary>
+    Task<(string Url, DateTime ExpiresAt)> DownloadUrlAsync(string bucket, string key);
+
+    // ── per-app credentials (account-owned API tokens scoped to buckets) ──
+
+    Task<List<AppCredential>> GetAppCredentialsAsync();
+
+    /// <summary>Mints a token for the buckets; the result carries its secrets, which are returned once and never kept.</summary>
+    Task<CreatedAppCredential> CreateAppCredentialAsync(string name, IReadOnlyList<string> buckets, string access, int? expiresInDays);
+
+    Task DeleteAppCredentialAsync(string tokenId);
+    Task<CreatedAppCredential> RollAppCredentialAsync(string tokenId);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -51,18 +75,27 @@ public partial class StorageService : IStorageService
     private readonly ILogger<StorageService> _logger;
     private readonly ICloudflareCredentialService _credentials;
     private readonly ICloudflareR2Service _r2;
+    private readonly IR2ObjectStore _objects;
+    private readonly ICloudflareAccountTokenService _accountTokens;
     private readonly ICloudflareService _dns;
+    private readonly TimeProvider _time;
 
     public StorageService(
         ILogger<StorageService> logger,
         ICloudflareCredentialService credentials,
         ICloudflareR2Service r2,
-        ICloudflareService dns)
+        IR2ObjectStore objects,
+        ICloudflareAccountTokenService accountTokens,
+        ICloudflareService dns,
+        TimeProvider time)
     {
         _logger = logger;
         _credentials = credentials;
         _r2 = r2;
+        _objects = objects;
+        _accountTokens = accountTokens;
         _dns = dns;
+        _time = time;
     }
 
     // ── rules ────────────────────────────────────────────────────

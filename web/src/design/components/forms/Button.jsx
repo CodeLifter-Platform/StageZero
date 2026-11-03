@@ -21,7 +21,7 @@ const VARIANTS = {
   ghost: {
     background: 'transparent',
     color: 'var(--cl-text)',
-    border: '1px solid var(--cl-border)',
+    border: '1px solid var(--cl-border-strong)',
   },
 };
 

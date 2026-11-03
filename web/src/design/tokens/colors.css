@@ -39,7 +39,12 @@
   --cl-bg: var(--cl-ink-950);
   --cl-surface: var(--cl-ink-900);
   --cl-surface-hover: var(--cl-ink-800);
-  --cl-border: var(--cl-ink-700);
+  /* Cards, dividers, panels: 1.41:1 against --cl-surface, a visible edge that stays quiet. */
+  --cl-border: #2e2e42;
+  /* The edge of anything you type into or press (fields, segmented controls, ghost buttons):
+     3.16:1 against --cl-surface and 3.35:1 against a field's --cl-bg fill, the 3:1 WCAG 1.4.11
+     asks of a control's boundary. Not for cards or dividers. */
+  --cl-border-strong: #62627c;
   --cl-text: var(--cl-ink-100);
   --cl-text-muted: var(--cl-ink-400);
 
@@ -131,7 +136,8 @@
   --cl-bg: #f6f7fb;
   --cl-surface: #ffffff;
   --cl-surface-hover: #f0f0f8;
-  --cl-border: #e3e3ee;
+  --cl-border: #d4d4e2;        /* 1.47:1 against white */
+  --cl-border-strong: #8a8aa2; /* 3.37:1 against white, 3.14:1 against --cl-bg */
   --cl-text: #14141c;
   --cl-text-muted: #5a5a72;
 
