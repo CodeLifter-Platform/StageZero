@@ -383,7 +383,7 @@ Access in depth (policies, idempotency, teardown, the `IAccessSecretSink` vault 
 The **Storage** page in the sidebar lists the R2 buckets on the account the Settings token
 reaches, the files in them, and a credential for each app that needs one. It needs two more
 permissions on that token, **Account → Workers R2 Storage → Edit** and, for app credentials,
-**Account → Account API Tokens → Edit**; Settings shows whether the token has them.
+**Account → API Tokens → Edit**; Settings shows whether the token has them.
 
 - **Create bucket** asks for a name (Cloudflare's rule: 3 to 63 lowercase letters, digits and
   hyphens; it cannot be renamed later), an optional location hint and the storage class.

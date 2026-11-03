@@ -58,7 +58,7 @@ is the most common setup mistake.
 | | Account | Cloudflare Tunnel → **Edit** | Lists, creates and adopts tunnels, fetches the connector token, pushes ingress rules (`/accounts/{account}/cfd_tunnel/...`) |
 | | Zone | DNS → **Edit** | Creates, updates and deletes each route's proxied CNAME to `<tunnel-id>.cfargotunnel.com` |
 | **R2 Storage** | Account | Workers R2 Storage → **Edit** | Lists, creates and deletes buckets and manages their r2.dev and custom domains on the **Storage** page (`/accounts/{account}/r2/buckets/...`). The same token, as S3 credentials (access key = its id, secret = SHA-256 of its value), lists, uploads, downloads and deletes objects on the **Files** tab (`<account>.r2.cloudflarestorage.com`) |
-| | Account | Account API Tokens → **Edit** | Mints, rolls and revokes the per-app R2 credentials on the Storage page: account-owned tokens scoped to buckets (`/accounts/{account}/tokens`, `/tokens/permission_groups`) |
+| | Account | API Tokens → **Edit** | Mints, rolls and revokes the per-app R2 credentials on the Storage page: account-owned tokens scoped to buckets (`/accounts/{account}/tokens`, `/tokens/permission_groups`) |
 | **Cloudflare Access** (on by default for new routes) | Account | Access: Apps and Policies → **Edit** | Creates, updates and deletes the Access application (`/access/apps`) and the account-level reusable policies (`/access/policies`) |
 | | Account | Access: Service Tokens → **Edit** | Lists, mints and deletes service tokens (`/access/service_tokens`). Needed for the `service_token` and `both` modes |
 | | Account | Access: Organizations, Identity Providers, and Groups → **Read** | *Optional.* Fills the identity-provider picker in the route editor (`/access/identity_providers`) |
@@ -89,7 +89,7 @@ this token has:
 | Account | Access: Apps and Policies | Edit | Routes in `identity` or `both` mode fail and roll back |
 | Account | Access: Service Tokens | Edit | Routes in `service_token` or `both` mode fail and roll back |
 | Account | Workers R2 Storage | Edit | No buckets, files or custom-domain changes on the Storage page |
-| Account | Account API Tokens | Edit | No per-app credentials: the Storage page's credential list says which row to add |
+| Account | API Tokens | Edit | No per-app credentials: the Storage page's credential list says which row to add |
 | Zone | DNS | Edit | No DNS updates, no tunnel CNAMEs |
 | Zone | Zone | Read | Nothing can find a zone |
 
@@ -129,11 +129,11 @@ every zone.
    | Account | Access: Apps and Policies | Edit |
    | Account | Access: Service Tokens | Edit |
    | Account | Workers R2 Storage | Edit |
-   | Account | Account API Tokens | Edit |
+   | Account | API Tokens | Edit |
    | Account | Access: Organizations, Identity Providers, and Groups | Read |
 
    For a DNS-only token, stop after the first two rows. Leave the R2 row off if you will not
-   use the Storage page, and the Account API Tokens row off if you will not mint per-app
+   use the Storage page, and the API Tokens row off if you will not mint per-app
    credentials there; Settings then reports them as missing and nothing else is affected.
 5. Under **Account Resources**, choose **Include → your account**. (This only appears once
    an Account permission is added.)

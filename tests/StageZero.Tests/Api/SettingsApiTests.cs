@@ -40,7 +40,7 @@ public class SettingsApiTests
         app.Http.OnGet(CloudflareFakes.ZoneUrl, CloudflareFakes.List());
         // The R2 probe lists the account's buckets; every account-scoped GET not faked elsewhere answers with none.
         app.Http.OnGet($"{Api}/accounts/", """{"success":true,"result":{"buckets":[]}}""");
-        // The Account API Tokens probe reads the permission groups (registered after, so it matches first).
+        // The API Tokens probe reads the permission groups (registered after, so it matches first).
         app.Http.OnGet($"{Api}/accounts/account-1/tokens/permission_groups", CloudflareFakes.List(new { id = "pg-1", name = "Workers R2 Storage Bucket Item Read" }));
         return app;
     }
@@ -68,7 +68,7 @@ public class SettingsApiTests
         Assert.Equal(new DateTime(2030, 1, 1, 0, 0, 0, DateTimeKind.Utc), body.Status.ExpiresOn);
         Assert.All(body.Checks!, c => Assert.True(c.Granted, $"{c.Permission.Item}: {c.Detail}"));
         Assert.Equal(
-            ["Cloudflare Tunnel", "Access: Apps and Policies", "Access: Service Tokens", "Workers R2 Storage", "Account API Tokens", "DNS", "Zone"],
+            ["Cloudflare Tunnel", "Access: Apps and Policies", "Access: Service Tokens", "Workers R2 Storage", "API Tokens", "DNS", "Zone"],
             body.Checks!.Select(c => c.Permission.Item));
         Assert.DoesNotContain(CloudflareFakes.Token, await saved.Content.ReadAsStringAsync());
         Assert.DoesNotContain(CloudflareFakes.Token, await read.Content.ReadAsStringAsync());
