@@ -225,7 +225,11 @@ Three projects and a web app:
   the left — Cloudflare, Email, Database — showing one section at a time; `?section=` opens one.
   UI is built only from the CodeLifter Design System, vendored verbatim in `src/design/`
   (`npm run design:sync` copies it from the sibling `Platform-Design` checkout, and
-  `design:check` fails CI on drift) and imported through `src/ui.ts`.
+  `design:check` fails CI on drift) and imported through `src/ui.ts`. A table row's actions
+  sit behind one ⋮ `Menu` (DNS records, tunnel routes, R2 buckets, app credentials), named
+  for the row ("Actions for home.example"), with the destructive action last in danger
+  colour; it still opens the same confirmation dialog. An action that can't run yet (a
+  tunnel route mid-save) is shown disabled, not hidden.
 - **`Lifted.BlazorAuth.Basic/`** — the auth library, published to NuGet. StageZero uses its
   `AuthService`, throttle, user store and opt-in extension point; `IAuthService.ResumeAsync`
   (added for this, with a default so other implementers don't break) makes a

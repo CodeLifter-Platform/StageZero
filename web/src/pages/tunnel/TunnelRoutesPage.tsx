@@ -8,7 +8,7 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, DataTable, StatusDot, type DataColumn } from '../../ui';
+import { Badge, Button, Card, DataTable, Menu, StatusDot, type DataColumn } from '../../ui';
 import { ServiceTokenDialog } from './ServiceTokenDialog';
 
 export function TunnelRoutesPage() {
@@ -82,14 +82,15 @@ export function TunnelRoutesPage() {
       render: (r) => <StatusDot tone={r.isEnabled ? 'success' : 'idle'} label={r.isEnabled ? 'Active' : 'Disabled'} />,
     },
     {
-      key: 'actions', label: 'Actions', width: 330,
+      key: 'actions', label: '', width: 56, align: 'right',
       render: (r) => (
-        <div className="sz-row" style={{ flexWrap: 'nowrap' }}>
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/tunnel-routes/access/${r.id}`)}>Access</Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/tunnel-routes/edit/${r.id}`)}>Edit</Button>
-          <Button variant="ghost" size="sm" disabled={busy === r.id} onClick={() => void toggle(r)}>{r.isEnabled ? 'Disable' : 'Enable'}</Button>
-          <Button variant="ghost" size="sm" disabled={busy === r.id} onClick={() => setDeleting(r)}>Delete</Button>
-        </div>
+        <Menu label={`Actions for ${r.domainName}`} disabled={busy === r.id} items={[
+          { label: 'Edit', onSelect: () => navigate(`/tunnel-routes/edit/${r.id}`) },
+          { label: 'Access', onSelect: () => navigate(`/tunnel-routes/access/${r.id}`) },
+          { label: r.isEnabled ? 'Disable' : 'Enable', onSelect: () => void toggle(r) },
+          { separator: true },
+          { label: 'Delete', tone: 'danger', onSelect: () => setDeleting(r) },
+        ]} />
       ),
     },
   ];

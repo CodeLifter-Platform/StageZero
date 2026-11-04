@@ -22,7 +22,7 @@ const COMPONENTS = [
   'forms/Textarea', 'forms/Segmented', 'forms/FileDrop',
   'data/Card', 'data/Badge', 'data/StatusDot', 'data/Tag', 'data/DataTable', 'data/FileBrowser',
   'feedback/Dialog', 'feedback/Toast',
-  'navigation/Tabs', 'navigation/Sidebar',
+  'navigation/Tabs', 'navigation/Sidebar', 'navigation/Menu',
   'progress/ProgressBar',
 ];
 const TOKENS = ['colors', 'typography', 'spacing', 'effects'];

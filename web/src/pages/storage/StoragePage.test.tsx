@@ -78,7 +78,8 @@ describe('the storage page', () => {
     );
     renderApp('/storage');
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Open' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Actions for / }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Domains' }));
     expect(await screen.findByText('pub-media.r2.dev', { exact: false })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/^Hostname/), 'cdn.example.com');
@@ -137,7 +138,8 @@ describe('the files in a bucket', () => {
     const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderApp('/storage');
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Open' }));
+    await userEvent.click(await screen.findByRole('button', { name: /^Actions for / }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open' }));
     const files = await screen.findByRole('table', { name: 'Files in media' });
     expect(await within(files).findByText('photos/')).toBeInTheDocument();
     expect(within(files).getByText('readme.txt')).toBeInTheDocument();
@@ -175,14 +177,15 @@ describe('the files in a bucket', () => {
     const user = userEvent.setup();
     renderApp('/storage');
 
-    await user.click(await screen.findByRole('button', { name: 'Open' }));
+    await user.click(await screen.findByRole('button', { name: /^Actions for / }));
+    await user.click(screen.getByRole('menuitem', { name: 'Open' }));
     const files = await screen.findByRole('table', { name: 'Files in media' });
     await user.click(await within(files).findByText('photos/'));
     await user.keyboard('{Shift>}');
     await user.click(within(files).getByText('readme.txt'));
     await user.keyboard('{/Shift}');
     const del = screen.getAllByRole('button', { name: /^Delete/ }).find((b) => b.textContent?.startsWith('Delete (')) as HTMLElement;
-    expect(screen.getAllByRole('button', { name: /^Delete/ }).map((b) => b.textContent)).toEqual(['Delete', 'Delete (2)']);
+    expect(screen.getAllByRole('button', { name: /^Delete/ }).map((b) => b.textContent)).toEqual(['Delete (2)']);
     await userEvent.click(del);
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
 

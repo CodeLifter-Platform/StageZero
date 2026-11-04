@@ -10,7 +10,7 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, DataTable, Switch, type DataColumn } from '../../ui';
+import { Badge, Button, Card, DataTable, Menu, Switch, type DataColumn, type MenuItem } from '../../ui';
 import { AddRecordDialog, EditRecordDialog } from './RecordDialogs';
 
 type Pending =
@@ -121,15 +121,16 @@ export function DnsConfigPage() {
       render: ({ record }) => (record.autoUpdate ? <Badge tone="success">Enabled</Badge> : <Badge tone="muted" title={record.autoUpdateUnavailableReason ?? undefined}>Off</Badge>),
     },
     {
-      key: 'actions', label: 'Actions', width: 260,
+      key: 'actions', label: '', width: 56, align: 'right',
       render: ({ record }) => (
-        <div className="sz-row" style={{ flexWrap: 'nowrap' }}>
-          <Button variant="ghost" size="sm" onClick={() => setEditing(record)}>Edit</Button>
-          {record.recordType === 'CNAME'
-            ? <Button variant="ghost" size="sm" disabled={busy === `route-${record.recordName}`} onClick={() => void configureRoute(record.recordName)}>Tunnel route</Button>
-            : null}
-          <Button variant="ghost" size="sm" onClick={() => setPending({ kind: 'record', record })}>Delete</Button>
-        </div>
+        <Menu label={`Actions for ${record.recordName}`} items={[
+          { label: 'Edit', onSelect: () => setEditing(record) },
+          ...(record.recordType === 'CNAME'
+            ? [{ label: 'Tunnel route', disabled: busy === `route-${record.recordName}`, onSelect: () => void configureRoute(record.recordName) }]
+            : []),
+          { separator: true },
+          { label: 'Delete', tone: 'danger', onSelect: () => setPending({ kind: 'record', record }) },
+        ] satisfies MenuItem[]} />
       ),
     },
   ];

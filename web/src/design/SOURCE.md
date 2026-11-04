@@ -1,6 +1,6 @@
 # Vendored from Platform-Design
 
-Copied verbatim from `CodeLifter-Platform/Platform-Design` at `91a424b` by
+Copied verbatim from `CodeLifter-Platform/Platform-Design` at `0ee9da6` by
 `npm run design:sync`. **Do not edit these files**: change the design project, re-export
 it to Platform-Design, then sync again. `npm run design:check` fails on any drift.
 
@@ -40,6 +40,8 @@ it to Platform-Design, then sync again. `npm run design:check` fails on any drif
 - `components/navigation/Tabs.d.ts`
 - `components/navigation/Sidebar.jsx`
 - `components/navigation/Sidebar.d.ts`
+- `components/navigation/Menu.jsx`
+- `components/navigation/Menu.d.ts`
 - `components/progress/ProgressBar.jsx`
 - `components/progress/ProgressBar.d.ts`
 - `tokens/colors.css`
