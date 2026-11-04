@@ -8,7 +8,7 @@ import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
 import { PageHeader } from '../../components/PageHeader';
 import { useDocumentTitle } from '../../components/useDocumentTitle';
-import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Select, Switch, Tabs, type DataColumn } from '../../ui';
+import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Menu, Select, Switch, Tabs, type DataColumn } from '../../ui';
 import { CredentialsCard } from './CredentialsCard';
 import { FilesPanel } from './FilesPanel';
 
@@ -91,12 +91,13 @@ export function StoragePage() {
     { key: 'storageClass', label: 'Class', width: 150, render: (b) => b.storageClass === 'InfrequentAccess' ? 'Infrequent access' : 'Standard' },
     { key: 'createdAt', label: 'Created', width: 130, render: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleDateString() : '-') },
     {
-      key: 'actions', label: 'Actions', width: 200,
+      key: 'actions', label: '', width: 56, align: 'right',
       render: (b) => (
-        <div className="sz-row" style={{ flexWrap: 'nowrap' }}>
-          <Button variant={selected === b.name ? 'outline' : 'ghost'} size="sm" onClick={() => setSelected(selected === b.name ? null : b.name)}>{selected === b.name ? 'Close' : 'Open'}</Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setDeleting(b)}>Delete</Button>
-        </div>
+        <Menu label={`Actions for ${b.name}`} items={[
+          { label: selected === b.name ? 'Close' : 'Open', onSelect: () => setSelected(selected === b.name ? null : b.name) },
+          { separator: true },
+          { label: 'Delete', tone: 'danger', disabled: busy, onSelect: () => setDeleting(b) },
+        ]} />
       ),
     },
   ];

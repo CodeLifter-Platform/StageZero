@@ -92,3 +92,43 @@ describe('the navigation', () => {
     expect(labels.indexOf('Tunnel Setup')).toBeLessThan(labels.indexOf('Tunnel Routes'));
   });
 });
+
+describe('a DNS record row', () => {
+  const record = (over: Partial<DnsProvider['records'][number]>): DnsProvider['records'][number] => ({
+    id: 1, providerId: 1, recordName: 'home.example', recordType: 'A', recordId: 'r1', autoUpdate: true,
+    autoUpdateSupported: true, autoUpdateUnavailableReason: null, content: null, lastIpAddress: '203.0.113.7',
+    lastUpdatedAt: null, ...over,
+  });
+
+  it('keeps its actions behind one menu, offers the tunnel route only for a CNAME, and confirms a delete', async () => {
+    signedIn([{ ...home, records: [
+      record({}),
+      record({ id: 2, recordName: 'app.home.example', recordType: 'CNAME', recordId: 'r2', content: 'home.example' }),
+    ] }]);
+    renderApp('/dns-config');
+    const user = userEvent.setup();
+
+    const aTrigger = await screen.findByRole('button', { name: 'Actions for home.example' });
+    expect(aTrigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+
+    await user.click(aTrigger);
+    const menu = screen.getByRole('menu', { name: 'Actions for home.example' });
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Edit', 'Delete']);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(aTrigger).toHaveFocus();
+
+    aTrigger.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: 'Actions for app.home.example' }));
+    expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((i) => i.textContent))
+      .toEqual(['Edit', 'Tunnel route', 'Delete']);
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(within(await screen.findByRole('dialog')).getByText('Delete DNS record')).toBeInTheDocument();
+  });
+});

@@ -17,6 +17,8 @@ export { Dialog } from './design/components/feedback/Dialog';
 export { Toast } from './design/components/feedback/Toast';
 export { Tabs } from './design/components/navigation/Tabs';
 export { Sidebar } from './design/components/navigation/Sidebar';
+export { Menu } from './design/components/navigation/Menu';
+export type { MenuItem } from './design/components/navigation/Menu';
 export { ProgressBar } from './design/components/progress/ProgressBar';
 export { FileDrop, describeRejections, formatBytes } from './design/components/forms/FileDrop';
 export type { RejectedFile } from './design/components/forms/FileDrop';

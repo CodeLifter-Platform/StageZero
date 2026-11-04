@@ -6,7 +6,7 @@ import { useToast } from '../../app/toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Loading } from '../../components/Loading';
 import { Notice } from '../../components/Notice';
-import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Segmented, Select, type DataColumn } from '../../ui';
+import { Badge, Button, Card, Checkbox, DataTable, Dialog, Input, Menu, Segmented, Select, type DataColumn } from '../../ui';
 
 /** Cloudflare's rule, checked here so the form can say so first. The server checks it again. */
 export function credentialNameProblem(name: string): string | null {
@@ -99,12 +99,13 @@ export function CredentialsCard({ buckets, options }: { buckets: R2Bucket[]; opt
     { key: 'expiresOn', label: 'Expires', width: 150, render: (c) => (c.expiresOn ? formatDateTime(c.expiresOn) : <span className="sz-muted">Never</span>) },
     { key: 'lastUsedOn', label: 'Last used', width: 150, render: (c) => (c.lastUsedOn ? formatDateTime(c.lastUsedOn) : <span className="sz-muted">Not yet</span>) },
     {
-      key: 'actions', label: 'Actions', width: 170,
+      key: 'actions', label: '', width: 56, align: 'right',
       render: (c) => (
-        <div className="sz-row" style={{ flexWrap: 'nowrap' }}>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRolling(c)}>Roll</Button>
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRevoking(c)}>Revoke</Button>
-        </div>
+        <Menu label={`Actions for ${c.name}`} disabled={busy} items={[
+          { label: 'Roll', hint: 'Replace the secret', onSelect: () => setRolling(c) },
+          { separator: true },
+          { label: 'Revoke', tone: 'danger', onSelect: () => setRevoking(c) },
+        ]} />
       ),
     },
   ];
