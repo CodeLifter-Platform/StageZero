@@ -312,13 +312,13 @@ This package includes a GitHub Actions workflow for automated NuGet publishing. 
    - Create a new API key with "Push" permissions
    - Copy the API key (you won't see it again!)
 
-2. **GitHub Repository Setup**
-   - Push your code to a GitHub repository
-   - Go to repository Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Name: `NUGET_API_KEY`
-   - Value: Paste your NuGet.org API key
-   - Click "Add secret"
+2. **Make the key available to CI**
+   - In this repo, CI reads `NUGET_API_KEY` from the `ci` item of the 1Password vault
+     `APP-StageZero`, through the repo's one GitHub secret `OP_SA_APP`
+     (see `..Documentation/NUGET_PUBLISHING.md`).
+   - In your own fork, either do the same or replace the 1Password step in
+     `.github/workflows/basic-auth-nuget-publish.yml` with your own source for
+     `NUGET_API_KEY`.
 
 ### Publishing Workflow
 

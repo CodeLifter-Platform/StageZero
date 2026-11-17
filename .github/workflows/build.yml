@@ -294,8 +294,6 @@ jobs:
       attestations: write
     env:
       GHCR_IMAGE: ghcr.io/codelifter-platform/stagezero
-      DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
-      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_TOKEN != '' && secrets.DOCKERHUB_USERNAME != '' && vars.DOCKERHUB_IMAGE != '' }}
       APP_VERSION: ${{ needs.version.outputs.version }}
       IS_PRERELEASE: ${{ needs.version.outputs.is_prerelease }}
     outputs:
@@ -305,6 +303,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.version.outputs.build_sha }}
+
+      # The 1Password step, from the commit this workflow runs from: the ref checked out
+      # above may predate .github/actions/op-load.
+      - name: Check out the 1Password step
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .op-load
+          sparse-checkout: .github/actions/op-load
+          persist-credentials: false
+
+      # APP-StageZero/ci. No OP_SA_APP: the step warns, loads nothing, and the Docker Hub
+      # mirror below is skipped with a warning (GHCR needs only GITHUB_TOKEN).
+      - name: Load the Docker Hub mirror from 1Password
+        uses: ./.op-load/.github/actions/op-load
+        with:
+          token: ${{ secrets.OP_SA_APP }}
+          vault: APP-StageZero
+          fields: DOCKERHUB_TOKEN
+          plain: DOCKERHUB_USERNAME DOCKERHUB_IMAGE
+          optional: 'true'
+
+      # Docker Hub is a mirror: all three values, or GHCR only. The step's checkout goes
+      # first: it is not part of the build context the image is built from.
+      - name: Docker Hub configured?
+        run: |
+          rm -rf .op-load
+          if [ -n "${DOCKERHUB_TOKEN:-}" ] && [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_IMAGE:-}" ]; then
+            echo "HAS_DOCKERHUB=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_DOCKERHUB=false" >> "$GITHUB_ENV"
+          fi
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -319,12 +349,12 @@ jobs:
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
       - name: No Docker Hub mirror
         if: ${{ env.HAS_DOCKERHUB != 'true' }}
-        run: echo "::warning::DOCKERHUB_TOKEN, DOCKERHUB_USERNAME or the DOCKERHUB_IMAGE variable is not set — publishing to GHCR only."
+        run: echo "::warning::DOCKERHUB_TOKEN, DOCKERHUB_USERNAME or DOCKERHUB_IMAGE is not in APP-StageZero/ci (or OP_SA_APP is not set) — publishing to GHCR only."
 
       # A pre-release moves `pre`; a release moves X.Y, X and `latest`. Nothing else ever
       # points at a pre-release, so `latest` is always a release someone chose to cut.
@@ -426,6 +456,15 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # APP-StageZero/ci. Optional: no key is a warning and a tag-only release (below).
+      - name: Load the release deploy key from 1Password
+        uses: ./.github/actions/op-load
+        with:
+          token: ${{ secrets.OP_SA_APP }}
+          vault: APP-StageZero
+          fields: RELEASE_DEPLOY_KEY
+          optional: 'true'
+
       - name: Record it in the right table
         run: |
           RELEASE_DATE=$(date -u +"%Y-%m-%d")
@@ -465,8 +504,6 @@ jobs:
       # and a tag never exists without its release. No key: a warning and a tag-only release,
       # the README row skipped, never a failed release.
       - name: Commit release bump and tag
-        env:
-          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -474,8 +511,8 @@ jobs:
           # differ, and a tag pointing at unbuilt code is a lie about what shipped.
           git tag "$VERSION_TAG" "$BUILD_SHA"
 
-          if [ -z "$RELEASE_DEPLOY_KEY" ]; then
-            echo "::warning::RELEASE_DEPLOY_KEY is not set: the main ruleset refuses the workflow token, so ${VERSION_TAG} is released without its README row."
+          if [ -z "${RELEASE_DEPLOY_KEY:-}" ]; then
+            echo "::warning::RELEASE_DEPLOY_KEY is not in APP-StageZero/ci: the main ruleset refuses the workflow token, so ${VERSION_TAG} is released without its README row."
             git checkout -- README.md
             # Tags are outside the main ruleset, so the workflow token can push this one.
             git push origin "refs/tags/${VERSION_TAG}"

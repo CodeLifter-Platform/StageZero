@@ -76,13 +76,10 @@ green; GitHub Packages still gets the package. To enable NuGet.org:
 1. On nuget.org → your account → **API Keys** → **Create**. Scope **Push new packages and
    package versions**, glob `Lifted.BlazorAuth.Basic`, and an expiry you will actually
    rotate on.
-2. Store it in 1Password as `StageZero — NUGET_API_KEY` before doing anything else with it
-   (`Platform-Standards/services/secrets.md`).
-3. Set the repo secret:
-
-   ```bash
-   gh secret set NUGET_API_KEY -R CodeLifter-Platform/StageZero
-   ```
+2. Put it in the `NUGET_API_KEY` field of the `ci` item in the 1Password vault
+   `APP-StageZero` before doing anything else with it. CI reads it from there through the
+   repo's one secret, `OP_SA_APP` (`Platform-Standards/services/secrets.md`); there is no
+   `NUGET_API_KEY` GitHub secret.
 
 GitHub Packages needs nothing: the job uses the workflow's `GITHUB_TOKEN` with
 `packages: write`.
@@ -100,7 +97,7 @@ package to NuGet.org — versions there can never be reused.
 
 ## Troubleshooting
 
-- **Warning "NUGET_API_KEY secret not set"** — expected until the key exists. Not a failure.
+- **Warning "NUGET_API_KEY is not in APP-StageZero/ci"** — expected until the key exists. Not a failure.
 - **401 from NuGet.org** — the key expired or lacks push scope for this package ID. Rotate it
   (and the 1Password item).
 - **Nothing reached NuGet.org after a merge** — check the run was on `main`, the version

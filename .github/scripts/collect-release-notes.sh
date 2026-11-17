@@ -14,7 +14,7 @@
 #   PRERELEASE           true|false — false publishes to the forum
 #   PROMOTED_FROM        for a promoted release, the pre-release tag it came from
 #   PREVIOUS_TAG         override for the start of the commit range
-#   RELEASE_NOTES_TOKEN  this app's push token (repo secret)
+#   RELEASE_NOTES_TOKEN  this app's push token (APP-StageZero/ci, loaded by op-load)
 #   RELEASE_NOTES_API    default https://codelifter.net/api/releases
 #   GH_TOKEN             for `gh api` (the workflow passes GITHUB_TOKEN)
 #

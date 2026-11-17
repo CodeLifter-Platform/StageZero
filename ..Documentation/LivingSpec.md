@@ -25,7 +25,10 @@ when configured, signed with cosign (keyless) with a provenance attestation and 
 pre-release moves the `pre` tag; a release moves `X.Y`, `X` and `latest`. The NuGet library
 is versioned the same way in its own tag namespace, `basicauth-vX.Y.Z[-pre]`: a merge that
 changes `Lifted.BlazorAuth.Basic/` publishes its next pre-release, and RELEASE BASICAUTH
-(`release-basicauth.yml`) promotes one ([NUGET_PUBLISHING.md](NUGET_PUBLISHING.md)).
+(`release-basicauth.yml`) promotes one ([NUGET_PUBLISHING.md](NUGET_PUBLISHING.md)). CI holds
+one GitHub secret, `OP_SA_APP`; every other value it needs (deploy key, Docker Hub, NuGet and
+release-notes tokens) is read from the 1Password item `APP-StageZero/ci` at run time
+([SERVICES.md](../SERVICES.md)).
 
 ## Features
 
@@ -407,10 +410,10 @@ GitHub-hosted runners.
   (`build.yml`, `api`), but nothing tests the package on its own before it publishes.
 - **`RELEASE_DEPLOY_KEY` is not set yet.** `main`'s ruleset requires a pull request, so the
   release job pushes its README commit with this deploy key ([SERVICES.md](../SERVICES.md)).
-  Until it is set, releases publish without their README row, with a warning. `v0.0.1-pre`
+  Until it is in `APP-StageZero/ci`, releases publish without their README row, with a warning. `v0.0.1-pre`
   to `v0.0.4-pre` were tagged without a GitHub Release, before this was fixed.
 - **The Docker Hub mirror is not configured yet.** Until `DOCKERHUB_USERNAME`,
-  `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are set, images go to GHCR only, with a warning.
+  `DOCKERHUB_TOKEN` and `DOCKERHUB_IMAGE` are in `APP-StageZero/ci`, images go to GHCR only, with a warning.
   The GHCR package also has to be made public once, after its first push.
 - **`NUGET_API_KEY` is not set.** The NuGet.org push is skipped with a warning; the package
   still reaches GitHub Packages. See [NUGET_PUBLISHING.md](NUGET_PUBLISHING.md).
