@@ -5,7 +5,21 @@ file in the same change that adds, removes, or reconfigures a service. Platform-
 map: `Platform-Standards/services/registry.md` (sibling repo,
 github.com/CodeLifter-Platform/Platform-Standards).
 
-Last reviewed: 2026-11-02.
+Last reviewed: 2026-11-16.
+
+## 1Password (CI values)
+
+- **Usage:** Every value CI needs that isn't the workflow's own `GITHUB_TOKEN` is a field of
+  the item `ci` in the vault `APP-StageZero`, read at run time by
+  `.github/actions/op-load` (a copy of `Platform-Standards/actions/op-load`: this repo is
+  public and cannot use actions from the private standards repo). The field label is the
+  env var's name: `RELEASE_DEPLOY_KEY`, `DOCKERHUB_USERNAME` (plain), `DOCKERHUB_TOKEN`,
+  `DOCKERHUB_IMAGE` (plain), `NUGET_API_KEY`, `RELEASE_NOTES_TOKEN`.
+- **Managed at:** the repo's one GitHub secret, `OP_SA_APP`: the token of service account
+  `SA-APP-StageZero`, read-only on `APP-StageZero`. StageZero never signs, so it never reads
+  the org's `OP_SA_ORGANIZATION`. Standard: `Platform-Standards/services/secrets.md`.
+- **Fails soft:** a fork PR has no `OP_SA_APP`; the step warns, loads nothing, and every push
+  is skipped with a warning. Every field here is loaded optional, so a missing one warns.
 
 ## PostgreSQL (optional database)
 
@@ -36,9 +50,9 @@ Last reviewed: 2026-11-02.
   `main`'s ruleset requires a pull request, and the workflow's `GITHUB_TOKEN` can't bypass
   it; the deploy key is the ruleset's bypass actor.
 - **Managed at:** Repo **Settings → Deploy keys** (`release (build.yml)`, write access), the
-  repo secret `RELEASE_DEPLOY_KEY` (the private half), and the `DeployKey` bypass actor on
-  the **Protect Main** ruleset. 1Password item: `StageZero — RELEASE_DEPLOY_KEY`.
-- **Fails soft:** no secret means a warning annotation and a tag-only release. The GitHub
+  `RELEASE_DEPLOY_KEY` field of `APP-StageZero/ci` (the private half), and the `DeployKey`
+  bypass actor on the **Protect Main** ruleset.
+- **Fails soft:** no key means a warning annotation and a tag-only release. The GitHub
   Release is still published, without its README row. A key that is set but no longer works
   fails the release, and the atomic push means the tag isn't pushed either.
 
@@ -46,10 +60,10 @@ Last reviewed: 2026-11-02.
 
 - **Usage:** The same image and tags, mirrored for people who look on Docker Hub. Skipped
   with a warning until configured.
-- **Managed at:** A Docker Hub organisation. Repo secrets `DOCKERHUB_USERNAME` and
-  `DOCKERHUB_TOKEN` (an access token with read/write, never the account password) and the
-  repo variable `DOCKERHUB_IMAGE` (e.g. `codelifter/stagezero`). 1Password items:
-  `StageZero — DOCKERHUB_USERNAME`, `StageZero — DOCKERHUB_TOKEN`. Docker's Sponsored Open
+- **Managed at:** A Docker Hub organisation. Fields of `APP-StageZero/ci`:
+  `DOCKERHUB_USERNAME` (plain), `DOCKERHUB_TOKEN` (an access token with read/write, never
+  the account password) and `DOCKERHUB_IMAGE` (plain, e.g. `codelifter/stagezero`); all
+  three, or GHCR only with a warning. Docker's Sponsored Open
   Source program lifts the anonymous pull limit.
 
 ## Cloudflare (DNS provider)
@@ -118,7 +132,7 @@ Last reviewed: 2026-11-02.
 - **Usage:** CI publishes the `Lifted.BlazorAuth.Basic` package to both on merges into
   `main` that change `Lifted.BlazorAuth.Basic/` (a pre-release), and from the RELEASE
   BASICAUTH button (a release).
-- **Managed at:** nuget.org (`NUGET_API_KEY` GitHub secret, not yet set); GitHub Packages
+- **Managed at:** nuget.org (the `NUGET_API_KEY` field of `APP-StageZero/ci`, not yet set); GitHub Packages
   uses the workflow's `GITHUB_TOKEN`.
 - **Detail:** [..Documentation/NUGET_PUBLISHING.md](..Documentation/NUGET_PUBLISHING.md).
 
@@ -151,9 +165,9 @@ Last reviewed: 2026-11-02.
   shipped to `POST https://codelifter.net/api/releases` as app `stagezero`. The site curates
   them into a user-facing feature list and posts the note into StageZero's **Release Notes**
   thread in the forum. Nothing here writes release notes by hand.
-- **Managed at:** the repo secret `RELEASE_NOTES_TOKEN` — this app's own push token, minted
-  on the site with `npm run release-tokens -- mint stagezero` and stored in 1Password as
-  `StageZero — RELEASE_NOTES_TOKEN`. Not an org secret: a token only ever writes one app's
+- **Managed at:** the `RELEASE_NOTES_TOKEN` field of `APP-StageZero/ci` — this app's own
+  push token, minted on the site with `npm run release-tokens -- mint stagezero`. Not an org
+  value: a token only ever writes one app's
   notes.
 - **Fails soft:** no token, or an API that is down, produces a warning annotation, never a
   failed release.

@@ -1,0 +1,76 @@
+# VENDORED COPY. Source: CodeLifter-Platform/Platform-Standards actions/op-load/action.yml
+# (branch claude/vault-naming-breakdown-9a77e7 @ 99eb88e). StageZero is public and public repos
+# cannot use actions from the private Platform-Standards repo, so it carries this copy and
+# uses it as ./.github/actions/op-load, which runs AFTER actions/checkout. Do not edit here:
+# change the source, then copy both files again.
+#
+# CodeLifter 1Password load — read fields of one 1Password item into the job's environment.
+#
+#   uses: CodeLifter-Platform/Platform-Standards/actions/op-load@main
+#
+# The platform's CI holds no secrets of its own (services/secrets.md): a repo has
+# OP_SA_APP, the token of a service account that can read its APP-<App> vault alone, and
+# the org has OP_SA_ORGANIZATION for ORGANIZATION-codelifter-platform. This step reads the
+# fields a job needs from one item and exports each as an environment variable named by
+# the field's label, so `fields: R2_ACCESS_KEY_ID` reads op://<vault>/<item>/R2_ACCESS_KEY_ID
+# into $R2_ACCESS_KEY_ID for every later step of the job.
+#
+#   App values:   token: ${{ secrets.OP_SA_APP }}            vault: APP-BoxCar   (item: ci)
+#   Org values:   token: ${{ secrets.OP_SA_ORGANIZATION }}   vault: ORGANIZATION-codelifter-platform
+#                 item: apple-signing | apple-notary | asc-testflight | azure-signing
+#
+# Gate org-vault reads on main yourself (`if: github.ref == 'refs/heads/main'`): the org
+# secret reaches every branch, and only main signs.
+#
+# `fields` are secrets: every line of every value is masked (a PEM key is many lines, and
+# ::add-mask:: covers only the line it is given). `plain` fields are exported unmasked,
+# for values that are not secret and must stay readable: a URL masked in a job summary
+# or a job output turns into *** (GitHub drops an output carrying a secret), and a masked
+# "true" blanks every "true" in every log.
+#
+# No token (a fork PR gets no secrets): warns and exports nothing; the step that needs the
+# value decides. A token that cannot read a field fails the job unless `optional` is true:
+# that is a broken vault, not a fork.
+#
+# Being a remote action, it runs before actions/checkout, so a job can load
+# RELEASE_DEPLOY_KEY and then check out with it. The Mac mini ships its own `op`; Linux
+# and Windows runners download a pinned, hash-checked one.
+
+name: CodeLifter 1Password load
+description: Export fields of one 1Password item as environment variables (secrets masked)
+
+inputs:
+  token:
+    description: The service-account token (secrets.OP_SA_APP or secrets.OP_SA_ORGANIZATION).
+    required: true
+  vault:
+    description: The vault, e.g. APP-BoxCar or ORGANIZATION-codelifter-platform.
+    required: true
+  item:
+    description: The item title.
+    default: ci
+  fields:
+    description: Secret field labels, masked in logs, separated by spaces or newlines.
+    default: ''
+  plain:
+    description: Non-secret field labels, exported unmasked.
+    default: ''
+  optional:
+    description: '"true": a field that cannot be read warns instead of failing.'
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        OP_SERVICE_ACCOUNT_TOKEN: ${{ inputs.token }}
+        VAULT: ${{ inputs.vault }}
+        ITEM: ${{ inputs.item }}
+        FIELDS: ${{ inputs.fields }}
+        PLAIN: ${{ inputs.plain }}
+        OPTIONAL: ${{ inputs.optional }}
+        OP_VERSION: 2.41.1
+        OP_SHA256_LINUX_AMD64: e52476700cba9202ac7469bdfb2648ecdbf3438ac85822010f77230139e74966
+        OP_SHA256_WINDOWS_AMD64: 7c7ab33e0c1096db62645b72bdf3e284e8734cd39ee0175922ef7ab2a18370da
+      run: bash "$GITHUB_ACTION_PATH/load.sh"

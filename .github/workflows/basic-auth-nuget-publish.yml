@@ -212,11 +212,30 @@ jobs:
     needs: [version, build]
     if: ${{ needs.version.outputs.is_release == 'true' }}
     runs-on: ubuntu-latest
-    env:
-      # Secrets are not readable in a step-level `if:`, so surface presence as job env —
-      # the same pattern the signing jobs in the other repos use.
-      HAS_NUGET_KEY: ${{ secrets.NUGET_API_KEY != '' }}
     steps:
+      # The 1Password step, from the commit this workflow runs from: the ref checked out
+      # above may predate .github/actions/op-load.
+      - name: Check out the 1Password step
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .op-load
+          sparse-checkout: .github/actions/op-load
+          persist-credentials: false
+
+      # APP-StageZero/ci. A fork PR has no OP_SA_APP: the step warns, loads nothing, and
+      # the NuGet.org push below is skipped with a warning.
+      - name: Load the NuGet key from 1Password
+        uses: ./.op-load/.github/actions/op-load
+        with:
+          token: ${{ secrets.OP_SA_APP }}
+          vault: APP-StageZero
+          fields: NUGET_API_KEY
+          optional: 'true'
+
+      - name: NuGet key present?
+        run: echo "HAS_NUGET_KEY=$([ -n "${NUGET_API_KEY:-}" ] && echo true || echo false)" >> "$GITHUB_ENV"
+
       - name: Download NuGet package artifact
         uses: actions/download-artifact@v4
         with:
@@ -230,7 +249,7 @@ jobs:
 
       - name: Warn when the NuGet key is unavailable
         if: ${{ env.HAS_NUGET_KEY != 'true' }}
-        run: echo "::warning::NUGET_API_KEY secret not set — skipping the NuGet.org push. The package is still built, attached as an artifact, and published to GitHub Packages."
+        run: echo "::warning::NUGET_API_KEY is not in APP-StageZero/ci — skipping the NuGet.org push. The package is still built, attached as an artifact, and published to GitHub Packages."
 
       # Publish when the key is present, never fail the build when it is absent — the
       # platform rule that already governs code signing.
@@ -241,8 +260,6 @@ jobs:
             --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
-        env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
 
   publish-github:
     name: Publish to GitHub Packages

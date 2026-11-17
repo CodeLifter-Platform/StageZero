@@ -35,8 +35,8 @@ on:
         type: string
         default: ''
     secrets:
-      RELEASE_NOTES_TOKEN:
-        description: This app's push token. Absent means the push is skipped with a warning.
+      OP_SA_APP:
+        description: Token that reads APP-StageZero, whose ci item holds RELEASE_NOTES_TOKEN. Absent means the push is skipped with a warning.
         required: false
 
   # Backfill or retry a version by hand.
@@ -75,6 +75,26 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.commit || inputs.tag || github.sha }}
 
+      # The 1Password step, from the commit this workflow runs from: the ref checked out
+      # above may predate .github/actions/op-load.
+      - name: Check out the 1Password step
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .op-load
+          sparse-checkout: .github/actions/op-load
+          persist-credentials: false
+
+      # APP-StageZero/ci. Optional: a missing token warns, and the script below
+      # warns rather than failing the release.
+      - name: Load the release notes token from 1Password
+        uses: ./.op-load/.github/actions/op-load
+        with:
+          token: ${{ secrets.OP_SA_APP }}
+          vault: APP-StageZero
+          fields: RELEASE_NOTES_TOKEN
+          optional: 'true'
+
       - name: Collect merged pull requests and push them
         env:
           APP: stagezero
@@ -83,6 +103,5 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease }}
           COMMIT: ${{ inputs.commit }}
           PROMOTED_FROM: ${{ inputs.promoted_from }}
-          RELEASE_NOTES_TOKEN: ${{ secrets.RELEASE_NOTES_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./.github/scripts/collect-release-notes.sh
