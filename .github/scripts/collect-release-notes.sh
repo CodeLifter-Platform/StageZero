@@ -110,6 +110,11 @@ echo "Reporting $(jq 'length' <<<"$PRS") change(s) for ${APP} ${VERSION}."
 RELEASE_URL=""
 if [ -n "$REPO" ]; then RELEASE_URL="${SERVER}/${REPO}/releases/tag/${TAG}"; fi
 
+# The pull requests go in through a file, never as an argument: a release that
+# gathers a few dozen of them (the first one after a long gap) is larger than the
+# kernel allows for a single argument, and jq then cannot start at all.
+printf '%s' "$PRS" > prs.json
+
 jq -n \
   --arg app "$APP" \
   --arg version "$VERSION" \
@@ -118,10 +123,11 @@ jq -n \
   --arg promotedFrom "$PROMOTED_FROM" \
   --arg releaseUrl "$RELEASE_URL" \
   --argjson prerelease "$([ "$PRERELEASE" = "true" ] && echo true || echo false)" \
-  --argjson pullRequests "$PRS" \
+  --slurpfile pullRequests prs.json \
   '{app: $app, version: $version, tag: $tag, commit: $commit, prerelease: $prerelease,
-    promotedFrom: $promotedFrom, releaseUrl: $releaseUrl, pullRequests: $pullRequests}' \
+    promotedFrom: $promotedFrom, releaseUrl: $releaseUrl, pullRequests: $pullRequests[0]}' \
   > payload.json
+rm -f prs.json
 
 HTTP="$(curl -sS --max-time 120 --retry 2 --retry-connrefused \
   -o response.json -w '%{http_code}' \
