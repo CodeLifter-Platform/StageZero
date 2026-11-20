@@ -58,6 +58,9 @@ on:
       promoted_from:
         description: For a promoted release, the pre-release tag it came from.
         default: ''
+      previous_tag:
+        description: Where the commit range starts. Empty = the nearest tag before the commit.
+        default: ''
 
 permissions:
   contents: read
@@ -103,5 +106,6 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease }}
           COMMIT: ${{ inputs.commit }}
           PROMOTED_FROM: ${{ inputs.promoted_from }}
+          PREVIOUS_TAG: ${{ inputs.previous_tag }}      # backfill only; empty on a release
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./.github/scripts/collect-release-notes.sh
