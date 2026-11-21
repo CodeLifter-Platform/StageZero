@@ -12,6 +12,15 @@ export function EllipsisVerticalIcon({ size = 16 }) {
   );
 }
 
+/** The tick a `checked` item shows, in currentColor. */
+function CheckIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
 const GAP = 4;
 const EDGE = 8;
 
@@ -188,6 +197,8 @@ export function Menu({
     : <DefaultTrigger label={label} {...triggerProps} />;
 
   itemRefs.current = [];
+  // When some items are choices, every item keeps the tick column so labels line up.
+  const anyRadio = items.some((it) => it && typeof it.checked === 'boolean');
 
   return (
     <span ref={anchorRef} style={{ display: 'inline-flex', ...style }}>
@@ -224,12 +235,14 @@ export function Menu({
             }
             const isActive = i === active;
             const danger = item.tone === 'danger';
+            const radio = typeof item.checked === 'boolean';
             return (
               <button
                 key={item.key ?? `${item.label}-${i}`}
                 ref={(el) => { itemRefs.current[i] = el; }}
                 type="button"
-                role="menuitem"
+                role={radio ? 'menuitemradio' : 'menuitem'}
+                aria-checked={radio ? item.checked : undefined}
                 tabIndex={isActive ? 0 : -1}
                 aria-disabled={item.disabled || undefined}
                 onClick={() => { if (!item.disabled) select(item); }}
@@ -248,13 +261,19 @@ export function Menu({
                   outline: 'none',
                 }}
               >
+                {anyRadio ? (
+                  <span aria-hidden="true" style={{ display: 'inline-flex', width: 14, marginTop: 2, flexShrink: 0, color: 'var(--cl-primary-text)' }}>
+                    {item.checked ? <CheckIcon /> : null}
+                  </span>
+                ) : null}
                 {item.icon ? <span aria-hidden="true" style={{ display: 'inline-flex', marginTop: 2 }}>{item.icon}</span> : null}
-                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
                   <span>{item.label}</span>
                   {item.hint ? (
                     <span style={{ fontSize: 'var(--cl-text-xs)', fontWeight: 'var(--cl-weight-regular)', color: 'var(--cl-text-muted)', whiteSpace: 'normal' }}>{item.hint}</span>
                   ) : null}
                 </span>
+                {item.trailing ? <span aria-hidden="true" style={{ display: 'inline-flex', marginTop: 2, flexShrink: 0, color: 'var(--cl-text-muted)' }}>{item.trailing}</span> : null}
               </button>
             );
           })}

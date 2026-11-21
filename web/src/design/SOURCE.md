@@ -1,6 +1,6 @@
 # Vendored from Platform-Design
 
-Copied verbatim from `CodeLifter-Platform/Platform-Design` at `0ee9da6` by
+Copied verbatim from `CodeLifter-Platform/Platform-Design` at `4abada8` by
 `npm run design:sync`. **Do not edit these files**: change the design project, re-export
 it to Platform-Design, then sync again. `npm run design:check` fails on any drift.
 
