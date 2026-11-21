@@ -16,6 +16,10 @@ export interface MenuActionItem {
   hint?: string;
   /** Optional leading glyph. */
   icon?: React.ReactNode;
+  /** Makes the item one of a set to choose from (`role="menuitemradio"`) and ticks it when true. Give every choice a boolean, the current one `true`. Omit for a plain action. */
+  checked?: boolean;
+  /** Optional decorative glyph at the end of the row (`aria-hidden`), e.g. a lock. Say what it means in `label` or `hint` too. */
+  trailing?: React.ReactNode;
   separator?: false;
 }
 
